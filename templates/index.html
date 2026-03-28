@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shreeji Iconic CHS – Notice Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; min-height: 100vh; }
+
+    .topbar {
+      background: #C00000; color: white; padding: 14px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar .title { font-size: 18px; font-weight: 700; }
+    .topbar .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 13px; opacity: 0.85; }
+    .topbar .nav a:hover { opacity: 1; }
+
+    .wrapper { display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; }
+
+    .card {
+      background: white; border-radius: 18px;
+      box-shadow: 0 8px 40px rgba(192,0,0,0.10);
+      padding: 36px 44px 36px; width: 100%; max-width: 560px;
+    }
+
+    .section-title { font-size: 15px; font-weight: 700; color: #333; margin-bottom: 14px; }
+
+    /* Notice type toggle */
+    .notice-toggle { display: flex; gap: 10px; margin-bottom: 24px; }
+    .notice-btn {
+      flex: 1; padding: 11px; border-radius: 10px; border: 2px solid #ddd;
+      font-size: 14px; font-weight: 700; cursor: pointer; background: white;
+      color: #888; transition: all 0.2s; text-align: center;
+    }
+    .notice-btn.active { border-color: #C00000; background: #fff0f0; color: #C00000; }
+
+    /* Fields */
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field.full { grid-column: 1/-1; }
+    label { font-size: 12px; font-weight: 600; color: #666; }
+    input[type="text"], input[type="date"] {
+      padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: 13px; outline: none; transition: border-color 0.2s;
+    }
+    input:focus { border-color: #C00000; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2.5px dashed #C00000; border-radius: 12px; padding: 28px 24px;
+      cursor: pointer; transition: background 0.2s; margin-bottom: 14px;
+      position: relative; text-align: center;
+    }
+    .drop-zone:hover, .drop-zone.dragover { background: #fff5f5; }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-icon { font-size: 34px; margin-bottom: 6px; }
+    .drop-label { color: #666; font-size: 13px; }
+    .drop-label span { color: #C00000; font-weight: 600; }
+
+    .file-badge {
+      display: none; background: #fff0f0; border: 1px solid #f5c0c0;
+      border-radius: 8px; padding: 8px 14px; font-size: 13px; color: #C00000;
+      font-weight: 600; margin-bottom: 14px; align-items: center; gap: 8px; justify-content: center;
+    }
+    .file-badge.show { display: flex; }
+
+    .btn-generate {
+      background: #C00000; color: white; border: none; border-radius: 10px;
+      padding: 13px 32px; font-size: 15px; font-weight: 700; cursor: pointer;
+      width: 100%; transition: background 0.2s, transform 0.1s; margin-bottom: 16px;
+    }
+    .btn-generate:hover:not(:disabled) { background: #a00000; transform: translateY(-1px); }
+    .btn-generate:disabled { background: #ddd; color: #aaa; cursor: not-allowed; }
+
+    /* Progress */
+    .progress-section { display: none; margin-bottom: 18px; }
+    .progress-section.show { display: block; }
+    .progress-label { font-size: 13px; color: #555; margin-bottom: 7px; display: flex; justify-content: space-between; }
+    .progress-label .count { font-weight: 700; color: #C00000; }
+    .progress-bar-bg { background: #f0f0f0; border-radius: 99px; height: 11px; overflow: hidden; margin-bottom: 8px; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg,#C00000,#ff4444); border-radius: 99px; width: 0%; transition: width 0.3s; }
+    .status-msg { font-size: 12px; color: #888; min-height: 16px; font-style: italic; }
+    .status-msg.bold { color: #C00000; font-weight: 600; font-style: normal; }
+
+    /* Downloads */
+    .download-section { display: none; }
+    .download-section.show { display: block; }
+    .success-banner { background: #f0fff4; border: 1px solid #b2dfcc; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; color: #1a7a3c; font-weight: 600; font-size: 14px; }
+    .download-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-download {
+      border: none; border-radius: 10px; padding: 13px 14px; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: transform 0.1s; text-decoration: none;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+    }
+    .btn-download:hover { transform: translateY(-2px); opacity: 0.9; }
+    .btn-download .btn-icon { font-size: 20px; }
+    .btn-download .btn-sub { font-size: 11px; font-weight: 400; opacity: 0.85; }
+    .btn-zip { background: #1a56db; color: white; }
+    .btn-pdf { background: #C00000; color: white; }
+    .btn-reset { background: none; border: 1.5px solid #ddd; border-radius: 8px; padding: 8px; font-size: 13px; color: #888; cursor: pointer; width: 100%; margin-top: 12px; }
+    .btn-reset:hover { border-color: #C00000; color: #C00000; }
+
+    .note { margin-top: 20px; font-size: 12px; color: #bbb; line-height: 1.7; text-align: center; }
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <div class="title">🏢 Shreeji Iconic CHS Ltd.</div>
+  <div class="nav">
+    <a href="/">⚡ Generate</a>
+    <a href="/tracker">📋 Tracker</a>
+    <a href="/logout">🚪 Logout</a>
+  </div>
+</div>
+
+<div class="wrapper">
+<div class="card">
+
+  <div class="section-title">Notice Type</div>
+  <div class="notice-toggle">
+    <button class="notice-btn active" id="btn1st" onclick="setType('1st')">📄 1st Notice</button>
+    <button class="notice-btn"        id="btn2nd" onclick="setType('2nd')">📄 2nd Notice</button>
+  </div>
+
+  <div class="fields">
+    <div class="field">
+      <label>Batch Name</label>
+      <input type="text" id="batchName" value="Mar 2026 Notices" placeholder="e.g. Mar 2026 Notices"/>
+    </div>
+    <div class="field">
+      <label>Notice Date</label>
+      <input type="date" id="issuedDate"/>
+    </div>
+  </div>
+
+  <div class="section-title">Upload Excel Sheet</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+    <div class="drop-icon">📂</div>
+    <div class="drop-label">Drop Excel file here or <span>browse</span></div>
+    <div style="font-size:12px;color:#bbb;margin-top:4px;">
+      Columns: C=Flat No, E=Ref No, F=Name, H=Amount
+      <span id="col2ndHint" style="display:none;color:#C00000"> | I=Previous Ref No (for 2nd notice)</span>
+    </div>
+  </div>
+
+  <div class="file-badge" id="fileBadge">📄 <span id="fileName"></span></div>
+
+  <button class="btn-generate" id="generateBtn" onclick="startGenerate()" disabled>
+    ⚡ Generate Notices
+  </button>
+
+  <div class="progress-section" id="progressSection">
+    <div class="progress-label">
+      <span id="progressText">Generating...</span>
+      <span class="count" id="progressCount">0 / 0</span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+
+  <div class="download-section" id="downloadSection">
+    <div class="success-banner" id="successBanner">✅ Done!</div>
+    <div class="download-btns">
+      <a class="btn-download btn-zip" id="btnZip" href="#">
+        <span class="btn-icon">📦</span><span>Download ZIP</span>
+        <span class="btn-sub">Individual .docx files</span>
+      </a>
+      <a class="btn-download btn-pdf" id="btnPdf" href="#">
+        <span class="btn-icon">📄</span><span>Download PDF</span>
+        <span class="btn-sub">All notices in one PDF</span>
+      </a>
+    </div>
+    <button class="btn-reset" onclick="resetApp()">🔄 Generate for another file</button>
+  </div>
+
+  <div class="note">All processing happens locally. No data is sent to the internet.</div>
+</div>
+</div>
+
+<script>
+  let noticeType = '1st';
+
+  // Set today's date
+  document.getElementById('issuedDate').value = new Date().toISOString().split('T')[0];
+
+  function setType(type) {
+    noticeType = type;
+    document.getElementById('btn1st').classList.toggle('active', type === '1st');
+    document.getElementById('btn2nd').classList.toggle('active', type === '2nd');
+    document.getElementById('col2ndHint').style.display = type === '2nd' ? 'inline' : 'none';
+  }
+
+  const fileInput   = document.getElementById("fileInput");
+  const fileBadge   = document.getElementById("fileBadge");
+  const generateBtn = document.getElementById("generateBtn");
+
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length > 0) {
+      document.getElementById("fileName").textContent = fileInput.files[0].name;
+      fileBadge.classList.add("show");
+      generateBtn.disabled = false;
+    }
+  });
+
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event("change")); }
+  });
+
+  function resetApp() {
+    fileInput.value = "";
+    fileBadge.classList.remove("show");
+    generateBtn.disabled = true;
+    document.getElementById("progressSection").classList.remove("show");
+    document.getElementById("downloadSection").classList.remove("show");
+    document.getElementById("progressFill").style.width = "0%";
+  }
+
+  async function startGenerate() {
+    if (!fileInput.files.length) return;
+    generateBtn.disabled = true;
+    document.getElementById("downloadSection").classList.remove("show");
+    document.getElementById("progressSection").classList.add("show");
+    document.getElementById("statusMsg").textContent = "Reading Excel...";
+
+    const formData = new FormData();
+    formData.append("excel",        fileInput.files[0]);
+    formData.append("notice_type",  noticeType);
+    formData.append("issued_date",  document.getElementById("issuedDate").value);
+    formData.append("batch_name",   document.getElementById("batchName").value);
+
+    const response = await fetch("/generate", { method: "POST", body: formData });
+    const reader   = response.body.getReader();
+    const decoder  = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try { handleMessage(JSON.parse(line.slice(6))); } catch(e) {}
+      }
+    }
+  }
+
+  function handleMessage(msg) {
+    if (msg.type === "start") {
+      document.getElementById("progressCount").textContent = `0 / ${msg.total}`;
+    } else if (msg.type === "progress") {
+      const pct = Math.round((msg.count / msg.total) * 100);
+      document.getElementById("progressFill").style.width = pct + "%";
+      document.getElementById("progressCount").textContent = `${msg.count} / ${msg.total}`;
+      document.getElementById("statusMsg").textContent = `✅ ${msg.name}`;
+    } else if (msg.type === "status") {
+      document.getElementById("progressText").textContent = msg.msg;
+      document.getElementById("progressFill").style.width = "92%";
+    } else if (msg.type === "done") {
+      document.getElementById("progressFill").style.width = "100%";
+      document.getElementById("progressCount").textContent = `${msg.count} / ${msg.count}`;
+      document.getElementById("progressText").textContent = "All done!";
+      const sm = document.getElementById("statusMsg");
+      sm.className = "status-msg bold";
+      sm.textContent = `✅ ${msg.count} notices · ${msg.pages} pages PDF · Saved to Tracker`;
+      document.getElementById("successBanner").textContent = `✅ ${msg.count} notices generated!`;
+      document.getElementById("btnZip").href = `/download/${msg.sess_id}/zip`;
+      document.getElementById("btnPdf").href = `/download/${msg.sess_id}/pdf`;
+      if (!msg.has_pdf) document.getElementById("btnPdf").style.opacity = "0.4";
+      document.getElementById("downloadSection").classList.add("show");
+      generateBtn.disabled = false;
+    } else if (msg.type === "failed") {
+      const sm = document.getElementById("statusMsg");
+      sm.className = "status-msg bold";
+      sm.textContent = "❌ " + msg.msg;
+      generateBtn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
