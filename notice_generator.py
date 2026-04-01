@@ -52,7 +52,7 @@ def _add_right_tab(para, pos_twips):
     tabs.append(tab)
     pPr.append(tabs)
 
-def generate_notice(flat_no, ref_no, name, amount):
+def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026"):
     doc = Document()
 
     # Page margins
@@ -133,9 +133,7 @@ def generate_notice(flat_no, ref_no, name, amount):
 
     # ── Body 3 ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
-    _run(p, "Therefore, you are requested to make an immediate payment of above amount by dated: - 31")
-    _run(p, "st", superscript=True)
-    _run(p, " March 2026 to avoid unpleasant situation for the committee in adherence of legal provision of law and filing recovery application u/sec 154 (B) 29 of MCS Act, 1960 to read with several provisions of laws and bye-laws.")
+    _run(p, f"Therefore, you are requested to make an immediate payment of above amount by dated: - {due_date} to avoid unpleasant situation for the committee in adherence of legal provision of law and filing recovery application u/sec 154 (B) 29 of MCS Act, 1960 to read with several provisions of laws and bye-laws.")
 
     # ── Body 4 ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)

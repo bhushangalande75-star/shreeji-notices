@@ -49,7 +49,7 @@ def _add_right_tab(para, pos_twips):
     tabs.append(tab)
     pPr.append(tabs)
 
-def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=""):
+def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date="", due_date="31st March 2026"):
     doc = Document()
     for section in doc.sections:
         section.page_width    = Cm(21.0)
@@ -117,7 +117,7 @@ def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
     _run(p, "It is observed from the society\u2019s records that despite the said notice, the outstanding amount of ")
     _run(p, f"Rs. {formatted_amount}/-", bold=True)
-    _run(p, " towards maintenance charges till March 2026 remains unpaid as on date.")
+    _run(p, f" towards maintenance charges till {due_date} remains unpaid as on date.")
 
     # Bullet
     p = _para(doc, space_before=4, space_after=8)

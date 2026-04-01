@@ -132,6 +132,10 @@
       <label>Notice Date</label>
       <input type="date" id="issuedDate"/>
     </div>
+    <div class="field full">
+      <label>Payment Due Date <span style="color:#888;font-weight:400">(appears in notice body)</span></label>
+      <input type="text" id="dueDate" placeholder="e.g. 30th April 2026" value="31st March 2026"/>
+    </div>
   </div>
 
   <div class="section-title">Upload Excel Sheet</div>
@@ -233,6 +237,7 @@
     formData.append("notice_type",  noticeType);
     formData.append("issued_date",  document.getElementById("issuedDate").value);
     formData.append("batch_name",   document.getElementById("batchName").value);
+    formData.append("due_date",     document.getElementById("dueDate").value);
 
     const response = await fetch("/generate", { method: "POST", body: formData });
     const reader   = response.body.getReader();
