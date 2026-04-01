@@ -5,7 +5,7 @@ from datetime import date
 from notice_generator import generate_notice
 from notice_generator_2nd import generate_notice_2nd
 from pypdf import PdfWriter, PdfReader
-from database import save_batch, get_batches, get_batch_notices, update_payment, get_eligible_for_2nd, get_paid_members
+from database import save_batch, get_batches, get_batch_notices, update_payment, get_eligible_for_2nd, get_paid_members, delete_batch, delete_batch, delete_batch, delete_batch_db
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -83,12 +83,7 @@ def update_payment_route():
 @app.route("/tracker/delete_batch/<int:batch_id>", methods=["POST"])
 @login_required
 def delete_batch(batch_id):
-    from database import get_db
-    conn = get_db()
-    conn.execute("DELETE FROM notices WHERE batch_id = ?", (batch_id,))
-    conn.execute("DELETE FROM notice_batches WHERE id = ?", (batch_id,))
-    conn.commit()
-    conn.close()
+    delete_batch_db(batch_id)
     return jsonify({"success": True})
 
 @app.route("/tracker/export/<int:batch_id>/<report_type>")
