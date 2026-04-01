@@ -145,7 +145,8 @@ def generate():
     notice_type  = request.form.get("notice_type", "1st")
     issued_date  = request.form.get("issued_date", date.today().strftime("%d/%m/%Y"))
     batch_name   = request.form.get("batch_name", f"Batch {date.today().strftime('%b %Y')}")
-    due_date     = request.form.get("due_date", "31st March 2026")
+    due_date             = request.form.get("due_date", "31st March 2026")
+    maintenance_period   = request.form.get("maintenance_period", "March 2026")
 
     try:
         df   = pd.read_excel(file, header=None)
@@ -175,9 +176,9 @@ def generate():
                 prev_ref_no  = str(row[8]).strip() if notice_type == "2nd" and len(row) > 8 else ""
 
                 if notice_type == "2nd":
-                    doc_bytes = generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date, due_date)
+                    doc_bytes = generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date, due_date, maintenance_period)
                 else:
-                    doc_bytes = generate_notice(flat_no, ref_no, name, amount, due_date)
+                    doc_bytes = generate_notice(flat_no, ref_no, name, amount, due_date, maintenance_period)
 
                 filename = f"Notice_{ref_no.replace('/','-')}_{flat_no}.docx"
                 docx_files.append((filename, doc_bytes))

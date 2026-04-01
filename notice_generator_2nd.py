@@ -1,5 +1,5 @@
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches, Cm, Twips
+from docx.shared import Pt, RGBColor, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -49,7 +49,8 @@ def _add_right_tab(para, pos_twips):
     tabs.append(tab)
     pPr.append(tabs)
 
-def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date="", due_date="31st March 2026"):
+def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date="",
+                        due_date="31st March 2026", maintenance_period="March 2026"):
     doc = Document()
     for section in doc.sections:
         section.page_width    = Cm(21.0)
@@ -59,7 +60,7 @@ def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=
         section.left_margin   = Cm(2.0)
         section.right_margin  = Cm(2.0)
 
-    # Header image
+    # ── Header image ──────────────────────────────────────────
     if os.path.exists(HEADER_IMAGE):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -67,11 +68,11 @@ def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=
         p.paragraph_format.space_after  = Pt(0)
         p.add_run().add_picture(HEADER_IMAGE, width=Inches(6.3))
 
-    # Red separator
+    # ── Red separator ─────────────────────────────────────────
     sep = _para(doc, space_before=2, space_after=6)
     _red_bottom_border(sep)
 
-    # Ref No | Date
+    # ── Ref No | Date ─────────────────────────────────────────
     p = _para(doc, space_before=6, space_after=6)
     _add_right_tab(p, 9072)
     _run(p, "Ref.No.", bold=True, color=RED, underline=True)
@@ -81,7 +82,7 @@ def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=
 
     _para(doc, space_after=4)
 
-    # To section
+    # ── To section ────────────────────────────────────────────
     p = _para(doc, space_after=2)
     _run(p, "To,")
 
@@ -98,59 +99,47 @@ def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=
 
     _para(doc, space_after=4)
 
-    # Subject
+    # ── Subject ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.CENTER, space_after=10)
-    _run(p, "Sub: 2nd Notice for Recovery of Outstanding Maintenance Dues.", bold=True, underline=True)
+    _run(p, "Sub: Notice for Recovery of Due Maintenance.", bold=True, underline=True)
 
-    # Dear Member
-    p = _para(doc, space_after=8)
-    _run(p, "Dear Member,")
-
-    # Body 1 - Reference to 1st notice
-    p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
-    _run(p, "We wish to draw your kind attention to our earlier notice bearing ")
-    _run(p, f"Ref. No. {prev_ref_no}", bold=True)
+    # ── Reference to 1st notice (extra paragraph for 2nd notice) ──
+    p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFIED, space_after=8)
+    _run(p, "We wish to draw your kind attention to our earlier notice bearing Ref. No. ")
+    _run(p, prev_ref_no, bold=True)
     _run(p, ", wherein you were requested to clear your outstanding maintenance dues towards Shreeji Iconic Co-operative Housing Society Ltd.")
 
-    # Body 2 - Outstanding dues
-    formatted_amount = f"{amount:,}"
+    # ── Body 1 ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
-    _run(p, "It is observed from the society\u2019s records that despite the said notice, the outstanding amount of ")
-    _run(p, f"Rs. {formatted_amount}/-", bold=True)
-    _run(p, f" towards maintenance charges till {due_date} remains unpaid as on date.")
+    _run(p, "You are well aware that as per the provisions of our Societies\u2019 bye laws you need to pay your outstanding dues regularly within prescribed period. This notice is being served to you as per resolution passed in SGM held on 15")
+    _run(p, "th", superscript=True)
+    _run(p, " October 2023 to send notices to defaulters who has not paid society maintenance for a minimum of 3 months as per provisions of law on date 17")
+    _run(p, "th", superscript=True)
+    _run(p, " June 2024.")
 
-    # Bullet
+    # ── Body 2 ───────────────────────────────────────────────
+    p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
+    _run(p, "It has been observed from the society record that the total outstanding towards the society\u2019s contribution is receivable by the society from you which is as under:")
+
+    # ── Bullet ───────────────────────────────────────────────
+    formatted_amount = f"{amount:,}"
     p = _para(doc, space_before=4, space_after=8)
-    _run(p, "\u27A4  Maintenance Charges till March 2026: - Rs. ", bold=True)
+    _run(p, f"\u27A4  Maintenance Charges till {maintenance_period}: - Rs. ", bold=True)
     _run(p, formatted_amount, bold=True)
 
-    # Body 3 - Request
+    # ── Body 3 ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
-    _run(p, "We therefore once again ")
-    _run(p, "earnestly request", bold=True)
-    _run(p, " you to make the payment of the outstanding amount at the earliest. As a law-abiding society, we are bound by the provisions of the ")
-    _run(p, "Maharashtra Co-operative Societies Act, 1960", bold=True)
-    _run(p, " and the bye-laws of our society to take necessary steps for recovery of dues.")
+    _run(p, f"Therefore, you are requested to make an immediate payment of above amount by dated: - {due_date} to avoid unpleasant situation for the committee in adherence of legal provision of law and filing recovery application u/sec 154 (B) 29 of MCS Act, 1960 to read with several provisions of laws and bye-laws.")
 
-    # Body 4 - Warning
+    # ── Body 4 ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)
-    _run(p, "Please note that failure to make the payment will constrain the Managing Committee to initiate recovery proceedings against you under ")
-    _run(p, "Section 154(B)(29) of the MCS Act, 1960", bold=True)
-    _run(p, ", including filing of a recovery application before the ")
-    _run(p, "Asst. Registrar / Deputy Registrar of Co-operative Societies, Ambernath", bold=True)
-    _run(p, ", for recovery of dues as arrears of ")
-    _run(p, "Land Revenue", bold=True)
-    _run(p, ". The legal expenses incurred thereof shall also be recovered from you.")
+    _run(p, "Please note that if you force the society to initiate legal action as above or others, the application for recovery of dues will be filed against you at Asst. Registrar / Deputy Registrar of Co-op. Societies, Ambernath, for issue of recovery certificated u/s 154B (29) of the Maharashtra Co-operative Societies Act.1960 for recovery of dues as arrears of LAND REVENUE and under the said resolution we have been authorized to RECOVER LEGAL EXPENCES from you to initiate further legal action.")
 
-    # Closing
-    p = _para(doc, space_after=8)
-    _run(p, "We sincerely hope that you will give this matter your ")
-    _run(p, "immediate attention", bold=True)
-    _run(p, " and cooperate with the society to avoid any legal action.")
-
+    # ── Appreciation ─────────────────────────────────────────
     p = _para(doc, space_after=24)
-    _run(p, "Your priority to this will be greatly appreciated.")
+    _run(p, "Your priority to this will be appreciated.")
 
+    # ── Signature ────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.RIGHT, space_after=0)
     _run(p, "Chairman / Secretary")
 

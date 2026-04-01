@@ -52,7 +52,7 @@ def _add_right_tab(para, pos_twips):
     tabs.append(tab)
     pPr.append(tabs)
 
-def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026"):
+def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", maintenance_period="March 2026"):
     doc = Document()
 
     # Page margins
@@ -128,7 +128,7 @@ def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026"):
     # ── Bullet ───────────────────────────────────────────────
     formatted_amount = f"{amount:,}"
     p = _para(doc, space_before=4, space_after=8)
-    _run(p, "\u27A4  Maintenance Charges: - Rs. ", bold=True)
+    _run(p, f"\u27A4  Maintenance Charges till {maintenance_period}: - Rs. ", bold=True)
     _run(p, formatted_amount, bold=True)
 
     # ── Body 3 ───────────────────────────────────────────────
