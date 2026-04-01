@@ -5,7 +5,7 @@ from datetime import date
 from notice_generator import generate_notice
 from notice_generator_2nd import generate_notice_2nd
 from pypdf import PdfWriter, PdfReader
-from database import save_batch, get_batches, get_batch_notices, update_payment, get_eligible_for_2nd, get_paid_members, delete_batch, delete_batch, delete_batch, delete_batch_db
+from database import save_batch, get_batches, get_batch_notices, update_payment, get_eligible_for_2nd, get_paid_members, delete_batch
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -82,8 +82,8 @@ def update_payment_route():
 # ── Export eligibility report ─────────────────────────────────
 @app.route("/tracker/delete_batch/<int:batch_id>", methods=["POST"])
 @login_required
-def delete_batch(batch_id):
-    delete_batch_db(batch_id)
+def delete_batch_route(batch_id):
+    delete_batch(batch_id)
     return jsonify({"success": True})
 
 @app.route("/tracker/export/<int:batch_id>/<report_type>")
