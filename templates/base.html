@@ -429,10 +429,8 @@
       <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span>
       Notice Tracker
     </a>
-    <a class="nav-item {% if request.endpoint == 'index' %}{% endif %}" href="/" style="{% if request.endpoint == 'index' %}display:none{% endif %}">
-    </a>
     <div class="nav-label">Reports</div>
-    <a class="nav-item {% if request.endpoint == 'tracker' %}{% endif %}" href="/tracker">
+    <a class="nav-item" href="/tracker">
       <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
       Export Reports
     </a>
@@ -451,7 +449,7 @@
 
   <div class="sidebar-footer">
     <div class="user-row">
-      <div class="user-avatar">{{ society_name[:2]|upper }}</div>
+      <div class="user-avatar">{{ (society_name or 'AD')[:2]|upper }}</div>
       <div>
         <div class="user-name">{{ society_name }}</div>
         <div class="user-role">{% if session.get('is_admin') %}Super Admin{% else %}Society Admin{% endif %}</div>

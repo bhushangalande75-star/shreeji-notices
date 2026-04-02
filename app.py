@@ -81,7 +81,7 @@ def logout():
 @admin_required
 def admin_dashboard():
     societies = get_all_societies()
-    return render_template("admin.html", societies=societies)
+    return render_template("admin.html", societies=societies, society_name=session.get("society_name", "Admin"))
 
 @app.route("/admin/create_society", methods=["POST"])
 @admin_required
