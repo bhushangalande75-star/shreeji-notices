@@ -114,7 +114,7 @@ def tracker():
     society_id = session.get("society_id")
     batches = get_batches(society_id) if society_id else []
     stats   = get_society_stats(society_id) if society_id else {}
-    return render_template("tracker.html", batches=batches, society_name=session[\"society_name\"], stats=stats)
+    return render_template("tracker.html", batches=batches, society_name=session["society_name"], stats=stats)
 
 @app.route("/tracker/batch/<int:batch_id>")
 @login_required
