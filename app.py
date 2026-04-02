@@ -314,12 +314,8 @@ GEMINI_MODEL   = "gemini-1.5-flash"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
 
 def call_gemini(system_prompt, user_content):
-    """Call Google Gemini API. user_content can be str or list (for vision)."""
     if not GEMINI_API_KEY:
-        raise ValueError(
-            "Gemini API key is not set. "
-            "Add GEMINI_API_KEY in your Render environment variables."
-        )
+        raise ValueError("Gemini API key is not set.")
 
     parts = []
     if isinstance(user_content, str):
@@ -338,12 +334,14 @@ def call_gemini(system_prompt, user_content):
                 })
 
     payload = {
-        "system_instruction": {"parts": [{"text": system_prompt}]},
-        "contents": [{"role": "user", "parts": parts}],
+        "contents": [
+            {"role": "system", "parts": [{"text": system_prompt}]},
+            {"role": "user", "parts": parts}
+        ],
         "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.4},
     }
 
-    url  = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
     resp = http_requests.post(url, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
