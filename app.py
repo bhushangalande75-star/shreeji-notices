@@ -304,31 +304,43 @@ def ai_notices():
     return render_template("ai_notices.html",
                            society_name=session["society_name"])
 
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-def call_claude(system_prompt, user_content):
-    """Call Anthropic Claude API. user_content can be str or list (for vision)."""
-    headers = {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-    }
+def call_gemini(system_prompt, user_content):
+    """Call Google Gemini API. user_content can be str or list (for vision).
+    Vision list format (same as before):
+      [{"type": "image", "source": {"type": "base64", "media_type": ..., "data": ...}},
+       {"type": "text",  "text": "..."}]
+    """
+    # Build Gemini parts from user_content
+    parts = []
     if isinstance(user_content, str):
-        messages = [{"role": "user", "content": user_content}]
+        parts.append({"text": user_content})
     else:
-        messages = [{"role": "user", "content": user_content}]
+        for item in user_content:
+            if item.get("type") == "text":
+                parts.append({"text": item["text"]})
+            elif item.get("type") == "image":
+                src = item["source"]
+                parts.append({
+                    "inline_data": {
+                        "mime_type": src["media_type"],
+                        "data": src["data"],
+                    }
+                })
 
     payload = {
-        "model": "claude-opus-4-6",
-        "max_tokens": 2048,
-        "system": system_prompt,
-        "messages": messages,
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.4},
     }
-    resp = http_requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=60)
+
+    url  = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
+    resp = http_requests.post(url, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    return data["content"][0]["text"]
+    return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
 @app.route("/ai-notices/generate-notice", methods=["POST"])
@@ -368,7 +380,7 @@ def ai_generate_notice():
             f"demand to stop/rectify immediately, and consequences if not complied with."
         )
 
-        ai_text = call_claude(system_prompt, user_prompt)
+        ai_text = call_gemini(system_prompt, user_prompt)
         subject = f"Sub: Notice Regarding {notice_type} — Immediate Compliance Required."
 
         docx_bytes = build_ai_notice_docx(ref_no, flat_no, member_name, issued_date, subject, ai_text)
@@ -444,7 +456,7 @@ def ai_generate_mom():
             "Structure clearly with numbered decisions. Use proper Marathi legal and administrative vocabulary."
         )
 
-        mom_text  = call_claude(system_prompt, user_content)
+        mom_text  = call_gemini(system_prompt, user_content)
         docx_bytes = build_mom_docx(mom_text, meeting_date, society_name)
 
         sess_id  = str(uuid.uuid4())
