@@ -304,16 +304,23 @@ def ai_notices():
     return render_template("ai_notices.html",
                            society_name=session["society_name"])
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_API_KEY = (
+    os.environ.get("GEMINI_API_KEY") or
+    os.environ.get("GOOGLE_API_KEY") or
+    os.environ.get("GOOGLE_GEMINI_KEY") or
+    ""
+)
+GEMINI_MODEL   = "gemini-1.5-flash"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 def call_gemini(system_prompt, user_content):
-    """Call Google Gemini API. user_content can be str or list (for vision).
-    Vision list format (same as before):
-      [{"type": "image", "source": {"type": "base64", "media_type": ..., "data": ...}},
-       {"type": "text",  "text": "..."}]
-    """
-    # Build Gemini parts from user_content
+    """Call Google Gemini API. user_content can be str or list (for vision)."""
+    if not GEMINI_API_KEY:
+        raise ValueError(
+            "Gemini API key is not set. "
+            "Add GEMINI_API_KEY in your Render environment variables."
+        )
+
     parts = []
     if isinstance(user_content, str):
         parts.append({"text": user_content})
