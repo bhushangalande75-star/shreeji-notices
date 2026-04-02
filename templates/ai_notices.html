@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+{% block title %}AI Notices & MOM — SocietyNotice Pro{% endblock %}
+{% block page_title %}AI Assistant{% endblock %}
+{% block page_sub %}Generate custom notices & Marathi Minutes of Meeting using AI{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Tab Bar ─────────────────────────────────────────────── */
+  .ai-tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+  .ai-tab {
+    padding: 11px 24px; border-radius: 10px; cursor: pointer;
+    font-family: var(--font); font-size: 13px; font-weight: 600;
+    transition: all 0.18s; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); letter-spacing: -0.1px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ai-tab:hover { border-color: var(--teal); color: var(--teal3); }
+  .ai-tab.active {
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    color: #fff; border-color: transparent;
+    box-shadow: 0 4px 16px var(--teal-glow);
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Two-col layout ──────────────────────────────────────── */
+  .ai-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+
+  /* ── Notice type chips ───────────────────────────────────── */
+  .notice-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+  .n-chip {
+    padding: 7px 14px; border-radius: 20px; cursor: pointer;
+    font-size: 12px; font-weight: 500; transition: all 0.15s;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--ink3); font-family: var(--font);
+  }
+  .n-chip:hover { border-color: var(--teal); color: var(--teal3); }
+  .n-chip.selected {
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    color: #fff; border-color: transparent;
+    box-shadow: 0 3px 10px var(--teal-glow);
+  }
+
+  /* ── Preview panel ───────────────────────────────────────── */
+  .preview-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px;
+    font-size: 13px; color: var(--ink2); line-height: 1.8;
+    min-height: 200px; white-space: pre-wrap;
+    font-family: 'Cambria', serif;
+  }
+  .preview-placeholder {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 200px; gap: 10px;
+    color: var(--muted); font-family: var(--font);
+  }
+
+  /* ── Photo upload zone ───────────────────────────────────── */
+  .photo-zone {
+    border: 2px dashed rgba(10,191,163,0.35);
+    border-radius: 12px; padding: 28px;
+    text-align: center; cursor: pointer; position: relative;
+    transition: all 0.2s; background: rgba(10,191,163,0.03);
+    min-height: 160px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+  }
+  .photo-zone:hover { background: rgba(10,191,163,0.07); border-color: var(--teal); }
+  .photo-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .photo-preview {
+    max-width: 100%; max-height: 220px; border-radius: 10px;
+    border: 1px solid var(--border); margin-top: 10px; display: none;
+    object-fit: contain;
+  }
+
+  /* ── Spinner ─────────────────────────────────────────────── */
+  .spinner {
+    display: none; width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid rgba(10,191,163,0.2); border-top-color: var(--teal);
+    animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── AI badge ────────────────────────────────────────────── */
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, rgba(10,191,163,0.1), rgba(10,191,163,0.05));
+    border: 1px solid rgba(10,191,163,0.25);
+    border-radius: 8px; padding: 6px 12px;
+    font-size: 11px; font-weight: 600; color: var(--teal3); letter-spacing: 0.3px;
+    margin-bottom: 18px;
+  }
+  .ai-badge-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--teal);
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  /* ── Download button ─────────────────────────────────────── */
+  .dl-notice-btn {
+    display: none; margin-top: 14px; width: 100%;
+    padding: 12px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    color: #fff; font-size: 13px; font-weight: 600;
+    font-family: var(--font); cursor: pointer; border: none;
+    box-shadow: 0 4px 14px var(--teal-glow); transition: all 0.2s;
+    text-decoration: none; text-align: center;
+  }
+  .dl-notice-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px var(--teal-glow); }
+
+  /* ── Error ───────────────────────────────────────────────── */
+  .error-banner {
+    display: none; background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.25); border-radius: 10px;
+    padding: 11px 15px; color: #B91C1C; font-size: 13px; margin-top: 12px;
+  }
+
+  /* ── MOM Marathi preview ─────────────────────────────────── */
+  .marathi-preview {
+    font-family: 'Noto Sans Devanagari', 'Mangal', serif;
+    font-size: 14px; line-height: 2.0;
+  }
+
+  /* ── Key legend ──────────────────────────────────────────── */
+  .col-legend {
+    background: rgba(10,191,163,0.06); border: 1px solid rgba(10,191,163,0.2);
+    border-radius: 10px; padding: 12px 16px; font-size: 12px; color: var(--ink3);
+    line-height: 1.8; margin-bottom: 4px;
+  }
+  .col-legend strong { color: var(--teal3); }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block topbar_right %}
+  <a class="btn btn-outline" href="/">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    Maintenance Notices
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<div class="ai-badge">
+  <span class="ai-badge-dot"></span>
+  Powered by Claude AI · Anthropic
+</div>
+
+<!-- Tab Bar -->
+<div class="ai-tabs">
+  <button class="ai-tab active" id="tab-notice-btn" onclick="switchTab('notice')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+    Custom Notice
+  </button>
+  <button class="ai-tab" id="tab-mom-btn" onclick="switchTab('mom')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+    MOM Generator (मराठी)
+  </button>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 1: CUSTOM NOTICE
+═══════════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-notice">
+  <div class="ai-layout">
+
+    <!-- Left: Form -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:4px;">Notice Details</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Select notice type, fill in the details, and AI will draft the full notice</div>
+
+        <!-- Notice type chips -->
+        <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
+        <div class="notice-chips" id="noticeChips">
+          <button class="n-chip selected" onclick="selectChip(this, 'No Parking Violation')">🚗 No Parking</button>
+          <button class="n-chip" onclick="selectChip(this, 'Misbehaviour with Society Staff')">😠 Misbehaviour</button>
+          <button class="n-chip" onclick="selectChip(this, 'Noise Disturbance')">🔊 Noise Disturbance</button>
+          <button class="n-chip" onclick="selectChip(this, 'Unauthorized Construction/Renovation')">🏗️ Unauthorized Work</button>
+          <button class="n-chip" onclick="selectChip(this, 'Pet Nuisance')">🐾 Pet Nuisance</button>
+          <button class="n-chip" onclick="selectChip(this, 'Garbage Disposal Violation')">🗑️ Garbage Issue</button>
+          <button class="n-chip" onclick="selectChip(this, 'Illegal Subletting')">🔑 Subletting</button>
+          <button class="n-chip" onclick="selectChip(this, 'Water Misuse')">💧 Water Misuse</button>
+          <button class="n-chip" onclick="selectChip(this, 'Balcony/Common Area Encroachment')">🏠 Encroachment</button>
+          <button class="n-chip" onclick="selectChip(this, 'Custom')">✏️ Custom</button>
+        </div>
+        <input class="form-input" type="hidden" id="noticeTypeInput" value="No Parking Violation"/>
+
+        <div class="form-grid" style="margin-top:18px;">
+          <div class="form-group">
+            <label class="form-label">Flat No</label>
+            <input class="form-input" type="text" id="n_flat" placeholder="e.g. A-101"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ref No</label>
+            <input class="form-input" type="text" id="n_ref" placeholder="e.g. SIC/26/101"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Member Name</label>
+            <input class="form-input" type="text" id="n_name" placeholder="Full name"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notice Date</label>
+            <input class="form-input" type="date" id="n_date"/>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Describe the Issue <span style="color:var(--teal3);font-weight:400;text-transform:none;">(more detail = better notice)</span></label>
+            <textarea class="form-input" id="n_description" rows="4"
+              placeholder="e.g. Member has been repeatedly parking their vehicle in the fire exit lane near Gate No. 2, blocking emergency access. This has been verbally warned twice on 15 Mar and 22 Mar 2026."
+              style="resize:vertical;line-height:1.6;"></textarea>
+          </div>
+        </div>
+
+        <button onclick="generateNotice()" id="genNoticeBtn"
+          style="width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 4px 14px var(--teal-glow);transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px;">
+          <div class="spinner" id="noticeSpinner"></div>
+          <span id="noticeBtnText">✨ Generate Notice with AI</span>
+        </button>
+        <div class="error-banner" id="noticeError"></div>
+      </div>
+    </div>
+
+    <!-- Right: Preview -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="card-title">Notice Preview</div>
+            <span style="font-size:11px;color:var(--muted);">AI-drafted · editable</span>
+          </div>
+          <div class="preview-box" id="noticePreview">
+            <div class="preview-placeholder">
+              <div style="font-size:36px;">📄</div>
+              <div style="font-size:13px;">AI-generated notice will appear here</div>
+              <div style="font-size:11px;color:var(--faint);">Fill the form and click Generate</div>
+            </div>
+          </div>
+          <a href="#" class="dl-notice-btn" id="noticeDlBtn" download>
+            📥 Download Notice (.docx)
+          </a>
+        </div>
+      </div>
+
+      <!-- Tips card -->
+      <div class="card">
+        <div class="card-body">
+          <div style="font-size:12px;font-weight:600;color:var(--teal3);margin-bottom:12px;">💡 Tips for better notices</div>
+          <div style="display:flex;flex-direction:column;gap:9px;font-size:12px;color:var(--ink3);line-height:1.6;">
+            <div>📅 Mention specific dates/times of the incident</div>
+            <div>📍 Include exact location (Gate 2, Parking Bay B, etc.)</div>
+            <div>🔁 Note if warnings were given previously</div>
+            <div>👥 Mention any witnesses or staff involved</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 2: MOM GENERATOR
+═══════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-mom">
+  <div class="ai-layout">
+
+    <!-- Left: Form -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:4px;">बैठक तपशील (Meeting Details)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Upload a photo of handwritten notes or type the key points — AI will write the full MOM in Marathi</div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Meeting Date</label>
+            <input class="form-input" type="date" id="m_date"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Meeting Type</label>
+            <select class="form-input form-select" id="m_type">
+              <option>Managing Committee Meeting</option>
+              <option>Special General Meeting (SGM)</option>
+              <option>Annual General Meeting (AGM)</option>
+              <option>Emergency Meeting</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">उपस्थित सदस्य (Attendees)</label>
+            <input class="form-input" type="text" id="m_attendees" placeholder="e.g. Chairman, Secretary, Treasurer, 5 committee members"/>
+          </div>
+        </div>
+
+        <!-- Photo upload -->
+        <div class="form-label" style="margin-bottom:10px;">
+          हस्तलिखित नोट्सचा फोटो (Handwritten Notes Photo)
+          <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px;">&nbsp;optional if typing below</span>
+        </div>
+        <div class="photo-zone" id="photoZone">
+          <input type="file" id="momPhoto" accept="image/*" onchange="previewPhoto(this)"/>
+          <div id="photoPlaceholder">
+            <div style="font-size:32px;">📷</div>
+            <div style="color:var(--muted);font-size:13px;">Click to upload or drag photo here</div>
+            <div style="font-size:11px;color:var(--faint);">JPG, PNG · AI will read the handwriting</div>
+          </div>
+          <img id="photoPreviewImg" class="photo-preview" src="" alt="Preview"/>
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label class="form-label">मुख्य मुद्दे / Key Points <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px;">(if no photo, type agenda & decisions here)</span></label>
+          <textarea class="form-input" id="m_notes" rows="4"
+            placeholder="e.g.&#10;1. Water pump repair approved - Rs. 45,000&#10;2. New security guard hiring decided&#10;3. Parking issue to be resolved by 30 Apr&#10;4. AGM scheduled for 15 May 2026"
+            style="resize:vertical;line-height:1.6;"></textarea>
+        </div>
+
+        <button onclick="generateMOM()" id="genMOMBtn"
+          style="width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 4px 14px var(--teal-glow);transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px;">
+          <div class="spinner" id="momSpinner"></div>
+          <span id="momBtnText">✨ Generate MOM in Marathi</span>
+        </button>
+        <div class="error-banner" id="momError"></div>
+      </div>
+    </div>
+
+    <!-- Right: Preview -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="card-title">इतिवृत्त Preview (मराठी)</div>
+            <span style="font-size:11px;color:var(--muted);">AI-drafted · Marathi</span>
+          </div>
+          <div class="preview-box marathi-preview" id="momPreview">
+            <div class="preview-placeholder" style="font-family:var(--font);">
+              <div style="font-size:36px;">📝</div>
+              <div style="font-size:13px;">मराठी इतिवृत्त येथे दिसेल</div>
+              <div style="font-size:11px;color:var(--faint);">तपशील भरा आणि Generate वर क्लिक करा</div>
+            </div>
+          </div>
+          <a href="#" class="dl-notice-btn" id="momDlBtn" download>
+            📥 Download MOM (.docx)
+          </a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div style="font-size:12px;font-weight:600;color:var(--teal3);margin-bottom:12px;">📋 MOM will include</div>
+          <div style="display:flex;flex-direction:column;gap:9px;font-size:12px;color:var(--ink3);line-height:1.6;">
+            <div>✅ उपस्थित सदस्यांची यादी (Attendance list)</div>
+            <div>✅ अजेंडा मुद्दे (Agenda points)</div>
+            <div>✅ चर्चा व निर्णय (Numbered decisions)</div>
+            <div>✅ कृती मुद्दे व जबाबदार (Action items)</div>
+            <div>✅ Society letterhead + Marathi signature</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // Set default dates
+  document.getElementById('n_date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('m_date').value = new Date().toISOString().split('T')[0];
+
+  // ── Tab switching ──────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.ai-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.getElementById('tab-' + name + '-btn').classList.add('active');
+  }
+
+  // ── Chip selection ─────────────────────────────────────────
+  function selectChip(el, type) {
+    document.querySelectorAll('.n-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('noticeTypeInput').value = type;
+  }
+
+  // ── Photo preview ──────────────────────────────────────────
+  function previewPhoto(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('photoPreviewImg').src = e.target.result;
+        document.getElementById('photoPreviewImg').style.display = 'block';
+        document.getElementById('photoPlaceholder').style.display = 'none';
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  // ── Generate Notice ────────────────────────────────────────
+  async function generateNotice() {
+    const btn      = document.getElementById('genNoticeBtn');
+    const spinner  = document.getElementById('noticeSpinner');
+    const btnText  = document.getElementById('noticeBtnText');
+    const errorDiv = document.getElementById('noticeError');
+    const preview  = document.getElementById('noticePreview');
+    const dlBtn    = document.getElementById('noticeDlBtn');
+
+    errorDiv.style.display = 'none';
+    spinner.style.display  = 'block';
+    btnText.textContent    = 'Generating...';
+    btn.disabled = true;
+    preview.innerHTML = '<div class="preview-placeholder"><div style="font-size:28px;">⚡</div><div style="font-size:13px;">AI is drafting your notice...</div></div>';
+    dlBtn.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('notice_type',  document.getElementById('noticeTypeInput').value);
+    fd.append('flat_no',      document.getElementById('n_flat').value);
+    fd.append('ref_no',       document.getElementById('n_ref').value);
+    fd.append('member_name',  document.getElementById('n_name').value);
+    fd.append('issued_date',  document.getElementById('n_date').value);
+    fd.append('description',  document.getElementById('n_description').value);
+
+    try {
+      const res  = await fetch('/ai-notices/generate-notice', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        preview.textContent = data.preview;
+        dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
+        dlBtn.style.display = 'block';
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (e) {
+      errorDiv.textContent = '❌ ' + e.message;
+      errorDiv.style.display = 'block';
+      preview.innerHTML = '<div class="preview-placeholder"><div style="font-size:28px;">❌</div><div>Generation failed</div></div>';
+    } finally {
+      spinner.style.display = 'none';
+      btnText.textContent   = '✨ Generate Notice with AI';
+      btn.disabled = false;
+    }
+  }
+
+  // ── Generate MOM ───────────────────────────────────────────
+  async function generateMOM() {
+    const btn      = document.getElementById('genMOMBtn');
+    const spinner  = document.getElementById('momSpinner');
+    const btnText  = document.getElementById('momBtnText');
+    const errorDiv = document.getElementById('momError');
+    const preview  = document.getElementById('momPreview');
+    const dlBtn    = document.getElementById('momDlBtn');
+
+    errorDiv.style.display = 'none';
+    spinner.style.display  = 'block';
+    btnText.textContent    = 'Generating...';
+    btn.disabled = true;
+    preview.innerHTML = '<div class="preview-placeholder" style="font-family:var(--font)"><div style="font-size:28px;">⚡</div><div style="font-size:13px;">AI is writing Marathi MOM...</div></div>';
+    dlBtn.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('meeting_date', document.getElementById('m_date').value);
+    fd.append('attendees',    document.getElementById('m_attendees').value);
+    fd.append('raw_notes',    document.getElementById('m_notes').value);
+    const photoFile = document.getElementById('momPhoto').files[0];
+    if (photoFile) fd.append('photo', photoFile);
+
+    try {
+      const res  = await fetch('/ai-notices/generate-mom', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        preview.textContent = data.preview;
+        dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
+        dlBtn.style.display = 'block';
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (e) {
+      errorDiv.textContent = '❌ ' + e.message;
+      errorDiv.style.display = 'block';
+      preview.innerHTML = '<div class="preview-placeholder" style="font-family:var(--font)"><div style="font-size:28px;">❌</div><div>Generation failed</div></div>';
+    } finally {
+      spinner.style.display = 'none';
+      btnText.textContent   = '✨ Generate MOM in Marathi';
+      btn.disabled = false;
+    }
+  }
+</script>
+{% endblock %}

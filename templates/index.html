@@ -134,12 +134,15 @@
       <!-- Notice Type Toggle -->
       <div style="margin-bottom:6px;">
         <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
-        <div class="type-toggle">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;" class="type-toggle">
           <button id="btn1st" class="type-btn active" onclick="setType('1st')">
             📄 1st Notice
           </button>
           <button id="btn2nd" class="type-btn inactive" onclick="setType('2nd')">
             📄 2nd Notice
+          </button>
+          <button id="btn3rd" class="type-btn inactive" onclick="setType('3rd')" style="border-color:rgba(239,68,68,0.4);">
+            ⚠️ 3rd Notice
           </button>
         </div>
       </div>
@@ -175,7 +178,10 @@
       <div class="form-label" style="margin-bottom:10px;">
         Upload Defaulter Excel
         <span id="col2ndHint" style="display:none;color:var(--amber);font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;">
-          &nbsp;· Col I = Previous Ref No (2nd notice)
+          &nbsp;· Col I = Prev 1st Ref No
+        </span>
+        <span id="col3rdHint" style="display:none;color:#DC2626;font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;">
+          &nbsp;· Col I = 1st Ref No &nbsp;· Col J = 2nd Ref No
         </span>
       </div>
       <div class="drop-zone" id="dropZone">
@@ -275,18 +281,24 @@
 
   function setType(type) {
     noticeType = type;
-    const b1 = document.getElementById('btn1st');
-    const b2 = document.getElementById('btn2nd');
-    if (type === '1st') {
-      b1.className = 'type-btn active';
-      b2.className = 'type-btn inactive';
-      document.getElementById('subjectLine').value = 'Sub: Notice for Recovery of Due Maintenance.';
+    document.getElementById('btn1st').className = 'type-btn ' + (type==='1st' ? 'active' : 'inactive');
+    document.getElementById('btn2nd').className = 'type-btn ' + (type==='2nd' ? 'active' : 'inactive');
+    document.getElementById('btn3rd').className = 'type-btn ' + (type==='3rd' ? 'active' : 'inactive');
+    if (type === '3rd') {
+      document.getElementById('btn3rd').style.background = 'linear-gradient(135deg,#EF4444,#DC2626)';
+      document.getElementById('btn3rd').style.color = '#fff';
+      document.getElementById('btn3rd').style.border = '2px solid transparent';
+      document.getElementById('btn3rd').style.boxShadow = '0 4px 16px rgba(239,68,68,0.4)';
+      document.getElementById('subjectLine').value = 'Sub: 3rd & Final Notice — Legal Action for Recovery of Outstanding Maintenance Dues.';
     } else {
-      b2.className = 'type-btn active';
-      b1.className = 'type-btn inactive';
-      document.getElementById('subjectLine').value = 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.';
+      document.getElementById('btn3rd').style = '';
+      document.getElementById('btn3rd').className = 'type-btn inactive';
+      document.getElementById('btn3rd').style.borderColor = 'rgba(239,68,68,0.4)';
     }
+    if (type === '1st') document.getElementById('subjectLine').value = 'Sub: Notice for Recovery of Due Maintenance.';
+    if (type === '2nd') document.getElementById('subjectLine').value = 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.';
     document.getElementById('col2ndHint').style.display = type === '2nd' ? 'inline' : 'none';
+    document.getElementById('col3rdHint').style.display = type === '3rd' ? 'inline' : 'none';
   }
 
   const fileInput   = document.getElementById('fileInput');

@@ -4,6 +4,10 @@ import os, io, zipfile, json, uuid, tempfile, glob, subprocess, sys
 from datetime import date, datetime
 from notice_generator import generate_notice
 from notice_generator_2nd import generate_notice_2nd
+from notice_generator_3rd import generate_notice_3rd
+from notice_generator_ai import build_ai_notice_docx, build_mom_docx
+import requests as http_requests
+import base64
 from pypdf import PdfWriter, PdfReader
 from database import (save_batch, get_batches, get_batch_notices, update_payment,
                       get_eligible_for_2nd, get_paid_members, delete_batch,
@@ -225,8 +229,12 @@ def generate():
                 name        = str(row[5]).strip()
                 amount      = int(row[7])
                 prev_ref_no = str(row[8]).strip() if notice_type == "2nd" and len(row) > 8 else ""
+                prev_ref_no_1st = str(row[8]).strip() if notice_type == "3rd" and len(row) > 8 else ""
+                prev_ref_no_2nd = str(row[9]).strip() if notice_type == "3rd" and len(row) > 9 else ""
 
-                if notice_type == "2nd":
+                if notice_type == "3rd":
+                    doc_bytes = generate_notice_3rd(flat_no, ref_no, name, amount, prev_ref_no_1st, prev_ref_no_2nd, issued_date, due_date, maintenance_period, subject)
+                elif notice_type == "2nd":
                     doc_bytes = generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date, due_date, maintenance_period, subject)
                 else:
                     doc_bytes = generate_notice(flat_no, ref_no, name, amount, due_date, maintenance_period, subject)
@@ -289,6 +297,181 @@ def download(sess_id, filetype):
     response.headers["Content-Type"]        = mime
     response.headers["Content-Disposition"] = f"attachment; filename={name}"
     return response
+
+@app.route("/ai-notices")
+@login_required
+def ai_notices():
+    return render_template("ai_notices.html",
+                           society_name=session["society_name"])
+
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+def call_claude(system_prompt, user_content):
+    """Call Anthropic Claude API. user_content can be str or list (for vision)."""
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+    }
+    if isinstance(user_content, str):
+        messages = [{"role": "user", "content": user_content}]
+    else:
+        messages = [{"role": "user", "content": user_content}]
+
+    payload = {
+        "model": "claude-opus-4-6",
+        "max_tokens": 2048,
+        "system": system_prompt,
+        "messages": messages,
+    }
+    resp = http_requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["content"][0]["text"]
+
+
+@app.route("/ai-notices/generate-notice", methods=["POST"])
+@login_required
+def ai_generate_notice():
+    """Generate a custom notice (No Parking, Misbehaviour, etc.) using AI."""
+    try:
+        notice_type   = request.form.get("notice_type", "General Notice")
+        flat_no       = request.form.get("flat_no", "").strip()
+        member_name   = request.form.get("member_name", "").strip()
+        ref_no        = request.form.get("ref_no", "").strip()
+        issued_date   = request.form.get("issued_date", date.today().strftime("%d-%m-%Y"))
+        description   = request.form.get("description", "").strip()
+        society_name  = session.get("society_name", "Shreeji Iconic CHS Ltd.")
+
+        try:
+            issued_date = datetime.strptime(issued_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+            pass
+
+        system_prompt = (
+            "You are a legal notice writer for a Co-operative Housing Society in India. "
+            "Write formal, professional notices in English. "
+            "Output ONLY the body paragraphs of the notice — no salutation, no subject line, no signature. "
+            "Each paragraph on a new line. Keep it firm, polite, and legally appropriate. "
+            "Reference the society bye-laws and MCS Act 1960 where relevant."
+        )
+
+        user_prompt = (
+            f"Write a formal notice for the following situation at {society_name}:\n\n"
+            f"Notice Type: {notice_type}\n"
+            f"Member Name: {member_name}\n"
+            f"Flat No: {flat_no}\n"
+            f"Issue Description: {description}\n\n"
+            f"Write 3-4 firm but polite paragraphs. "
+            f"Include: what the issue is, how it violates society rules/bye-laws, "
+            f"demand to stop/rectify immediately, and consequences if not complied with."
+        )
+
+        ai_text = call_claude(system_prompt, user_prompt)
+        subject = f"Sub: Notice Regarding {notice_type} — Immediate Compliance Required."
+
+        docx_bytes = build_ai_notice_docx(ref_no, flat_no, member_name, issued_date, subject, ai_text)
+
+        # Return preview text + offer download
+        sess_id  = str(uuid.uuid4())
+        sess_dir = os.path.join(TEMP_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        fname = f"Notice_{notice_type.replace(' ', '_')}_{flat_no or 'General'}.docx"
+        with open(os.path.join(sess_dir, fname), "wb") as f:
+            f.write(docx_bytes)
+
+        return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/ai-notices/generate-mom", methods=["POST"])
+@login_required
+def ai_generate_mom():
+    """Generate Marathi MOM from uploaded handwritten photo."""
+    try:
+        meeting_date = request.form.get("meeting_date", date.today().strftime("%d-%m-%Y"))
+        attendees    = request.form.get("attendees", "").strip()
+        society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
+
+        try:
+            meeting_date = datetime.strptime(meeting_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+            pass
+
+        # Build user message content
+        if "photo" in request.files and request.files["photo"].filename:
+            photo = request.files["photo"]
+            img_bytes = photo.read()
+            img_b64   = base64.standard_b64encode(img_bytes).decode()
+            mime      = photo.content_type or "image/jpeg"
+
+            user_content = [
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": mime, "data": img_b64}
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        f"This is a handwritten meeting notes photo for {society_name}. "
+                        f"Meeting date: {meeting_date}. "
+                        f"Attendees: {attendees or 'As visible in the notes'}.\n\n"
+                        "Please read all the handwritten content and generate a complete, "
+                        "formal Minutes of Meeting (इतिवृत्त) in Marathi language. "
+                        "Format it with sections: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (numbered), कृती मुद्दे. "
+                        "Use formal Marathi. Output ONLY the MOM content, no preamble."
+                    )
+                }
+            ]
+        else:
+            # Text-only fallback
+            raw_notes = request.form.get("raw_notes", "").strip()
+            user_content = (
+                f"Generate a formal Minutes of Meeting (इतिवृत्त) in Marathi for {society_name}.\n"
+                f"Meeting date: {meeting_date}\n"
+                f"Attendees: {attendees}\n"
+                f"Meeting notes: {raw_notes}\n\n"
+                "Format with sections: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (numbered), कृती मुद्दे. "
+                "Use formal Marathi. Output ONLY the MOM content."
+            )
+
+        system_prompt = (
+            "You are an expert secretary for a Maharashtra Co-operative Housing Society. "
+            "You write formal Minutes of Meeting (इतिवृत्त) in fluent, formal Marathi. "
+            "Structure clearly with numbered decisions. Use proper Marathi legal and administrative vocabulary."
+        )
+
+        mom_text  = call_claude(system_prompt, user_content)
+        docx_bytes = build_mom_docx(mom_text, meeting_date, society_name)
+
+        sess_id  = str(uuid.uuid4())
+        sess_dir = os.path.join(TEMP_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        fname = f"MOM_{meeting_date.replace('/', '-')}.docx"
+        with open(os.path.join(sess_dir, fname), "wb") as f:
+            f.write(docx_bytes)
+
+        return jsonify({"success": True, "preview": mom_text, "sess_id": sess_id, "filename": fname})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/ai-notices/download/<sess_id>/<filename>")
+@login_required
+def ai_download(sess_id, filename):
+    sess_dir = os.path.join(TEMP_DIR, sess_id)
+    path = os.path.join(sess_dir, filename)
+    if not os.path.exists(path):
+        return "File not found", 404
+    response = make_response(open(path, "rb").read())
+    response.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
 
 if __name__ == "__main__":
     lo = get_libreoffice_path()
