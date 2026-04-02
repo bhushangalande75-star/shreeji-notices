@@ -4,153 +4,164 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SocietyNotice Pro — Login</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --red:    #C00000;
-      --red2:   #8B0000;
-      --gold:   #C9A84C;
-      --dark:   #0D0D0D;
-      --dark2:  #1A1A1A;
-      --dark3:  #242424;
-      --border: rgba(255,255,255,0.08);
-      --text:   #E8E8E8;
-      --muted:  #888;
+      --teal:      #0ABFA3;
+      --teal2:     #08A891;
+      --teal3:     #069A82;
+      --teal-glow: rgba(10,191,163,0.35);
+      --bg:        #C8F0EA;
+      --surface:   #FFFFFF;
+      --surface2:  #F4FDFB;
+      --border:    #C2EDE6;
+      --ink:       #063D36;
+      --ink2:      #0A4F48;
+      --ink3:      #4A8A84;
+      --muted:     #7ABFB8;
+      --font:      'Plus Jakarta Sans', sans-serif;
     }
-
     body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--dark);
+      font-family: var(--font);
+      background: var(--bg);
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       overflow: hidden;
     }
 
-    /* Animated background */
+    /* Animated background shell */
     .bg {
       position: fixed; inset: 0; z-index: 0;
-      background: radial-gradient(ellipse at 20% 50%, rgba(192,0,0,0.15) 0%, transparent 60%),
-                  radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.08) 0%, transparent 50%),
-                  var(--dark);
+      background:
+        radial-gradient(ellipse at 15% 50%, rgba(10,191,163,0.25) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 15%, rgba(10,191,163,0.12) 0%, transparent 45%),
+        radial-gradient(ellipse at 50% 90%, rgba(10,191,163,0.1) 0%, transparent 40%),
+        var(--bg);
     }
     .bg::before {
       content: '';
       position: absolute; inset: 0;
-      background-image: repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255,255,255,0.015) 80px, rgba(255,255,255,0.015) 81px),
-                        repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255,255,255,0.015) 80px, rgba(255,255,255,0.015) 81px);
+      background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(10,191,163,0.06) 80px, rgba(10,191,163,0.06) 81px),
+        repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(10,191,163,0.06) 80px, rgba(10,191,163,0.06) 81px);
     }
 
     .wrapper {
       position: relative; z-index: 1;
-      display: flex; align-items: center; gap: 80px;
-      padding: 40px;
-      max-width: 960px; width: 100%;
+      display: flex; align-items: center; gap: 72px;
+      padding: 40px; max-width: 960px; width: 100%;
     }
 
     /* Left branding */
-    .brand {
-      flex: 1;
-      animation: fadeLeft 0.8s ease both;
+    .brand { flex: 1; animation: fadeLeft 0.7s ease both; }
+
+    .brand-logo {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 32px;
     }
+    .brand-gem {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--teal), var(--teal2));
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 20px var(--teal-glow);
+    }
+    .brand-gem svg { width: 24px; height: 24px; }
+    .brand-logo-name { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -0.5px; }
+    .brand-logo-tag  { font-size: 10px; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; font-weight: 500; margin-top: 2px; }
+
     .brand-badge {
       display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(192,0,0,0.15); border: 1px solid rgba(192,0,0,0.3);
-      border-radius: 99px; padding: 6px 16px; margin-bottom: 28px;
-      font-size: 12px; font-weight: 500; color: #ff6b6b; letter-spacing: 1.5px;
-      text-transform: uppercase;
+      background: rgba(10,191,163,0.15); border: 1px solid rgba(10,191,163,0.35);
+      border-radius: 99px; padding: 5px 14px; margin-bottom: 22px;
+      font-size: 11px; font-weight: 600; color: var(--teal3); letter-spacing: 0.5px;
     }
-    .brand-badge span { width: 6px; height: 6px; border-radius: 50%; background: #ff4444; display: inline-block; animation: pulse 2s infinite; }
-    .brand h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 52px; line-height: 1.1; font-weight: 700;
-      color: var(--text); margin-bottom: 16px;
-    }
-    .brand h1 em { color: var(--red); font-style: normal; }
-    .brand p { color: var(--muted); font-size: 16px; line-height: 1.6; max-width: 340px; }
+    .badge-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: pulse 2s infinite; }
 
-    .features { margin-top: 40px; display: flex; flex-direction: column; gap: 14px; }
+    .brand h1 {
+      font-size: 46px; line-height: 1.1; font-weight: 700;
+      color: var(--ink); margin-bottom: 14px; letter-spacing: -1.5px;
+    }
+    .brand p { color: var(--ink3); font-size: 15px; line-height: 1.65; max-width: 340px; font-weight: 400; }
+
+    .features { margin-top: 38px; display: flex; flex-direction: column; gap: 14px; }
     .feature {
       display: flex; align-items: center; gap: 12px;
-      color: var(--muted); font-size: 14px;
+      color: var(--ink3); font-size: 13px; font-weight: 400;
     }
     .feature-icon {
-      width: 32px; height: 32px; border-radius: 8px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      width: 34px; height: 34px; border-radius: 10px;
+      background: rgba(255,255,255,0.7); border: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center; font-size: 15px;
-      flex-shrink: 0;
+      flex-shrink: 0; box-shadow: 0 2px 8px rgba(10,191,163,0.1);
     }
 
     /* Login card */
     .card {
       width: 400px; flex-shrink: 0;
-      background: var(--dark2);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 40px;
-      animation: fadeUp 0.8s ease 0.2s both;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+      border-radius: 24px; padding: 38px;
+      animation: fadeUp 0.7s ease 0.15s both;
+      box-shadow: 0 32px 80px rgba(10,191,163,0.18), 0 8px 24px rgba(10,191,163,0.1), inset 0 1px 0 rgba(255,255,255,0.95);
     }
 
-    .card-header { margin-bottom: 32px; }
-    .card-header h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 28px; color: var(--text); margin-bottom: 6px;
+    .card-header { margin-bottom: 28px; }
+    .card-header h2 { font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 5px; letter-spacing: -0.5px; }
+    .card-header p  { color: var(--muted); font-size: 13px; font-weight: 400; }
+
+    .form-group { margin-bottom: 18px; }
+    label {
+      display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 7px;
     }
-    .card-header p { color: var(--muted); font-size: 14px; }
-
-    label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; margin-top: 20px; }
-    label:first-of-type { margin-top: 0; }
-
-    input {
-      width: 100%; padding: 13px 16px;
-      background: var(--dark3); border: 1px solid var(--border);
-      border-radius: 10px; color: var(--text); font-size: 15px;
-      font-family: 'DM Sans', sans-serif; outline: none;
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 12px 15px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--ink2); font-size: 14px;
+      font-family: var(--font); outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    input:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(192,0,0,0.15); }
-    input::placeholder { color: #444; }
+    input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(10,191,163,0.15); }
+    input::placeholder { color: #A8CFCC; }
 
     .error-msg {
-      background: rgba(192,0,0,0.12); border: 1px solid rgba(192,0,0,0.3);
-      border-radius: 10px; padding: 12px 16px; color: #ff6b6b;
+      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 10px; padding: 11px 15px; color: #B91C1C;
       font-size: 13px; margin-bottom: 20px;
     }
 
     .btn-login {
-      width: 100%; margin-top: 28px; padding: 14px;
-      background: linear-gradient(135deg, var(--red), var(--red2));
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, var(--teal), var(--teal2));
       border: none; border-radius: 10px; color: white;
-      font-size: 15px; font-weight: 600; font-family: 'DM Sans', sans-serif;
-      cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
-      position: relative; overflow: hidden;
+      font-size: 14px; font-weight: 600; font-family: var(--font);
+      cursor: pointer; transition: all 0.2s; letter-spacing: -0.2px;
+      box-shadow: 0 4px 16px var(--teal-glow);
+      margin-top: 8px;
     }
-    .btn-login::after {
-      content: ''; position: absolute; inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
-      opacity: 0; transition: opacity 0.2s;
+    .btn-login:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px var(--teal-glow);
     }
-    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(192,0,0,0.4); }
-    .btn-login:hover::after { opacity: 1; }
 
-    .divider { height: 1px; background: var(--border); margin: 28px 0; }
-    .admin-link { text-align: center; font-size: 13px; color: var(--muted); }
-    .admin-link a { color: var(--gold); text-decoration: none; font-weight: 500; }
-    .admin-link a:hover { color: #e0bb6b; }
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 24px 0;
+    }
+    .footer-note { text-align: center; font-size: 12px; color: var(--muted); }
+    .footer-note a { color: var(--teal); text-decoration: none; font-weight: 500; }
+    .footer-note a:hover { color: var(--teal2); }
 
-    @keyframes fadeLeft { from { opacity:0; transform:translateX(-30px); } to { opacity:1; transform:none; } }
+    @keyframes fadeLeft { from { opacity:0; transform:translateX(-28px); } to { opacity:1; transform:none; } }
     @keyframes fadeUp   { from { opacity:0; transform:translateY(20px);  } to { opacity:1; transform:none; } }
-    @keyframes pulse    { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    @keyframes pulse    { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.85); } }
 
     @media (max-width: 768px) {
-      .wrapper { flex-direction: column; gap: 40px; }
+      .wrapper { flex-direction: column; gap: 36px; padding: 24px; }
       .brand { text-align: center; }
-      .brand h1 { font-size: 36px; }
-      .brand p { max-width: 100%; }
+      .brand h1 { font-size: 32px; }
+      .brand p  { max-width: 100%; }
       .features { align-items: center; }
       .card { width: 100%; }
     }
@@ -159,39 +170,76 @@
 <body>
 <div class="bg"></div>
 <div class="wrapper">
+
   <div class="brand">
-    <div class="brand-badge"><span></span> Live Platform</div>
-    <h1>Society<br><em>Notice</em> Pro</h1>
-    <p>Automated maintenance notice management for Co-operative Housing Societies.</p>
+    <div class="brand-logo">
+      <div class="brand-gem">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+          <polygon points="12,6 16,9 16,15 12,18 8,15 8,9" fill="white" opacity=".3"/>
+          <circle cx="12" cy="12" r="2.5" fill="white" opacity=".9"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-logo-name">SocietyNotice</div>
+        <div class="brand-logo-tag">Management Suite</div>
+      </div>
+    </div>
+
+    <div class="brand-badge">
+      <span class="badge-pulse"></span>
+      Live Platform
+    </div>
+
+    <h1>Smarter<br>Society<br>Management</h1>
+    <p>Automated maintenance notice generation and payment tracking for Co-operative Housing Societies.</p>
+
     <div class="features">
-      <div class="feature"><div class="feature-icon">📄</div> Generate 1st & 2nd notices instantly</div>
-      <div class="feature"><div class="feature-icon">💰</div> Track payments & defaulters</div>
-      <div class="feature"><div class="feature-icon">📊</div> Export reports to Excel & PDF</div>
-      <div class="feature"><div class="feature-icon">🏢</div> Multi-society support</div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        Generate 1st &amp; 2nd notices instantly
+      </div>
+      <div class="feature">
+        <div class="feature-icon">💰</div>
+        Track payments &amp; defaulters in real-time
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        Export reports to Excel &amp; PDF
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🏢</div>
+        Multi-society support
+      </div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-header">
-      <h2>Welcome Back</h2>
+      <h2>Welcome back</h2>
       <p>Sign in to your society portal</p>
     </div>
 
     {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
 
     <form method="POST">
-      <label>Username</label>
-      <input type="text" name="username" placeholder="your society username" autofocus required/>
-      <label>Password</label>
-      <input type="password" name="password" placeholder="••••••••••" required/>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="your society username" autofocus required/>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="••••••••••" required/>
+      </div>
       <button class="btn-login" type="submit">Sign In →</button>
     </form>
 
     <div class="divider"></div>
-    <div class="admin-link">
-      Administrator? <a href="/login">Use admin credentials</a>
+    <div class="footer-note">
+      Administrator? Use <a href="/login">admin credentials</a>
     </div>
   </div>
+
 </div>
 </body>
 </html>

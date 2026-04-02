@@ -3,33 +3,55 @@
 {% block page_title %}Notice Tracker{% endblock %}
 {% block page_sub %}Monitor payment status across all notice batches{% endblock %}
 {% block topbar_right %}
-  <a class="btn btn-primary" href="/"><span>⚡</span> New Notice</a>
+  <a class="btn btn-outline" href="/tracker">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export
+  </a>
+  <a class="btn btn-primary" href="/">
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Notice
+  </a>
 {% endblock %}
 
 {% block content %}
 
 <div class="stats-grid">
-  <div class="stat-card red">
-    <div class="stat-num c-red">{{ batches|length }}</div>
+  <div class="stat-card teal">
+    <div class="stat-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
     <div class="stat-label">Total Batches</div>
+    <div class="stat-num">{{ batches|length }}</div>
+    <div class="stat-note"><span class="trend trend-teal">All batches</span></div>
   </div>
-  <div class="stat-card blue">
-    <div class="stat-num c-blue">{{ stats.members }}</div>
-    <div class="stat-label">Total Notices</div>
+  <div class="stat-card teal" style="background:linear-gradient(135deg,#fff,#EEF9F7);border-color:#A8D8D0;">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#DBEAFE,#BFDBFE);box-shadow:0 3px 10px rgba(59,130,246,0.2);">
+      <svg viewBox="0 0 24 24" style="stroke:#1D4ED8;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    </div>
+    <div class="stat-label" style="color:#5B78D6;">Total Notices</div>
+    <div class="stat-num" style="color:#1D4ED8;">{{ stats.members }}</div>
+    <div class="stat-note" style="color:#3B82F6;"><span class="trend" style="background:rgba(59,130,246,0.12);color:#1D4ED8;">Issued</span></div>
   </div>
   <div class="stat-card green">
-    <div class="stat-num c-green">{{ stats.paid }}</div>
+    <div class="stat-icon"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg></div>
     <div class="stat-label">Payments Received</div>
+    <div class="stat-num">{{ stats.paid }}</div>
+    <div class="stat-note"><span class="trend trend-up">Collected</span></div>
   </div>
-  <div class="stat-card gold">
-    <div class="stat-num c-gold">{{ stats.pending }}</div>
+  <div class="stat-card amber">
+    <div class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div>
     <div class="stat-label">Pending Members</div>
+    <div class="stat-num">{{ stats.pending }}</div>
+    <div class="stat-note"><span class="trend trend-dn">Outstanding</span></div>
   </div>
 </div>
 
 {% if batches %}
 <div class="card">
-  <div style="font-size:15px;font-weight:600;margin-bottom:20px;">All Notice Batches</div>
+  <div class="card-body" style="padding-bottom:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div class="card-title">All Notice Batches</div>
+      <div style="font-size:12px;color:var(--muted);">{{ batches|length }} batch{{ 'es' if batches|length != 1 else '' }}</div>
+    </div>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
@@ -45,19 +67,21 @@
       </thead>
       <tbody>
         {% for b in batches %}
-        <tr>
-          <td style="font-weight:600;cursor:pointer;" onclick="window.location='/tracker/batch/{{ b.id }}'">{{ b.batch_name }}</td>
+        <tr onclick="window.location='/tracker/batch/{{ b.id }}'">
           <td>
-            <span class="badge {{ 'badge-gold' if b.notice_type == '2nd' else 'badge-blue' }}">
-              {{ b.notice_type }} Notice
+            <div style="font-weight:600;color:var(--ink);font-size:13px;">{{ b.batch_name }}</div>
+          </td>
+          <td>
+            <span class="badge {{ 'badge-amber' if b.notice_type == '2nd' else 'badge-teal' }}">
+              <span class="badge-dot"></span>{{ b.notice_type }} Notice
             </span>
           </td>
-          <td style="color:var(--muted);">{{ b.issued_date }}</td>
-          <td>{{ b.total }}</td>
-          <td><span style="color:var(--green);font-weight:600;">{{ b.paid_count }}</span></td>
-          <td><span style="color:#ff6b6b;font-weight:600;">{{ b.pending_count }}</span></td>
-          <td style="display:flex;gap:8px;align-items:center;">
-            <a class="btn btn-secondary btn-sm" href="/tracker/batch/{{ b.id }}">View</a>
+          <td><span class="muted-text">{{ b.issued_date }}</span></td>
+          <td><span style="font-weight:600;color:var(--ink2);">{{ b.total }}</span></td>
+          <td><span style="color:#059669;font-weight:600;">{{ b.paid_count }}</span></td>
+          <td><span style="color:#DC2626;font-weight:600;">{{ b.pending_count }}</span></td>
+          <td onclick="event.stopPropagation();" style="display:flex;gap:8px;align-items:center;">
+            <a class="btn btn-outline btn-sm" href="/tracker/batch/{{ b.id }}">View</a>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ b.id }}, '{{ b.batch_name }}')">Delete</button>
           </td>
         </tr>
@@ -65,24 +89,33 @@
       </tbody>
     </table>
   </div>
+  <div style="padding:14px 20px;border-top:1px solid var(--border2);background:var(--surface2);border-radius:0 0 16px 16px;">
+    <span style="font-size:12px;color:var(--muted);">Showing {{ batches|length }} batch{{ 'es' if batches|length != 1 else '' }}</span>
+  </div>
 </div>
+
 {% else %}
-<div class="card" style="text-align:center;padding:60px;">
-  <div style="font-size:48px;margin-bottom:16px;">📋</div>
-  <div style="font-size:18px;font-weight:600;margin-bottom:8px;">No Batches Yet</div>
-  <div style="color:var(--muted);margin-bottom:24px;">Generate your first notice batch to start tracking payments</div>
-  <a class="btn btn-primary" href="/">⚡ Generate Notices</a>
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <h3>No Batches Yet</h3>
+    <p>Generate your first notice batch to start tracking payments</p>
+    <a class="btn btn-primary" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Generate Notices
+    </a>
+  </div>
 </div>
 {% endif %}
 
 <!-- Delete Modal -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
-    <h3 style="color:#ff6b6b;">🗑️ Delete Batch?</h3>
+    <h3 style="color:#DC2626;">🗑️ Delete Batch?</h3>
     <p id="modalText">Are you sure? This cannot be undone.</p>
     <div class="modal-btns">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="deleteBatch()" style="background:var(--red);color:white;">Yes, Delete</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="deleteBatch()" style="background:#EF4444;color:white;border-color:transparent;">Yes, Delete</button>
     </div>
   </div>
 </div>

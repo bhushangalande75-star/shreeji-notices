@@ -3,151 +3,265 @@
 {% block page_title %}Generate Notices{% endblock %}
 {% block page_sub %}Create 1st or 2nd maintenance notices for all defaulters{% endblock %}
 
+{% block extra_head %}
+<style>
+  .notice-layout { display: grid; grid-template-columns: 1fr 380px; gap: 22px; align-items: start; }
+
+  /* Type toggle */
+  .type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .type-btn {
+    padding: 14px; border-radius: 12px; cursor: pointer;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .type-btn.active {
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    color: #fff; border: 2px solid transparent;
+    box-shadow: 0 4px 16px var(--teal-glow);
+  }
+  .type-btn.inactive {
+    background: var(--surface); color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .type-btn.inactive:hover { border-color: var(--teal); color: var(--teal3); }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed rgba(10,191,163,0.35);
+    border-radius: 12px; padding: 32px;
+    text-align: center; cursor: pointer;
+    position: relative; transition: all 0.2s;
+    background: rgba(10,191,163,0.03);
+  }
+  .drop-zone:hover { background: rgba(10,191,163,0.07); border-color: var(--teal); }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+  .file-badge {
+    display: none;
+    background: rgba(10,191,163,0.08);
+    border: 1px solid rgba(10,191,163,0.25);
+    border-radius: 10px; padding: 10px 15px;
+    margin-top: 12px; font-size: 13px;
+    color: var(--teal3); font-weight: 600;
+    align-items: center; gap: 8px;
+  }
+
+  /* Progress */
+  .progress-bar-track {
+    background: var(--surface3); border-radius: 99px;
+    height: 8px; overflow: hidden; margin-bottom: 10px;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--teal), #08D4B8);
+    width: 0%; transition: width 0.3s;
+  }
+
+  /* Download buttons */
+  .download-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dl-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 18px; border-radius: 12px; text-decoration: none; transition: all 0.2s;
+  }
+  .dl-btn:hover { transform: translateY(-2px); }
+  .dl-btn.zip { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); }
+  .dl-btn.pdf { background: rgba(10,191,163,0.08); border: 1px solid rgba(10,191,163,0.2); }
+  .dl-btn .dl-icon { font-size: 26px; }
+  .dl-btn.zip .dl-label { color: #1D4ED8; font-weight: 700; font-size: 13px; }
+  .dl-btn.pdf .dl-label { color: var(--teal3); font-weight: 700; font-size: 13px; }
+  .dl-btn .dl-sub { color: var(--muted); font-size: 11px; }
+
+  /* Guide steps */
+  .guide-steps { display: flex; flex-direction: column; gap: 13px; }
+  .guide-step { display: flex; gap: 11px; align-items: flex-start; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; margin-top: 1px;
+    background: rgba(10,191,163,0.12); color: var(--teal3);
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-text { font-size: 13px; color: var(--ink3); line-height: 1.5; }
+
+  /* Success banner */
+  .success-banner {
+    background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 10px; padding: 12px 15px;
+    color: #047857; font-weight: 600; font-size: 13px; margin-bottom: 16px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<!-- Stats row -->
+<!-- Stats Row -->
 <div class="stats-grid">
-  <div class="stat-card red">
-    <div class="stat-num c-red">{{ stats.batches }}</div>
+  <div class="stat-card teal">
+    <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>
     <div class="stat-label">Total Batches</div>
+    <div class="stat-num">{{ stats.batches }}</div>
+    <div class="stat-note"><span class="trend trend-teal">Active</span></div>
   </div>
-  <div class="stat-card blue">
-    <div class="stat-num c-blue">{{ stats.members }}</div>
-    <div class="stat-label">Notices Issued</div>
+  <div class="stat-card teal" style="background:linear-gradient(135deg,#fff,#EEF9F7);border-color:#A8D8D0;">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#DBEAFE,#BFDBFE);box-shadow:0 3px 10px rgba(59,130,246,0.2);"><svg viewBox="0 0 24 24" style="stroke:#1D4ED8;"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+    <div class="stat-label" style="color:#5B78D6;">Notices Issued</div>
+    <div class="stat-num" style="color:#1D4ED8;">{{ stats.members }}</div>
+    <div class="stat-note" style="color:#3B82F6;"><span class="trend" style="background:rgba(59,130,246,0.12);color:#1D4ED8;">All time</span></div>
   </div>
   <div class="stat-card green">
-    <div class="stat-num c-green">{{ stats.paid }}</div>
+    <div class="stat-icon"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg></div>
     <div class="stat-label">Payments Received</div>
+    <div class="stat-num">{{ stats.paid }}</div>
+    <div class="stat-note"><span class="trend trend-up">Collected</span></div>
   </div>
-  <div class="stat-card gold">
-    <div class="stat-num c-gold">{{ stats.pending }}</div>
+  <div class="stat-card amber">
+    <div class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div>
     <div class="stat-label">Pending Members</div>
+    <div class="stat-num">{{ stats.pending }}</div>
+    <div class="stat-note"><span class="trend trend-dn">Outstanding</span></div>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+<div class="notice-layout">
 
   <!-- Left: Form -->
   <div class="card">
-    <div style="margin-bottom:24px;">
-      <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Notice Configuration</div>
-      <div style="font-size:13px;color:var(--muted);">Fill in the details and upload your defaulter Excel sheet</div>
-    </div>
+    <div class="card-body">
+      <div style="margin-bottom:22px;">
+        <div class="card-title" style="margin-bottom:4px;">Notice Configuration</div>
+        <div style="font-size:12px;color:var(--muted);">Fill in the details and upload your defaulter Excel sheet</div>
+      </div>
 
-    <!-- Notice Type Toggle -->
-    <div style="margin-bottom:24px;">
-      <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button id="btn1st" onclick="setType('1st')" style="padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
-          📄 1st Notice
-        </button>
-        <button id="btn2nd" onclick="setType('2nd')" style="padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
-          📄 2nd Notice
-        </button>
+      <!-- Notice Type Toggle -->
+      <div style="margin-bottom:6px;">
+        <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
+        <div class="type-toggle">
+          <button id="btn1st" class="type-btn active" onclick="setType('1st')">
+            📄 1st Notice
+          </button>
+          <button id="btn2nd" class="type-btn inactive" onclick="setType('2nd')">
+            📄 2nd Notice
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- Form fields -->
-    <div class="form-grid">
-      <div class="form-group">
-        <label class="form-label">Batch Name</label>
-        <input class="form-input" type="text" id="batchName" value="Mar 2026 Notices" placeholder="e.g. Mar 2026 Notices"/>
+      <!-- Fields -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Batch Name</label>
+          <input class="form-input" type="text" id="batchName" value="Mar 2026 Notices" placeholder="e.g. Mar 2026 Notices"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notice Date</label>
+          <input class="form-input" type="date" id="issuedDate"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Maintenance Period</label>
+          <input class="form-input" type="text" id="maintenancePeriod" placeholder="e.g. March 2026" value="March 2026"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Payment Due Date</label>
+          <input class="form-input" type="text" id="dueDate" placeholder="e.g. 30th April 2026" value="31st March 2026"/>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">
+            Subject Line
+            <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">&nbsp;(editable)</span>
+          </label>
+          <input class="form-input" type="text" id="subjectLine" value="Sub: Notice for Recovery of Due Maintenance."/>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Notice Date</label>
-        <input class="form-input" type="date" id="issuedDate"/>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Maintenance Period</label>
-        <input class="form-input" type="text" id="maintenancePeriod" placeholder="e.g. March 2026" value="March 2026"/>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Payment Due Date</label>
-        <input class="form-input" type="text" id="dueDate" placeholder="e.g. 30th April 2026" value="31st March 2026"/>
-      </div>
-      <div class="form-group full">
-        <label class="form-label">Subject Line <span style="color:#555;font-weight:400;text-transform:none;">(editable)</span></label>
-        <input class="form-input" type="text" id="subjectLine" value="Sub: Notice for Recovery of Due Maintenance."/>
-      </div>
-    </div>
 
-    <!-- Drop zone -->
-    <div class="form-label" style="margin-bottom:10px;">
-      Upload Defaulter Excel
-      <span id="col2ndHint" style="display:none;color:var(--gold);font-weight:400;text-transform:none;"> · Column I = Previous Ref No (for 2nd notice)</span>
-    </div>
-    <div id="dropZone" style="border:2px dashed rgba(192,0,0,0.4);border-radius:12px;padding:32px;text-align:center;cursor:pointer;position:relative;transition:all 0.2s;background:rgba(192,0,0,0.03);" onmouseover="this.style.background='rgba(192,0,0,0.06)'" onmouseout="this.style.background='rgba(192,0,0,0.03)'">
-      <input type="file" id="fileInput" accept=".xlsx,.xls" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"/>
-      <div style="font-size:32px;margin-bottom:8px;">📂</div>
-      <div style="color:var(--muted);font-size:14px;">Drop Excel file here or <span style="color:var(--red);font-weight:600;">browse</span></div>
-      <div style="font-size:12px;color:#444;margin-top:4px;">.xlsx / .xls · Columns: C=Flat, E=Ref, F=Name, H=Amount</div>
-    </div>
-
-    <div id="fileBadge" style="display:none;background:rgba(192,0,0,0.1);border:1px solid rgba(192,0,0,0.25);border-radius:10px;padding:10px 16px;margin-top:12px;font-size:13px;color:#ff6b6b;font-weight:600;">
-      📄 <span id="fileName"></span>
-    </div>
-
-    <button id="generateBtn" onclick="startGenerate()" disabled
-      style="margin-top:20px;padding:15px;width:100%;background:linear-gradient(135deg,var(--red),var(--red2));border:none;border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;opacity:0.4;">
-      ⚡ Generate Notices
-    </button>
-  </div>
-
-  <!-- Right: Progress & Downloads -->
-  <div style="display:flex;flex-direction:column;gap:16px;">
-
-    <!-- Progress card -->
-    <div class="card" id="progressCard" style="display:none;">
-      <div style="font-size:15px;font-weight:600;margin-bottom:16px;">⚡ Generating...</div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px;">
-        <span id="progressText">Processing...</span>
-        <span id="progressCount" style="font-weight:700;color:var(--red);">0/0</span>
+      <!-- Drop zone -->
+      <div class="form-label" style="margin-bottom:10px;">
+        Upload Defaulter Excel
+        <span id="col2ndHint" style="display:none;color:var(--amber);font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;">
+          &nbsp;· Col I = Previous Ref No (2nd notice)
+        </span>
       </div>
-      <div style="background:var(--dark4);border-radius:99px;height:8px;overflow:hidden;margin-bottom:12px;">
-        <div id="progressFill" style="height:100%;background:linear-gradient(90deg,var(--red),#ff4444);border-radius:99px;width:0%;transition:width 0.3s;"></div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+        <div style="font-size:30px;margin-bottom:10px;">📂</div>
+        <div style="color:var(--muted);font-size:13px;">
+          Drop Excel file here or <span style="color:var(--teal);font-weight:600;">browse</span>
+        </div>
+        <div style="font-size:11px;color:var(--faint);margin-top:5px;">.xlsx / .xls · C=Flat, E=Ref, F=Name, H=Amount</div>
       </div>
-      <div id="statusMsg" style="font-size:12px;color:var(--muted);font-style:italic;min-height:16px;"></div>
-    </div>
 
-    <!-- Download card -->
-    <div class="card" id="downloadCard" style="display:none;">
-      <div id="successBanner" style="background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.2);border-radius:10px;padding:12px 16px;color:var(--green);font-weight:600;font-size:14px;margin-bottom:16px;"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <a id="btnZip" href="#" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px;background:rgba(52,152,219,0.12);border:1px solid rgba(52,152,219,0.25);border-radius:12px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-          <span style="font-size:24px;">📦</span>
-          <span style="color:#5dade2;font-weight:700;font-size:14px;">ZIP File</span>
-          <span style="color:var(--muted);font-size:11px;">Individual .docx</span>
-        </a>
-        <a id="btnPdf" href="#" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px;background:rgba(192,0,0,0.12);border:1px solid rgba(192,0,0,0.25);border-radius:12px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-          <span style="font-size:24px;">📄</span>
-          <span style="color:#ff6b6b;font-weight:700;font-size:14px;">PDF File</span>
-          <span style="color:var(--muted);font-size:11px;">All in one PDF</span>
-        </a>
+      <div id="fileBadge" class="file-badge" style="display:none;">
+        📄 <span id="fileName"></span>
       </div>
-      <button onclick="resetForm()" style="margin-top:12px;width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='#ff6b6b'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-        🔄 Generate Another
+
+      <button id="generateBtn" onclick="startGenerate()" disabled
+        style="margin-top:20px;padding:14px;width:100%;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:12px;color:white;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all 0.2s;opacity:0.45;box-shadow:0 4px 16px var(--teal-glow);letter-spacing:-0.2px;">
+        ⚡ Generate Notices
       </button>
     </div>
+  </div>
 
-    <!-- Quick guide card -->
+  <!-- Right panel -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Progress -->
+    <div class="card" id="progressCard" style="display:none;">
+      <div class="card-body">
+        <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:16px;letter-spacing:-0.2px;">⚡ Generating...</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px;">
+          <span id="progressText">Processing...</span>
+          <span id="progressCount" style="font-weight:700;color:var(--teal);">0/0</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <div id="statusMsg" style="font-size:11px;color:var(--muted);font-style:italic;min-height:16px;"></div>
+      </div>
+    </div>
+
+    <!-- Downloads -->
+    <div class="card" id="downloadCard" style="display:none;">
+      <div class="card-body">
+        <div class="success-banner" id="successBanner"></div>
+        <div class="download-grid">
+          <a id="btnZip" href="#" class="dl-btn zip">
+            <span class="dl-icon">📦</span>
+            <span class="dl-label">ZIP File</span>
+            <span class="dl-sub">Individual .docx</span>
+          </a>
+          <a id="btnPdf" href="#" class="dl-btn pdf">
+            <span class="dl-icon">📄</span>
+            <span class="dl-label">PDF File</span>
+            <span class="dl-sub">All-in-one PDF</span>
+          </a>
+        </div>
+        <button onclick="resetForm()"
+          style="margin-top:12px;width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:12px;cursor:pointer;font-family:var(--font);transition:all 0.2s;"
+          onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal3)'"
+          onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+          🔄 Generate Another
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick guide -->
     <div class="card" id="guideCard">
-      <div style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--gold);">📘 Quick Guide</div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">1</div>
-          <div style="font-size:13px;color:var(--muted);">Select notice type and fill in the configuration details</div>
-        </div>
-        <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">2</div>
-          <div style="font-size:13px;color:var(--muted);">Upload the defaulter Excel sheet</div>
-        </div>
-        <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">3</div>
-          <div style="font-size:13px;color:var(--muted);">Click Generate — download ZIP & PDF instantly</div>
-        </div>
-        <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">4</div>
-          <div style="font-size:13px;color:var(--muted);">Track payments in the Notice Tracker</div>
+      <div class="card-body">
+        <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--teal3);">📘 Quick Guide</div>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-text">Select notice type and fill in the configuration details</div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-text">Upload the defaulter Excel sheet</div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-text">Click Generate — download ZIP &amp; PDF instantly</div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">4</div>
+            <div class="step-text">Track payments in the Notice Tracker</div>
+          </div>
         </div>
       </div>
     </div>
@@ -164,12 +278,12 @@
     const b1 = document.getElementById('btn1st');
     const b2 = document.getElementById('btn2nd');
     if (type === '1st') {
-      b1.style.cssText = 'padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-      b2.style.cssText = 'padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
+      b1.className = 'type-btn active';
+      b2.className = 'type-btn inactive';
       document.getElementById('subjectLine').value = 'Sub: Notice for Recovery of Due Maintenance.';
     } else {
-      b2.style.cssText = 'padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-      b1.style.cssText = 'padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
+      b2.className = 'type-btn active';
+      b1.className = 'type-btn inactive';
       document.getElementById('subjectLine').value = 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.';
     }
     document.getElementById('col2ndHint').style.display = type === '2nd' ? 'inline' : 'none';
@@ -181,27 +295,32 @@
   fileInput.addEventListener('change', () => {
     if (fileInput.files.length > 0) {
       document.getElementById('fileName').textContent = fileInput.files[0].name;
-      document.getElementById('fileBadge').style.display = 'block';
+      document.getElementById('fileBadge').style.display = 'flex';
       generateBtn.disabled = false;
       generateBtn.style.opacity = '1';
     }
   });
 
   const dropZone = document.getElementById('dropZone');
-  dropZone.addEventListener('dragover',  e => { e.preventDefault(); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.background = 'rgba(10,191,163,0.1)'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.background = 'rgba(10,191,163,0.03)'; });
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
-    if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
+    dropZone.style.background = 'rgba(10,191,163,0.03)';
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      fileInput.dispatchEvent(new Event('change'));
+    }
   });
 
   function resetForm() {
     fileInput.value = '';
     document.getElementById('fileBadge').style.display = 'none';
-    generateBtn.disabled = true; generateBtn.style.opacity = '0.4';
-    document.getElementById('progressCard').style.display  = 'none';
-    document.getElementById('downloadCard').style.display  = 'none';
-    document.getElementById('guideCard').style.display     = 'block';
-    document.getElementById('progressFill').style.width    = '0%';
+    generateBtn.disabled = true; generateBtn.style.opacity = '0.45';
+    document.getElementById('progressCard').style.display = 'none';
+    document.getElementById('downloadCard').style.display = 'none';
+    document.getElementById('guideCard').style.display    = 'block';
+    document.getElementById('progressFill').style.width   = '0%';
   }
 
   async function startGenerate() {
@@ -261,7 +380,7 @@
       document.getElementById('downloadCard').style.display = 'block';
       generateBtn.disabled = false; generateBtn.style.opacity = '1';
     } else if (msg.type === 'failed') {
-      document.getElementById('statusMsg').style.color = '#ff6b6b';
+      document.getElementById('statusMsg').style.color = '#DC2626';
       document.getElementById('statusMsg').textContent = '❌ ' + msg.msg;
       generateBtn.disabled = false; generateBtn.style.opacity = '1';
     }
