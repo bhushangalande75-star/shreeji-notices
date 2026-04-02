@@ -31,7 +31,7 @@ def login_required(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("society_id"):
+        if not session.get("society_id") and not session.get("is_admin"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
@@ -111,9 +111,10 @@ def index():
 @app.route("/tracker")
 @login_required
 def tracker():
-    batches = get_batches(session["society_id"])
-    stats   = get_society_stats(session["society_id"])
-    return render_template("tracker.html", batches=batches, society_name=session["society_name"], stats=stats)
+    society_id = session.get("society_id")
+    batches = get_batches(society_id) if society_id else []
+    stats   = get_society_stats(society_id) if society_id else {}
+    return render_template("tracker.html", batches=batches, society_name=session[\"society_name\"], stats=stats)
 
 @app.route("/tracker/batch/<int:batch_id>")
 @login_required
