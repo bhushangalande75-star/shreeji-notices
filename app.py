@@ -15,6 +15,8 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       delete_society, get_society_stats)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+import requests, os
+
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "shreeji-iconic-chs-2026")
@@ -310,7 +312,7 @@ GEMINI_API_KEY = (
     os.environ.get("GOOGLE_GEMINI_KEY") or
     ""
 )
-GEMINI_MODEL   = "gemini-1.5-flash"
+GEMINI_MODEL   = "gemini-1.5-pro"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
 
 def call_gemini(system_prompt, user_content):
