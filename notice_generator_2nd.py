@@ -101,7 +101,7 @@ def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date=
 
     # ── Subject ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.CENTER, space_after=10)
-    _run(p, "Sub: Notice for Recovery of Due Maintenance.", bold=True, underline=True)
+    _run(p, subject, bold=True, underline=True)
 
     # ── Reference to 1st notice (extra paragraph for 2nd notice) ──
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)

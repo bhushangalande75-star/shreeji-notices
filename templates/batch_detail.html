@@ -1,230 +1,136 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Batch Detail – Shreeji CHS</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; min-height: 100vh; }
+{% extends "base.html" %}
+{% block title %}{{ batch.batch_name }} — SocietyNotice Pro{% endblock %}
+{% block page_title %}{{ batch.batch_name }}{% endblock %}
+{% block page_sub %}{{ batch.notice_type }} Notice · Issued {{ batch.issued_date }}{% endblock %}
+{% block topbar_right %}
+  <a class="btn btn-secondary" href="/tracker">← Back</a>
+  <a class="btn btn-success" href="/tracker/export/{{ batch.id }}/paid">📥 Paid List</a>
+  <a class="btn btn-danger" href="/tracker/export/{{ batch.id }}/eligible">📥 2nd Notice List</a>
+{% endblock %}
 
-    .topbar {
-      background: #C00000; color: white; padding: 14px 28px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .topbar .title { font-size: 18px; font-weight: 700; }
-    .topbar .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 13px; opacity: 0.85; }
-    .topbar .nav a:hover { opacity: 1; }
+{% block content %}
 
-    .container { max-width: 1100px; margin: 28px auto; padding: 0 24px; }
-
-    .page-header {
-      display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;
-    }
-    .page-header h2 { color: #C00000; font-size: 20px; }
-    .back-btn {
-      color: #C00000; text-decoration: none; font-size: 13px; font-weight: 600;
-    }
-
-    .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
-    .stat-card {
-      background: white; border-radius: 10px; padding: 16px 18px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.06); text-align: center;
-    }
-    .stat-card .num { font-size: 28px; font-weight: 700; }
-    .stat-card .lbl { font-size: 12px; color: #888; margin-top: 2px; }
-
-    .actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .btn {
-      padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
-      cursor: pointer; border: none; text-decoration: none; display: inline-block;
-    }
-    .btn-red   { background: #C00000; color: white; }
-    .btn-green { background: #1a7a3c; color: white; }
-    .btn-blue  { background: #1a56db; color: white; }
-    .btn-gray  { background: #f0f0f0; color: #555; }
-    .btn:hover { opacity: 0.88; }
-
-    table { width: 100%; border-collapse: collapse; background: white;
-            border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-    th { background: #C00000; color: white; padding: 12px 14px; font-size: 13px; text-align: left; }
-    td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fff8f8; }
-
-    .status-paid    { color: #1a7a3c; font-weight: 700; }
-    .status-pending { color: #C00000; font-weight: 700; }
-
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; }
-    .tab {
-      padding: 9px 20px; border-radius: 8px 8px 0 0; font-size: 13px; font-weight: 600;
-      cursor: pointer; background: #e8e8e8; color: #666; border: none;
-    }
-    .tab.active { background: #C00000; color: white; }
-
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    /* Payment modal */
-    .modal-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-      z-index: 100; align-items: center; justify-content: center;
-    }
-    .modal-overlay.show { display: flex; }
-    .modal {
-      background: white; border-radius: 14px; padding: 28px 32px;
-      width: 420px; max-width: 95%;
-    }
-    .modal h3 { color: #C00000; margin-bottom: 20px; }
-    .modal label { display: block; font-size: 13px; color: #555; font-weight: 600; margin-bottom: 5px; margin-top: 14px; }
-    .modal input, .modal select, .modal textarea {
-      width: 100%; padding: 10px 12px; border: 1.5px solid #ddd;
-      border-radius: 8px; font-size: 14px; outline: none;
-    }
-    .modal input:focus, .modal select:focus { border-color: #C00000; }
-    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
-    .modal-btns .btn { flex: 1; text-align: center; }
-  </style>
-</head>
-<body>
-<div class="topbar">
-  <div class="title">🏢 Shreeji Iconic CHS — Notice Tracker</div>
-  <div class="nav">
-    <a href="/">⚡ Generate</a>
-    <a href="/tracker">📋 Tracker</a>
-    <a href="/logout">🚪 Logout</a>
+<div class="stats-grid">
+  <div class="stat-card blue">
+    <div class="stat-num c-blue">{{ batch.total }}</div>
+    <div class="stat-label">Total Members</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-num c-green">{{ paid|length }}</div>
+    <div class="stat-label">Paid ✅</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-num c-red">{{ pending|length }}</div>
+    <div class="stat-label">Pending ⏳</div>
+  </div>
+  <div class="stat-card gold">
+    <div class="stat-num c-gold">₹{{ paid|sum(attribute='payment_amount')|int|default(0)|string }}</div>
+    <div class="stat-label">Collected</div>
   </div>
 </div>
 
-<div class="container">
-  <div class="page-header">
-    <h2>📋 {{ batch.batch_name }} — {{ batch.notice_type }} Notice &nbsp;|&nbsp; {{ batch.issued_date }}</h2>
-    <a class="back-btn" href="/tracker">← Back to Batches</a>
-  </div>
+<!-- Tabs -->
+<div style="display:flex;gap:4px;margin-bottom:16px;">
+  <button class="tab-btn active" id="tab-all-btn" onclick="showTab('all')">All ({{ notices|length }})</button>
+  <button class="tab-btn" id="tab-pending-btn" onclick="showTab('pending')">Pending ({{ pending|length }})</button>
+  <button class="tab-btn" id="tab-paid-btn" onclick="showTab('paid')">Paid ({{ paid|length }})</button>
+</div>
 
-  <div class="stats-row">
-    <div class="stat-card">
-      <div class="num" style="color:#222">{{ batch.total }}</div>
-      <div class="lbl">Total Members</div>
-    </div>
-    <div class="stat-card">
-      <div class="num" style="color:#1a7a3c">{{ paid|length }}</div>
-      <div class="lbl">Paid ✅</div>
-    </div>
-    <div class="stat-card">
-      <div class="num" style="color:#C00000">{{ pending|length }}</div>
-      <div class="lbl">Pending ⏳</div>
-    </div>
-    <div class="stat-card">
-      <div class="num" style="color:#1a56db">
-        Rs. {{ paid|sum(attribute='payment_amount')|int|default(0) }}
-      </div>
-      <div class="lbl">Amount Collected</div>
-    </div>
-  </div>
+<style>
+  .tab-btn { padding:9px 20px;border-radius:8px;border:1px solid var(--border);background:var(--dark3);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s; }
+  .tab-btn.active { background:rgba(192,0,0,0.15);color:#ff6b6b;border-color:rgba(192,0,0,0.3); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+</style>
 
-  <div class="actions">
-    <a class="btn btn-green" href="/tracker/export/{{ batch.id }}/paid">📥 Export Paid List</a>
-    <a class="btn btn-red"   href="/tracker/export/{{ batch.id }}/eligible">📥 Export 2nd Notice Eligible</a>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tab-bar">
-    <button class="tab active" onclick="showTab('all')">All Members ({{ notices|length }})</button>
-    <button class="tab" onclick="showTab('pending')">Pending ({{ pending|length }})</button>
-    <button class="tab" onclick="showTab('paid')">Paid ({{ paid|length }})</button>
-  </div>
-
-  <!-- All tab -->
-  <div class="tab-content active" id="tab-all">
+<div class="tab-content active card" id="tab-all">
+  <div class="table-wrap">
     <table>
-      <tr>
-        <th>Flat No</th><th>Member Name</th><th>Amount (Rs.)</th>
-        <th>Status</th><th>Payment Date</th><th>Action</th>
-      </tr>
-      {% for n in notices %}
-      <tr>
-        <td>{{ n.flat_no }}</td>
-        <td>{{ n.member_name }}</td>
-        <td>{{ "{:,}".format(n.amount) }}</td>
-        <td class="{{ 'status-paid' if n.payment_status == 'Paid' else 'status-pending' }}">
-          {{ '✅ Paid' if n.payment_status == 'Paid' else '⏳ Pending' }}
-        </td>
-        <td>{{ n.payment_date or '—' }}</td>
-        <td>
-          <button class="btn btn-gray" style="padding:6px 12px;font-size:12px;"
-            onclick="openModal({{ n.id }}, '{{ n.member_name }}', {{ n.amount }}, '{{ n.payment_status }}')">
-            Update
-          </button>
-        </td>
-      </tr>
-      {% endfor %}
+      <thead><tr><th>Flat No</th><th>Member Name</th><th>Amount Due</th><th>Status</th><th>Payment Date</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for n in notices %}
+        <tr>
+          <td style="font-weight:600;">{{ n.flat_no }}</td>
+          <td>{{ n.member_name }}</td>
+          <td>₹{{ "{:,}".format(n.amount) }}</td>
+          <td><span class="badge {{ 'badge-green' if n.payment_status == 'Paid' else 'badge-red' }}">{{ n.payment_status }}</span></td>
+          <td style="color:var(--muted);">{{ n.payment_date or '—' }}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="openModal({{ n.id }},'{{ n.member_name }}',{{ n.amount }},'{{ n.payment_status }}')">Update</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
+</div>
 
-  <!-- Pending tab -->
-  <div class="tab-content" id="tab-pending">
+<div class="tab-content card" id="tab-pending">
+  <div class="table-wrap">
     <table>
-      <tr><th>Flat No</th><th>Member Name</th><th>Amount (Rs.)</th><th>Ref No</th><th>Action</th></tr>
-      {% for n in pending %}
-      <tr>
-        <td>{{ n.flat_no }}</td>
-        <td>{{ n.member_name }}</td>
-        <td>{{ "{:,}".format(n.amount) }}</td>
-        <td style="font-size:11px;color:#888">{{ n.ref_no }}</td>
-        <td>
-          <button class="btn btn-red" style="padding:6px 12px;font-size:12px;"
-            onclick="openModal({{ n.id }}, '{{ n.member_name }}', {{ n.amount }}, '{{ n.payment_status }}')">
-            Mark Paid
-          </button>
-        </td>
-      </tr>
-      {% endfor %}
+      <thead><tr><th>Flat No</th><th>Member Name</th><th>Amount Due</th><th>Ref No</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for n in pending %}
+        <tr>
+          <td style="font-weight:600;">{{ n.flat_no }}</td>
+          <td>{{ n.member_name }}</td>
+          <td style="color:#ff6b6b;font-weight:600;">₹{{ "{:,}".format(n.amount) }}</td>
+          <td style="color:var(--muted);font-size:12px;">{{ n.ref_no }}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="openModal({{ n.id }},'{{ n.member_name }}',{{ n.amount }},'{{ n.payment_status }}')">Mark Paid</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
+</div>
 
-  <!-- Paid tab -->
-  <div class="tab-content" id="tab-paid">
+<div class="tab-content card" id="tab-paid">
+  <div class="table-wrap">
     <table>
-      <tr><th>Flat No</th><th>Member Name</th><th>Due Amount</th><th>Paid Amount</th><th>Payment Date</th><th>Remark</th></tr>
-      {% for n in paid %}
-      <tr>
-        <td>{{ n.flat_no }}</td>
-        <td>{{ n.member_name }}</td>
-        <td>{{ "{:,}".format(n.amount) }}</td>
-        <td style="color:#1a7a3c;font-weight:700">{{ "{:,}".format(n.payment_amount or 0) }}</td>
-        <td>{{ n.payment_date }}</td>
-        <td style="color:#888">{{ n.payment_remark or '—' }}</td>
-      </tr>
-      {% endfor %}
+      <thead><tr><th>Flat No</th><th>Member Name</th><th>Due Amount</th><th>Paid Amount</th><th>Date</th><th>Remark</th></tr></thead>
+      <tbody>
+        {% for n in paid %}
+        <tr>
+          <td style="font-weight:600;">{{ n.flat_no }}</td>
+          <td>{{ n.member_name }}</td>
+          <td style="color:var(--muted);">₹{{ "{:,}".format(n.amount) }}</td>
+          <td style="color:var(--green);font-weight:600;">₹{{ "{:,}".format(n.payment_amount or 0) }}</td>
+          <td style="color:var(--muted);">{{ n.payment_date }}</td>
+          <td style="color:var(--muted);">{{ n.payment_remark or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
 </div>
 
 <!-- Payment Modal -->
-<div class="modal-overlay" id="modalOverlay">
+<div class="modal-overlay" id="paymentModal">
   <div class="modal">
-    <h3>💰 Update Payment Status</h3>
-    <div id="modalMemberName" style="font-weight:600;color:#555;margin-bottom:4px;"></div>
-
-    <label>Status</label>
-    <select id="modalStatus">
-      <option value="Pending">⏳ Pending</option>
-      <option value="Paid">✅ Paid</option>
-    </select>
-
-    <label>Payment Date</label>
-    <input type="date" id="modalDate"/>
-
-    <label>Amount Paid (Rs.)</label>
-    <input type="number" id="modalAmount" placeholder="Enter amount received"/>
-
-    <label>Remark</label>
-    <input type="text" id="modalRemark" placeholder="e.g. Paid by cheque, cash, NEFT..."/>
-
+    <h3>💰 Update Payment</h3>
+    <p id="modalMemberInfo" style="color:var(--gold);"></p>
+    <div class="form-grid" style="margin-top:16px;">
+      <div class="form-group full">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="modalStatus" style="background:var(--dark4);">
+          <option value="Pending">⏳ Pending</option>
+          <option value="Paid">✅ Paid</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Date</label>
+        <input class="form-input" type="date" id="modalDate"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount Paid (₹)</label>
+        <input class="form-input" type="number" id="modalAmount" placeholder="0"/>
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Remark</label>
+        <input class="form-input" type="text" id="modalRemark" placeholder="e.g. Paid by NEFT, cheque..."/>
+      </div>
+    </div>
     <div class="modal-btns">
-      <button class="btn btn-gray" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-red"  onclick="savePayment()">Save</button>
+      <button class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePayment()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -234,46 +140,28 @@
 
   function showTab(name) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
-    event.target.classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+name).classList.add('active');
+    document.getElementById('tab-'+name+'-btn').classList.add('active');
   }
 
   function openModal(id, name, amount, status) {
     currentNoticeId = id;
-    document.getElementById('modalMemberName').textContent = name + ' — Rs. ' + amount.toLocaleString('en-IN');
+    document.getElementById('modalMemberInfo').textContent = name + ' — ₹' + amount.toLocaleString('en-IN');
     document.getElementById('modalStatus').value  = status;
     document.getElementById('modalAmount').value  = amount;
     document.getElementById('modalDate').value    = new Date().toISOString().split('T')[0];
     document.getElementById('modalRemark').value  = '';
-    document.getElementById('modalOverlay').classList.add('show');
+    document.getElementById('paymentModal').classList.add('show');
   }
-
-  function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('show');
-  }
-
+  function closePaymentModal() { document.getElementById('paymentModal').classList.remove('show'); }
   async function savePayment() {
-    const payload = {
-      notice_id:      currentNoticeId,
-      status:         document.getElementById('modalStatus').value,
-      payment_date:   document.getElementById('modalDate').value,
-      payment_amount: parseInt(document.getElementById('modalAmount').value) || 0,
-      remark:         document.getElementById('modalRemark').value
-    };
     await fetch('/tracker/update_payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ notice_id: currentNoticeId, status: document.getElementById('modalStatus').value, payment_date: document.getElementById('modalDate').value, payment_amount: parseInt(document.getElementById('modalAmount').value)||0, remark: document.getElementById('modalRemark').value })
     });
-    closeModal();
-    location.reload();
+    closePaymentModal(); location.reload();
   }
-
-  // Close modal on overlay click
-  document.getElementById('modalOverlay').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-  });
+  document.getElementById('paymentModal').addEventListener('click', e => { if (e.target===e.currentTarget) closePaymentModal(); });
 </script>
-</body>
-</html>
+{% endblock %}

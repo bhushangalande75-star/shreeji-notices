@@ -52,7 +52,7 @@ def _add_right_tab(para, pos_twips):
     tabs.append(tab)
     pPr.append(tabs)
 
-def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", maintenance_period="March 2026"):
+def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", maintenance_period="March 2026", subject="Sub: Notice for Recovery of Due Maintenance."):
     doc = Document()
 
     # Page margins
@@ -111,7 +111,7 @@ def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", m
 
     # ── Subject ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.CENTER, space_after=10)
-    _run(p, "Sub: Notice for Recovery of Due Maintenance.", bold=True, underline=True)
+    _run(p, subject, bold=True, underline=True)
 
     # ── Body 1 ───────────────────────────────────────────────
     p = _para(doc, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_after=8)

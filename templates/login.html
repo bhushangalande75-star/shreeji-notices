@@ -3,90 +3,195 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Shreeji Iconic CHS – Login</title>
+  <title>SocietyNotice Pro — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red:    #C00000;
+      --red2:   #8B0000;
+      --gold:   #C9A84C;
+      --dark:   #0D0D0D;
+      --dark2:  #1A1A1A;
+      --dark3:  #242424;
+      --border: rgba(255,255,255,0.08);
+      --text:   #E8E8E8;
+      --muted:  #888;
+    }
+
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #fff5f5 0%, #f4f6f9 100%);
+      font-family: 'DM Sans', sans-serif;
+      background: var(--dark);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      overflow: hidden;
     }
+
+    /* Animated background */
+    .bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: radial-gradient(ellipse at 20% 50%, rgba(192,0,0,0.15) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.08) 0%, transparent 50%),
+                  var(--dark);
+    }
+    .bg::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255,255,255,0.015) 80px, rgba(255,255,255,0.015) 81px),
+                        repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255,255,255,0.015) 80px, rgba(255,255,255,0.015) 81px);
+    }
+
+    .wrapper {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; gap: 80px;
+      padding: 40px;
+      max-width: 960px; width: 100%;
+    }
+
+    /* Left branding */
+    .brand {
+      flex: 1;
+      animation: fadeLeft 0.8s ease both;
+    }
+    .brand-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(192,0,0,0.15); border: 1px solid rgba(192,0,0,0.3);
+      border-radius: 99px; padding: 6px 16px; margin-bottom: 28px;
+      font-size: 12px; font-weight: 500; color: #ff6b6b; letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .brand-badge span { width: 6px; height: 6px; border-radius: 50%; background: #ff4444; display: inline-block; animation: pulse 2s infinite; }
+    .brand h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 52px; line-height: 1.1; font-weight: 700;
+      color: var(--text); margin-bottom: 16px;
+    }
+    .brand h1 em { color: var(--red); font-style: normal; }
+    .brand p { color: var(--muted); font-size: 16px; line-height: 1.6; max-width: 340px; }
+
+    .features { margin-top: 40px; display: flex; flex-direction: column; gap: 14px; }
+    .feature {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--muted); font-size: 14px;
+    }
+    .feature-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    /* Login card */
     .card {
-      background: white;
-      border-radius: 18px;
-      box-shadow: 0 8px 40px rgba(192,0,0,0.10);
-      padding: 48px 44px 40px;
-      width: 100%;
-      max-width: 420px;
-      text-align: center;
+      width: 400px; flex-shrink: 0;
+      background: var(--dark2);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px;
+      animation: fadeUp 0.8s ease 0.2s both;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
     }
-    .icon { font-size: 48px; margin-bottom: 12px; }
-    .title { color: #C00000; font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .subtitle { color: #999; font-size: 13px; margin-bottom: 32px; }
 
-    label { display: block; text-align: left; font-size: 13px; color: #555; font-weight: 600; margin-bottom: 6px; }
-
-    input[type="password"] {
-      width: 100%;
-      padding: 13px 16px;
-      border: 1.5px solid #ddd;
-      border-radius: 10px;
-      font-size: 15px;
-      outline: none;
-      transition: border-color 0.2s;
-      margin-bottom: 16px;
-      letter-spacing: 2px;
+    .card-header { margin-bottom: 32px; }
+    .card-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px; color: var(--text); margin-bottom: 6px;
     }
-    input[type="password"]:focus { border-color: #C00000; }
+    .card-header p { color: var(--muted); font-size: 14px; }
 
-    .btn {
-      background: #C00000;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 14px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      width: 100%;
-      transition: background 0.2s, transform 0.1s;
-    }
-    .btn:hover { background: #a00000; transform: translateY(-1px); }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; margin-top: 20px; }
+    label:first-of-type { margin-top: 0; }
 
-    .error {
-      background: #fff0f0;
-      border: 1px solid #f5c0c0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: #C00000;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 16px;
+    input {
+      width: 100%; padding: 13px 16px;
+      background: var(--dark3); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 15px;
+      font-family: 'DM Sans', sans-serif; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .note { margin-top: 24px; font-size: 12px; color: #bbb; }
+    input:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(192,0,0,0.15); }
+    input::placeholder { color: #444; }
+
+    .error-msg {
+      background: rgba(192,0,0,0.12); border: 1px solid rgba(192,0,0,0.3);
+      border-radius: 10px; padding: 12px 16px; color: #ff6b6b;
+      font-size: 13px; margin-bottom: 20px;
+    }
+
+    .btn-login {
+      width: 100%; margin-top: 28px; padding: 14px;
+      background: linear-gradient(135deg, var(--red), var(--red2));
+      border: none; border-radius: 10px; color: white;
+      font-size: 15px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+      cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
+      position: relative; overflow: hidden;
+    }
+    .btn-login::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(192,0,0,0.4); }
+    .btn-login:hover::after { opacity: 1; }
+
+    .divider { height: 1px; background: var(--border); margin: 28px 0; }
+    .admin-link { text-align: center; font-size: 13px; color: var(--muted); }
+    .admin-link a { color: var(--gold); text-decoration: none; font-weight: 500; }
+    .admin-link a:hover { color: #e0bb6b; }
+
+    @keyframes fadeLeft { from { opacity:0; transform:translateX(-30px); } to { opacity:1; transform:none; } }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(20px);  } to { opacity:1; transform:none; } }
+    @keyframes pulse    { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    @media (max-width: 768px) {
+      .wrapper { flex-direction: column; gap: 40px; }
+      .brand { text-align: center; }
+      .brand h1 { font-size: 36px; }
+      .brand p { max-width: 100%; }
+      .features { align-items: center; }
+      .card { width: 100%; }
+    }
   </style>
 </head>
 <body>
-<div class="card">
-  <div class="icon">🏢</div>
-  <div class="title">Shreeji Iconic CHS Ltd.</div>
-  <div class="subtitle">Maintenance Notice Generator — Committee Access</div>
+<div class="bg"></div>
+<div class="wrapper">
+  <div class="brand">
+    <div class="brand-badge"><span></span> Live Platform</div>
+    <h1>Society<br><em>Notice</em> Pro</h1>
+    <p>Automated maintenance notice management for Co-operative Housing Societies.</p>
+    <div class="features">
+      <div class="feature"><div class="feature-icon">📄</div> Generate 1st & 2nd notices instantly</div>
+      <div class="feature"><div class="feature-icon">💰</div> Track payments & defaulters</div>
+      <div class="feature"><div class="feature-icon">📊</div> Export reports to Excel & PDF</div>
+      <div class="feature"><div class="feature-icon">🏢</div> Multi-society support</div>
+    </div>
+  </div>
 
-  {% if error %}
-  <div class="error">{{ error }}</div>
-  {% endif %}
+  <div class="card">
+    <div class="card-header">
+      <h2>Welcome Back</h2>
+      <p>Sign in to your society portal</p>
+    </div>
 
-  <form method="POST">
-    <label>🔒 Enter Password</label>
-    <input type="password" name="password" placeholder="••••••••••" autofocus required/>
-    <button class="btn" type="submit">Login →</button>
-  </form>
+    {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
 
-  <div class="note">Authorised committee members only.<br>Contact the administrator for access.</div>
+    <form method="POST">
+      <label>Username</label>
+      <input type="text" name="username" placeholder="your society username" autofocus required/>
+      <label>Password</label>
+      <input type="password" name="password" placeholder="••••••••••" required/>
+      <button class="btn-login" type="submit">Sign In →</button>
+    </form>
+
+    <div class="divider"></div>
+    <div class="admin-link">
+      Administrator? <a href="/login">Use admin credentials</a>
+    </div>
+  </div>
 </div>
 </body>
 </html>
