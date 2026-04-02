@@ -311,7 +311,7 @@ GEMINI_API_KEY = (
     ""
 )
 GEMINI_MODEL   = "gemini-1.5-flash"
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
 
 def call_gemini(system_prompt, user_content):
     """Call Google Gemini API. user_content can be str or list (for vision)."""
