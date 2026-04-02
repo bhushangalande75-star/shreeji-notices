@@ -15,7 +15,6 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       delete_society, get_society_stats)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-import requests, os
 
 
 app = Flask(__name__)
