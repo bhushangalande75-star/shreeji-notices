@@ -363,7 +363,7 @@ def call_groq(system_prompt, user_content):
 @app.route("/ai-notices/generate-notice", methods=["POST"])
 @login_required
 def ai_generate_notice():
-    """Generate a custom notice (No Parking, Misbehaviour, etc.) using AI."""
+    """Generate a notice in the user's chosen language (English / Marathi / Hindi)."""
     try:
         notice_type   = request.form.get("notice_type", "General Notice")
         flat_no       = request.form.get("flat_no", "").strip()
@@ -371,6 +371,7 @@ def ai_generate_notice():
         ref_no        = request.form.get("ref_no", "").strip()
         issued_date   = request.form.get("issued_date", date.today().strftime("%d-%m-%Y"))
         description   = request.form.get("description", "").strip()
+        language      = request.form.get("language", "English").strip()
         society_name  = session.get("society_name", "Shreeji Iconic CHS Ltd.")
 
         try:
@@ -378,31 +379,102 @@ def ai_generate_notice():
         except:
             pass
 
-        system_prompt = (
-            "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत नोटीस लेखक आहात. "
-            "नोटीस मराठीत लिहा — औपचारिक, ठाम आणि कायदेशीरदृष्ट्या योग्य भाषेत. "
-            "फक्त नोटीसचे मुख्य परिच्छेद लिहा — अभिवादन, विषय ओळ किंवा स्वाक्षरी नको. "
-            "प्रत्येक परिच्छेद नवीन ओळीवर लिहा. "
-            "महाराष्ट्र सहकारी संस्था अधिनियम १९६० आणि संस्थेच्या उपविधींचा संदर्भ द्या."
-        )
+        # Language-specific config
+        lang_cfg = {
+            "English": {
+                "system": (
+                    "You are the official notice writer for a Co-operative Housing Society in Maharashtra, India. "
+                    "Write the notice in formal, firm, and legally appropriate English. "
+                    "Write ONLY the body paragraphs — no salutation, no subject line, no signature. "
+                    "Each paragraph on a new line. "
+                    "Reference the Maharashtra Co-operative Societies Act 1960 and society bye-laws where relevant."
+                ),
+                "user": (
+                    f"Write a formal notice in English for {society_name} for the following situation:\n\n"
+                    f"Notice Type: {notice_type}\n"
+                    f"Member Name: {member_name}\n"
+                    f"Flat No: {flat_no}\n"
+                    f"Issue Description: {description}\n\n"
+                    "Write 3-4 firm but respectful paragraphs covering: what the issue is, "
+                    "how it violates society rules/bye-laws, a demand to stop/rectify immediately, "
+                    "and consequences if not complied with."
+                ),
+                "subject_system": "You are the secretary of a Co-operative Housing Society.",
+                "subject_user": (
+                    f"Write a one-line formal English subject line for a notice regarding '{notice_type}'. "
+                    "Output ONLY the subject text — no 'Sub:', 'Subject:' or any prefix. "
+                    "Example: No Parking Violation — Immediate Compliance Required."
+                ),
+                "sub_label": "Sub:",
+            },
+            "Marathi": {
+                "system": (
+                    "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत नोटीस लेखक आहात. "
+                    "नोटीस मराठीत लिहा — औपचारिक, ठाम आणि कायदेशीरदृष्ट्या योग्य भाषेत. "
+                    "फक्त नोटीसचे मुख्य परिच्छेद लिहा — अभिवादन, विषय ओळ किंवा स्वाक्षरी नको. "
+                    "प्रत्येक परिच्छेद नवीन ओळीवर लिहा. "
+                    "महाराष्ट्र सहकारी संस्था अधिनियम १९६० आणि संस्थेच्या उपविधींचा संदर्भ द्या."
+                ),
+                "user": (
+                    f"{society_name} येथील खालील परिस्थितीसाठी मराठीत औपचारिक नोटीस लिहा:\n\n"
+                    f"नोटीस प्रकार: {notice_type}\n"
+                    f"सदस्याचे नाव: {member_name}\n"
+                    f"फ्लॅट क्र.: {flat_no}\n"
+                    f"समस्येचे वर्णन: {description}\n\n"
+                    "३-४ ठाम पण सभ्य परिच्छेद लिहा. "
+                    "समाविष्ट करा: समस्या काय आहे, ती संस्थेच्या नियमांचे/उपविधींचे उल्लंघन कसे करते, "
+                    "तात्काळ थांबण्याची/दुरुस्त करण्याची मागणी, आणि पालन न केल्यास होणारे परिणाम."
+                ),
+                "subject_system": "तुम्ही एका सहकारी गृहनिर्माण संस्थेचे सचिव आहात.",
+                "subject_user": (
+                    f"'{notice_type}' या विषयावरील नोटीससाठी एक ओळीचा औपचारिक मराठी विषय लिहा. "
+                    "फक्त विषय ओळ लिहा — 'विषय:', 'Sub:' किंवा इतर कोणताही उपसर्ग न लिहिता. "
+                    "उदा: पार्किंगच्या नियमांचे उल्लंघन — तात्काळ अनुपालन आवश्यक."
+                ),
+                "sub_label": "विषय:",
+            },
+            "Hindi": {
+                "system": (
+                    "आप महाराष्ट्र की एक सहकारी आवास संस्था के आधिकारिक नोटिस लेखक हैं. "
+                    "नोटिस हिंदी में लिखें — औपचारिक, दृढ़ और कानूनी रूप से उचित भाषा में. "
+                    "केवल नोटिस के मुख्य अनुच्छेद लिखें — अभिवादन, विषय पंक्ति या हस्ताक्षर नहीं. "
+                    "प्रत्येक अनुच्छेद नई पंक्ति पर लिखें. "
+                    "महाराष्ट्र सहकारी संस्था अधिनियम 1960 और संस्था के उपनियमों का संदर्भ दें."
+                ),
+                "user": (
+                    f"{society_name} के लिए निम्नलिखित स्थिति हेतु हिंदी में औपचारिक नोटिस लिखें:\n\n"
+                    f"नोटिस प्रकार: {notice_type}\n"
+                    f"सदस्य का नाम: {member_name}\n"
+                    f"फ्लैट नं.: {flat_no}\n"
+                    f"समस्या का विवरण: {description}\n\n"
+                    "3-4 दृढ़ लेकिन शिष्ट अनुच्छेद लिखें जिनमें शामिल हों: समस्या क्या है, "
+                    "यह संस्था के नियमों/उपनियमों का उल्लंघन कैसे करती है, "
+                    "तत्काल रोकने/सुधारने की मांग, और पालन न करने पर परिणाम."
+                ),
+                "subject_system": "आप एक सहकारी आवास संस्था के सचिव हैं.",
+                "subject_user": (
+                    f"'{notice_type}' विषय पर नोटिस के लिए एक पंक्ति का औपचारिक हिंदी विषय लिखें. "
+                    "केवल विषय पंक्ति लिखें — 'विषय:', 'Sub:' या कोई उपसर्ग नहीं. "
+                    "उदा: पार्किंग नियमों का उल्लंघन — तत्काल अनुपालन आवश्यक."
+                ),
+                "sub_label": "विषय:",
+            },
+        }
 
-        user_prompt = (
-            f"{society_name} येथील खालील परिस्थितीसाठी मराठीत औपचारिक नोटीस लिहा:\n\n"
-            f"नोटीस प्रकार: {notice_type}\n"
-            f"सदस्याचे नाव: {member_name}\n"
-            f"फ्लॅट क्र.: {flat_no}\n"
-            f"समस्येचे वर्णन: {description}\n\n"
-            f"३-४ ठाम पण सभ्य परिच्छेद लिहा. "
-            f"समाविष्ट करा: समस्या काय आहे, ती संस्थेच्या नियमांचे/उपविधींचे उल्लंघन कसे करते, "
-            f"तात्काळ थांबण्याची/दुरुस्त करण्याची मागणी, आणि पालन न केल्यास होणारे परिणाम."
-        )
+        cfg = lang_cfg.get(language, lang_cfg["English"])
+        print(f"[AI-NOTICE] language={language!r}  sub_label={cfg['sub_label']!r}")
 
-        ai_text = call_groq(system_prompt, user_prompt)
-        subject = f"Sub: Notice Regarding {notice_type} — Immediate Compliance Required."
+        ai_text     = call_groq(cfg["system"], cfg["user"])
+        raw_subject = call_groq(cfg["subject_system"], cfg["subject_user"]).strip().strip('"').strip("'").strip()
+        # Strip any prefix the model may have added despite instructions
+        for prefix in ("Sub:", "Subject:", "विषय:", "विषय :", "Vishay:"):
+            if raw_subject.lower().startswith(prefix.lower()):
+                raw_subject = raw_subject[len(prefix):].strip()
+                break
+        subject = f"{cfg['sub_label']} {raw_subject}"
 
         docx_bytes = build_ai_notice_docx(ref_no, flat_no, member_name, issued_date, subject, ai_text)
 
-        # Return preview text + offer download
         sess_id  = str(uuid.uuid4())
         sess_dir = os.path.join(TEMP_DIR, sess_id)
         os.makedirs(sess_dir, exist_ok=True)
@@ -419,10 +491,11 @@ def ai_generate_notice():
 @app.route("/ai-notices/generate-mom", methods=["POST"])
 @login_required
 def ai_generate_mom():
-    """Generate Marathi MOM from uploaded handwritten photo."""
+    """Generate MOM in the user's chosen language (English / Marathi / Hindi)."""
     try:
         meeting_date = request.form.get("meeting_date", date.today().strftime("%d-%m-%Y"))
         attendees    = request.form.get("attendees", "").strip()
+        language     = request.form.get("language", "English").strip()
         society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
 
         try:
@@ -430,51 +503,96 @@ def ai_generate_mom():
         except:
             pass
 
-        # Build user message content
+        # Language-specific prompts for MOM
+        mom_lang_cfg = {
+            "English": {
+                "system": (
+                    "You are an experienced secretary of a Co-operative Housing Society in Maharashtra, India. "
+                    "You write fluent, formal Minutes of Meeting in English. "
+                    "Number all decisions. Use proper legal and administrative terminology. "
+                    "Sections: Members Present, Agenda, Discussion & Decisions (numbered), Action Items."
+                ),
+                "photo_text": (
+                    f"This is a handwritten meeting notes photo for {society_name}. "
+                    f"Meeting date: {meeting_date}. "
+                    f"Attendees: {attendees or 'As visible in the notes'}.\n\n"
+                    "Please read all the handwritten content and generate a complete, "
+                    "formal Minutes of Meeting in English. "
+                    "Sections: Members Present, Agenda, Discussion & Decisions (numbered), Action Items. "
+                    "Output ONLY the MOM content, no preamble."
+                ),
+                "text_prompt": (
+                    f"Generate formal Minutes of Meeting in English for {society_name}.\n"
+                    f"Meeting date: {meeting_date}\nAttendees: {attendees}\n"
+                    f"Meeting notes: {{raw_notes}}\n\n"
+                    "Sections: Members Present, Agenda, Discussion & Decisions (numbered), Action Items. "
+                    "Output ONLY the MOM content."
+                ),
+            },
+            "Marathi": {
+                "system": (
+                    "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अनुभवी सचिव आहात. "
+                    "तुम्ही अस्खलित, औपचारिक मराठीत इतिवृत्त (Minutes of Meeting) लिहिता. "
+                    "निर्णय क्रमांकित करा. योग्य मराठी कायदेशीर आणि प्रशासकीय शब्दावली वापरा. "
+                    "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे."
+                ),
+                "photo_text": (
+                    f"हे {society_name} च्या बैठकीच्या हस्तलिखित नोट्सचा फोटो आहे. "
+                    f"बैठकीची तारीख: {meeting_date}. "
+                    f"उपस्थित सदस्य: {attendees or 'नोट्समध्ये दिसत आहे'}.\n\n"
+                    "कृपया सर्व हस्तलिखित मजकूर वाचा आणि संपूर्ण, औपचारिक मराठी इतिवृत्त तयार करा. "
+                    "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे. "
+                    "फक्त इतिवृत्त मजकूर लिहा, कोणतीही प्रस्तावना नको."
+                ),
+                "text_prompt": (
+                    f"{society_name} साठी मराठीत औपचारिक इतिवृत्त तयार करा.\n"
+                    f"बैठकीची तारीख: {meeting_date}\nउपस्थित सदस्य: {attendees}\n"
+                    f"बैठकीच्या नोट्स: {{raw_notes}}\n\n"
+                    "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे. "
+                    "फक्त इतिवृत्त मजकूर लिहा."
+                ),
+            },
+            "Hindi": {
+                "system": (
+                    "आप महाराष्ट्र की एक सहकारी आवास संस्था के अनुभवी सचिव हैं. "
+                    "आप धाराप्रवाह, औपचारिक हिंदी में कार्यवृत्त (Minutes of Meeting) लिखते हैं. "
+                    "सभी निर्णयों को क्रमांकित करें. उचित कानूनी और प्रशासनिक शब्दावली का उपयोग करें. "
+                    "खंड: उपस्थित सदस्य, एजेंडा, चर्चा और निर्णय (क्रमांकित), कार्य बिंदु."
+                ),
+                "photo_text": (
+                    f"यह {society_name} की बैठक के हस्तलिखित नोट्स का फोटो है. "
+                    f"बैठक की तारीख: {meeting_date}. "
+                    f"उपस्थित सदस्य: {attendees or 'नोट्स में दिखाई दे रहे हैं'}.\n\n"
+                    "कृपया सभी हस्तलिखित सामग्री पढ़ें और पूर्ण, औपचारिक हिंदी कार्यवृत्त तैयार करें. "
+                    "खंड: उपस्थित सदस्य, एजेंडा, चर्चा और निर्णय (क्रमांकित), कार्य बिंदु. "
+                    "केवल कार्यवृत्त सामग्री लिखें, कोई प्रस्तावना नहीं."
+                ),
+                "text_prompt": (
+                    f"{society_name} के लिए हिंदी में औपचारिक कार्यवृत्त तैयार करें.\n"
+                    f"बैठक की तारीख: {meeting_date}\nउपस्थित सदस्य: {attendees}\n"
+                    f"बैठक के नोट्स: {{raw_notes}}\n\n"
+                    "खंड: उपस्थित सदस्य, एजेंडा, चर्चा और निर्णय (क्रमांकित), कार्य बिंदु. "
+                    "केवल कार्यवृत्त सामग्री लिखें."
+                ),
+            },
+        }
+
+        cfg = mom_lang_cfg.get(language, mom_lang_cfg["English"])
+
         if "photo" in request.files and request.files["photo"].filename:
-            photo = request.files["photo"]
+            photo     = request.files["photo"]
             img_bytes = photo.read()
             img_b64   = base64.standard_b64encode(img_bytes).decode()
             mime      = photo.content_type or "image/jpeg"
-
             user_content = [
-                {
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": mime, "data": img_b64}
-                },
-                {
-                    "type": "text",
-                    "text": (
-                        f"This is a handwritten meeting notes photo for {society_name}. "
-                        f"Meeting date: {meeting_date}. "
-                        f"Attendees: {attendees or 'As visible in the notes'}.\n\n"
-                        "Please read all the handwritten content and generate a complete, "
-                        "formal Minutes of Meeting (इतिवृत्त) in Marathi language. "
-                        "Format it with sections: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (numbered), कृती मुद्दे. "
-                        "Use formal Marathi. Output ONLY the MOM content, no preamble."
-                    )
-                }
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": img_b64}},
+                {"type": "text",  "text": cfg["photo_text"]},
             ]
         else:
-            # Text-only fallback
-            raw_notes = request.form.get("raw_notes", "").strip()
-            user_content = (
-                f"Generate a formal Minutes of Meeting (इतिवृत्त) in Marathi for {society_name}.\n"
-                f"Meeting date: {meeting_date}\n"
-                f"Attendees: {attendees}\n"
-                f"Meeting notes: {raw_notes}\n\n"
-                "Format with sections: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (numbered), कृती मुद्दे. "
-                "Use formal Marathi. Output ONLY the MOM content."
-            )
+            raw_notes    = request.form.get("raw_notes", "").strip()
+            user_content = cfg["text_prompt"].format(raw_notes=raw_notes)
 
-        system_prompt = (
-            "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अनुभवी सचिव आहात. "
-            "तुम्ही अस्खलित, औपचारिक मराठीत इतिवृत्त (Minutes of Meeting) लिहिता. "
-            "निर्णय क्रमांकित करा. योग्य मराठी कायदेशीर आणि प्रशासकीय शब्दावली वापरा. "
-            "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे."
-        )
-
-        mom_text  = call_groq(system_prompt, user_content)
+        mom_text   = call_groq(cfg["system"], user_content)
         docx_bytes = build_mom_docx(mom_text, meeting_date, society_name)
 
         sess_id  = str(uuid.uuid4())
