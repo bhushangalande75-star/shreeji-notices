@@ -50,7 +50,8 @@ def _add_right_tab(para, pos_twips):
     pPr.append(tabs)
 
 def generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date="",
-                        due_date="31st March 2026", maintenance_period="March 2026"):
+                        due_date="31st March 2026", maintenance_period="March 2026",
+                        subject="Sub: Notice for Recovery of Due Maintenance."):
     doc = Document()
     for section in doc.sections:
         section.page_width    = Cm(21.0)

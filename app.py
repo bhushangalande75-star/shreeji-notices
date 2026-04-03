@@ -4,10 +4,6 @@ import os, io, zipfile, json, uuid, tempfile, glob, subprocess, sys
 from datetime import date, datetime
 from notice_generator import generate_notice
 from notice_generator_2nd import generate_notice_2nd
-from notice_generator_3rd import generate_notice_3rd
-from notice_generator_ai import build_ai_notice_docx, build_mom_docx
-import requests as http_requests
-import base64
 from pypdf import PdfWriter, PdfReader
 from database import (save_batch, get_batches, get_batch_notices, update_payment,
                       get_eligible_for_2nd, get_paid_members, delete_batch,
@@ -35,7 +31,7 @@ def login_required(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("society_id") and not session.get("is_admin"):
+        if not session.get("society_id"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
@@ -85,7 +81,7 @@ def logout():
 @admin_required
 def admin_dashboard():
     societies = get_all_societies()
-    return render_template("admin.html", societies=societies, society_name=session.get("society_name", "Admin"))
+    return render_template("admin.html", societies=societies)
 
 @app.route("/admin/create_society", methods=["POST"])
 @admin_required
@@ -115,9 +111,8 @@ def index():
 @app.route("/tracker")
 @login_required
 def tracker():
-    society_id = session.get("society_id")
-    batches = get_batches(society_id) if society_id else []
-    stats   = get_society_stats(society_id) if society_id else {}
+    batches = get_batches(session["society_id"])
+    stats   = get_society_stats(session["society_id"])
     return render_template("tracker.html", batches=batches, society_name=session["society_name"], stats=stats)
 
 @app.route("/tracker/batch/<int:batch_id>")
@@ -229,15 +224,11 @@ def generate():
                 name        = str(row[5]).strip()
                 amount      = int(row[7])
                 prev_ref_no = str(row[8]).strip() if notice_type == "2nd" and len(row) > 8 else ""
-                prev_ref_no_1st = str(row[8]).strip() if notice_type == "3rd" and len(row) > 8 else ""
-                prev_ref_no_2nd = str(row[9]).strip() if notice_type == "3rd" and len(row) > 9 else ""
 
-                if notice_type == "3rd":
-                    doc_bytes = generate_notice_3rd(flat_no, ref_no, name, amount, prev_ref_no_1st, prev_ref_no_2nd, issued_date, due_date, maintenance_period, subject)
-                elif notice_type == "2nd":
+                if notice_type == "2nd":
                     doc_bytes = generate_notice_2nd(flat_no, ref_no, name, amount, prev_ref_no, issued_date, due_date, maintenance_period, subject)
                 else:
-                    doc_bytes = generate_notice(flat_no, ref_no, name, amount, due_date, maintenance_period, subject)
+                    doc_bytes = generate_notice(flat_no, ref_no, name, amount, due_date, maintenance_period, subject, issued_date)
 
                 filename = f"Notice_{ref_no.replace('/', '-')}_{flat_no}.docx"
                 docx_files.append((filename, doc_bytes))
@@ -297,210 +288,6 @@ def download(sess_id, filetype):
     response.headers["Content-Type"]        = mime
     response.headers["Content-Disposition"] = f"attachment; filename={name}"
     return response
-
-@app.route("/ai-notices")
-@login_required
-def ai_notices():
-    return render_template("ai_notices.html",
-                           society_name=session["society_name"])
-
-GROQ_API_KEY = os.environ.get("NOTICE_API_KEY", "")
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = "llama-3.3-70b-versatile"
-
-def call_groq(system_prompt, user_content):
-    """Call Groq API (OpenAI-compatible). user_content can be str or list (for vision)."""
-    if not GROQ_API_KEY:
-        raise ValueError(
-            "Groq API key is not set. "
-            "Add NOTICE_API_KEY in your Render environment variables."
-        )
-
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type":  "application/json",
-    }
-
-    if isinstance(user_content, str):
-        model = GROQ_MODEL
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_content},
-        ]
-    else:
-        # Vision input — use Groq vision model
-        model = "meta-llama/llama-4-scout-17b-16e-instruct"
-        content_parts = []
-        for item in user_content:
-            if item.get("type") == "text":
-                content_parts.append({"type": "text", "text": item["text"]})
-            elif item.get("type") == "image":
-                src = item["source"]
-                data_url = f"data:{src['media_type']};base64,{src['data']}"
-                content_parts.append({
-                    "type":      "image_url",
-                    "image_url": {"url": data_url},
-                })
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": content_parts},
-        ]
-
-    payload = {
-        "model":       model,
-        "messages":    messages,
-        "max_tokens":  2048,
-        "temperature": 0.4,
-    }
-
-    resp = http_requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"]
-
-
-@app.route("/ai-notices/generate-notice", methods=["POST"])
-@login_required
-def ai_generate_notice():
-    """Generate a custom notice (No Parking, Misbehaviour, etc.) using AI."""
-    try:
-        notice_type   = request.form.get("notice_type", "General Notice")
-        flat_no       = request.form.get("flat_no", "").strip()
-        member_name   = request.form.get("member_name", "").strip()
-        ref_no        = request.form.get("ref_no", "").strip()
-        issued_date   = request.form.get("issued_date", date.today().strftime("%d-%m-%Y"))
-        description   = request.form.get("description", "").strip()
-        society_name  = session.get("society_name", "Shreeji Iconic CHS Ltd.")
-
-        try:
-            issued_date = datetime.strptime(issued_date, "%Y-%m-%d").strftime("%d-%m-%Y")
-        except:
-            pass
-
-        system_prompt = (
-            "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत नोटीस लेखक आहात. "
-            "नोटीस मराठीत लिहा — औपचारिक, ठाम आणि कायदेशीरदृष्ट्या योग्य भाषेत. "
-            "फक्त नोटीसचे मुख्य परिच्छेद लिहा — अभिवादन, विषय ओळ किंवा स्वाक्षरी नको. "
-            "प्रत्येक परिच्छेद नवीन ओळीवर लिहा. "
-            "महाराष्ट्र सहकारी संस्था अधिनियम १९६० आणि संस्थेच्या उपविधींचा संदर्भ द्या."
-        )
-
-        user_prompt = (
-            f"{society_name} येथील खालील परिस्थितीसाठी मराठीत औपचारिक नोटीस लिहा:\n\n"
-            f"नोटीस प्रकार: {notice_type}\n"
-            f"सदस्याचे नाव: {member_name}\n"
-            f"फ्लॅट क्र.: {flat_no}\n"
-            f"समस्येचे वर्णन: {description}\n\n"
-            f"३-४ ठाम पण सभ्य परिच्छेद लिहा. "
-            f"समाविष्ट करा: समस्या काय आहे, ती संस्थेच्या नियमांचे/उपविधींचे उल्लंघन कसे करते, "
-            f"तात्काळ थांबण्याची/दुरुस्त करण्याची मागणी, आणि पालन न केल्यास होणारे परिणाम."
-        )
-
-        ai_text = call_groq(system_prompt, user_prompt)
-        subject = f"Sub: Notice Regarding {notice_type} — Immediate Compliance Required."
-
-        docx_bytes = build_ai_notice_docx(ref_no, flat_no, member_name, issued_date, subject, ai_text)
-
-        # Return preview text + offer download
-        sess_id  = str(uuid.uuid4())
-        sess_dir = os.path.join(TEMP_DIR, sess_id)
-        os.makedirs(sess_dir, exist_ok=True)
-        fname = f"Notice_{notice_type.replace(' ', '_')}_{flat_no or 'General'}.docx"
-        with open(os.path.join(sess_dir, fname), "wb") as f:
-            f.write(docx_bytes)
-
-        return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/ai-notices/generate-mom", methods=["POST"])
-@login_required
-def ai_generate_mom():
-    """Generate Marathi MOM from uploaded handwritten photo."""
-    try:
-        meeting_date = request.form.get("meeting_date", date.today().strftime("%d-%m-%Y"))
-        attendees    = request.form.get("attendees", "").strip()
-        society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
-
-        try:
-            meeting_date = datetime.strptime(meeting_date, "%Y-%m-%d").strftime("%d-%m-%Y")
-        except:
-            pass
-
-        # Build user message content
-        if "photo" in request.files and request.files["photo"].filename:
-            photo = request.files["photo"]
-            img_bytes = photo.read()
-            img_b64   = base64.standard_b64encode(img_bytes).decode()
-            mime      = photo.content_type or "image/jpeg"
-
-            user_content = [
-                {
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": mime, "data": img_b64}
-                },
-                {
-                    "type": "text",
-                    "text": (
-                        f"This is a handwritten meeting notes photo for {society_name}. "
-                        f"Meeting date: {meeting_date}. "
-                        f"Attendees: {attendees or 'As visible in the notes'}.\n\n"
-                        "Please read all the handwritten content and generate a complete, "
-                        "formal Minutes of Meeting (इतिवृत्त) in Marathi language. "
-                        "Format it with sections: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (numbered), कृती मुद्दे. "
-                        "Use formal Marathi. Output ONLY the MOM content, no preamble."
-                    )
-                }
-            ]
-        else:
-            # Text-only fallback
-            raw_notes = request.form.get("raw_notes", "").strip()
-            user_content = (
-                f"Generate a formal Minutes of Meeting (इतिवृत्त) in Marathi for {society_name}.\n"
-                f"Meeting date: {meeting_date}\n"
-                f"Attendees: {attendees}\n"
-                f"Meeting notes: {raw_notes}\n\n"
-                "Format with sections: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (numbered), कृती मुद्दे. "
-                "Use formal Marathi. Output ONLY the MOM content."
-            )
-
-        system_prompt = (
-            "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अनुभवी सचिव आहात. "
-            "तुम्ही अस्खलित, औपचारिक मराठीत इतिवृत्त (Minutes of Meeting) लिहिता. "
-            "निर्णय क्रमांकित करा. योग्य मराठी कायदेशीर आणि प्रशासकीय शब्दावली वापरा. "
-            "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे."
-        )
-
-        mom_text  = call_groq(system_prompt, user_content)
-        docx_bytes = build_mom_docx(mom_text, meeting_date, society_name)
-
-        sess_id  = str(uuid.uuid4())
-        sess_dir = os.path.join(TEMP_DIR, sess_id)
-        os.makedirs(sess_dir, exist_ok=True)
-        fname = f"MOM_{meeting_date.replace('/', '-')}.docx"
-        with open(os.path.join(sess_dir, fname), "wb") as f:
-            f.write(docx_bytes)
-
-        return jsonify({"success": True, "preview": mom_text, "sess_id": sess_id, "filename": fname})
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/ai-notices/download/<sess_id>/<filename>")
-@login_required
-def ai_download(sess_id, filename):
-    sess_dir = os.path.join(TEMP_DIR, sess_id)
-    path = os.path.join(sess_dir, filename)
-    if not os.path.exists(path):
-        return "File not found", 404
-    response = make_response(open(path, "rb").read())
-    response.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
-    return response
-
 
 if __name__ == "__main__":
     lo = get_libreoffice_path()

@@ -52,7 +52,7 @@ def _add_right_tab(para, pos_twips):
     tabs.append(tab)
     pPr.append(tabs)
 
-def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", maintenance_period="March 2026", subject="Sub: Notice for Recovery of Due Maintenance."):
+def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", maintenance_period="March 2026", subject="Sub: Notice for Recovery of Due Maintenance.", issued_date=""):
     doc = Document()
 
     # Page margins
@@ -83,7 +83,7 @@ def generate_notice(flat_no, ref_no, name, amount, due_date="31st March 2026", m
     _run(p, "Ref.No.", bold=True, color=RED, underline=True)
     _run(p, f"{ref_no}", bold=True, color=RED)
     _run(p, "\t", bold=True, color=RED)                                          # jump to right edge
-    _run(p, "Date: 23/03/2026", bold=True, color=RED)
+    _run(p, f"Date: {issued_date}", bold=True, color=RED)
 
     # ── Spacer ────────────────────────────────────────────────
     _para(doc, space_after=4)
