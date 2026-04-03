@@ -171,6 +171,15 @@
         <div class="card-title" style="margin-bottom:4px;">Notice Details</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Select notice type, fill in the details, and AI will draft the full notice</div>
 
+        <!-- Language selector -->
+        <div class="form-label" style="margin-bottom:8px;">Output Language</div>
+        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+          <button class="n-chip selected" id="lang-en" onclick="selectLang('English')">🇬🇧 English</button>
+          <button class="n-chip" id="lang-mr" onclick="selectLang('Marathi')">🇮🇳 Marathi</button>
+          <button class="n-chip" id="lang-hi" onclick="selectLang('Hindi')">🏛️ Hindi</button>
+        </div>
+        <input type="hidden" id="noticeLangInput" value="English"/>
+
         <!-- Notice type chips -->
         <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
         <div class="notice-chips" id="noticeChips">
@@ -183,9 +192,17 @@
           <button class="n-chip" onclick="selectChip(this, 'Illegal Subletting')">🔑 Subletting</button>
           <button class="n-chip" onclick="selectChip(this, 'Water Misuse')">💧 Water Misuse</button>
           <button class="n-chip" onclick="selectChip(this, 'Balcony/Common Area Encroachment')">🏠 Encroachment</button>
-          <button class="n-chip" onclick="selectChip(this, 'Custom')">✏️ Custom</button>
+          <button class="n-chip" id="customChip" onclick="selectCustomChip(this)">✏️ Custom</button>
         </div>
         <input class="form-input" type="hidden" id="noticeTypeInput" value="No Parking Violation"/>
+        <!-- Custom notice type input (shown only when Custom chip is selected) -->
+        <div id="customTypeWrap" style="display:none;margin-top:12px;">
+          <label class="form-label">Describe Your Custom Notice Type</label>
+          <input class="form-input" type="text" id="customTypeInput"
+            placeholder="e.g. Roof Terrace Misuse, Common Electricity Theft..."
+            oninput="document.getElementById('noticeTypeInput').value = this.value || 'Custom Notice'"
+            style="margin-top:6px;"/>
+        </div>
 
         <div class="form-grid" style="margin-top:18px;">
           <div class="form-group">
@@ -270,7 +287,16 @@
     <div class="card">
       <div class="card-body">
         <div class="card-title" style="margin-bottom:4px;">बैठक तपशील (Meeting Details)</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Upload a photo of handwritten notes or type the key points — AI will write the full MOM in Marathi</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Upload a photo of handwritten notes or type the key points — AI will write the full MOM in your chosen language</div>
+
+        <!-- Language selector -->
+        <div class="form-label" style="margin-bottom:8px;">Output Language</div>
+        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+          <button class="n-chip selected" id="mom-lang-en" onclick="selectMomLang('English')">🇬🇧 English</button>
+          <button class="n-chip" id="mom-lang-mr" onclick="selectMomLang('Marathi')">🇮🇳 Marathi</button>
+          <button class="n-chip" id="mom-lang-hi" onclick="selectMomLang('Hindi')">🏛️ Hindi</button>
+        </div>
+        <input type="hidden" id="momLangInput" value="English"/>
 
         <div class="form-grid">
           <div class="form-group">
@@ -379,6 +405,34 @@
     document.querySelectorAll('.n-chip').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     document.getElementById('noticeTypeInput').value = type;
+    // Hide custom input when a regular chip is selected
+    document.getElementById('customTypeWrap').style.display = 'none';
+    document.getElementById('customTypeInput').value = '';
+  }
+
+  function selectCustomChip(el) {
+    document.querySelectorAll('.n-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('noticeTypeInput').value = 'Custom Notice';
+    // Show the custom type input field
+    const wrap = document.getElementById('customTypeWrap');
+    wrap.style.display = 'block';
+    document.getElementById('customTypeInput').focus();
+  }
+
+  // ── Language selectors ─────────────────────────────────────
+  function selectLang(lang) {
+    ['en','mr','hi'].forEach(l => document.getElementById('lang-'+l).classList.remove('selected'));
+    const map = { English:'en', Marathi:'mr', Hindi:'hi' };
+    document.getElementById('lang-' + map[lang]).classList.add('selected');
+    document.getElementById('noticeLangInput').value = lang;
+  }
+
+  function selectMomLang(lang) {
+    ['en','mr','hi'].forEach(l => document.getElementById('mom-lang-'+l).classList.remove('selected'));
+    const map = { English:'en', Marathi:'mr', Hindi:'hi' };
+    document.getElementById('mom-lang-' + map[lang]).classList.add('selected');
+    document.getElementById('momLangInput').value = lang;
   }
 
   // ── Photo preview ──────────────────────────────────────────
@@ -417,6 +471,7 @@
     fd.append('member_name',  document.getElementById('n_name').value);
     fd.append('issued_date',  document.getElementById('n_date').value);
     fd.append('description',  document.getElementById('n_description').value);
+    fd.append('language',     document.getElementById('noticeLangInput').value);
 
     try {
       const res  = await fetch('/ai-notices/generate-notice', { method: 'POST', body: fd });
@@ -459,6 +514,7 @@
     fd.append('meeting_date', document.getElementById('m_date').value);
     fd.append('attendees',    document.getElementById('m_attendees').value);
     fd.append('raw_notes',    document.getElementById('m_notes').value);
+    fd.append('language',     document.getElementById('momLangInput').value);
     const photoFile = document.getElementById('momPhoto').files[0];
     if (photoFile) fd.append('photo', photoFile);
 
