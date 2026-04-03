@@ -378,22 +378,22 @@ def ai_generate_notice():
             pass
 
         system_prompt = (
-            "You are a legal notice writer for a Co-operative Housing Society in India. "
-            "Write formal, professional notices in English. "
-            "Output ONLY the body paragraphs of the notice — no salutation, no subject line, no signature. "
-            "Each paragraph on a new line. Keep it firm, polite, and legally appropriate. "
-            "Reference the society bye-laws and MCS Act 1960 where relevant."
+            "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत नोटीस लेखक आहात. "
+            "नोटीस मराठीत लिहा — औपचारिक, ठाम आणि कायदेशीरदृष्ट्या योग्य भाषेत. "
+            "फक्त नोटीसचे मुख्य परिच्छेद लिहा — अभिवादन, विषय ओळ किंवा स्वाक्षरी नको. "
+            "प्रत्येक परिच्छेद नवीन ओळीवर लिहा. "
+            "महाराष्ट्र सहकारी संस्था अधिनियम १९६० आणि संस्थेच्या उपविधींचा संदर्भ द्या."
         )
 
         user_prompt = (
-            f"Write a formal notice for the following situation at {society_name}:\n\n"
-            f"Notice Type: {notice_type}\n"
-            f"Member Name: {member_name}\n"
-            f"Flat No: {flat_no}\n"
-            f"Issue Description: {description}\n\n"
-            f"Write 3-4 firm but polite paragraphs. "
-            f"Include: what the issue is, how it violates society rules/bye-laws, "
-            f"demand to stop/rectify immediately, and consequences if not complied with."
+            f"{society_name} येथील खालील परिस्थितीसाठी मराठीत औपचारिक नोटीस लिहा:\n\n"
+            f"नोटीस प्रकार: {notice_type}\n"
+            f"सदस्याचे नाव: {member_name}\n"
+            f"फ्लॅट क्र.: {flat_no}\n"
+            f"समस्येचे वर्णन: {description}\n\n"
+            f"३-४ ठाम पण सभ्य परिच्छेद लिहा. "
+            f"समाविष्ट करा: समस्या काय आहे, ती संस्थेच्या नियमांचे/उपविधींचे उल्लंघन कसे करते, "
+            f"तात्काळ थांबण्याची/दुरुस्त करण्याची मागणी, आणि पालन न केल्यास होणारे परिणाम."
         )
 
         ai_text = call_groq(system_prompt, user_prompt)
@@ -467,9 +467,10 @@ def ai_generate_mom():
             )
 
         system_prompt = (
-            "You are an expert secretary for a Maharashtra Co-operative Housing Society. "
-            "You write formal Minutes of Meeting (इतिवृत्त) in fluent, formal Marathi. "
-            "Structure clearly with numbered decisions. Use proper Marathi legal and administrative vocabulary."
+            "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अनुभवी सचिव आहात. "
+            "तुम्ही अस्खलित, औपचारिक मराठीत इतिवृत्त (Minutes of Meeting) लिहिता. "
+            "निर्णय क्रमांकित करा. योग्य मराठी कायदेशीर आणि प्रशासकीय शब्दावली वापरा. "
+            "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे."
         )
 
         mom_text  = call_groq(system_prompt, user_content)
