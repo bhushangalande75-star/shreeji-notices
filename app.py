@@ -16,7 +16,6 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "shreeji-iconic-chs-2026")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin@2026")
@@ -305,48 +304,59 @@ def ai_notices():
     return render_template("ai_notices.html",
                            society_name=session["society_name"])
 
-GEMINI_API_KEY = (
-    os.environ.get("GEMINI_API_KEY") or
-    os.environ.get("GOOGLE_API_KEY") or
-    os.environ.get("GOOGLE_GEMINI_KEY") or
-    ""
-)
-GEMINI_MODEL   = "gemini-1.5-pro"
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
+GROQ_API_KEY = os.environ.get("NOTICE_API_KEY", "")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL   = "llama-3.3-70b-versatile"
 
-def call_gemini(system_prompt, user_content):
-    if not GEMINI_API_KEY:
-        raise ValueError("Gemini API key is not set.")
+def call_groq(system_prompt, user_content):
+    """Call Groq API (OpenAI-compatible). user_content can be str or list (for vision)."""
+    if not GROQ_API_KEY:
+        raise ValueError(
+            "Groq API key is not set. "
+            "Add NOTICE_API_KEY in your Render environment variables."
+        )
 
-    parts = []
-    if isinstance(user_content, str):
-        parts.append({"text": user_content})
-    else:
-        for item in user_content:
-            if item.get("type") == "text":
-                parts.append({"text": item["text"]})
-            elif item.get("type") == "image":
-                src = item["source"]
-                parts.append({
-                    "inline_data": {
-                        "mime_type": src["media_type"],
-                        "data": src["data"],
-                    }
-                })
-
-    payload = {
-        "contents": [
-            {"role": "system", "parts": [{"text": system_prompt}]},
-            {"role": "user", "parts": parts}
-        ],
-        "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.4},
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type":  "application/json",
     }
 
-    url = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    resp = http_requests.post(url, json=payload, timeout=60)
+    if isinstance(user_content, str):
+        model = GROQ_MODEL
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_content},
+        ]
+    else:
+        # Vision input — use Groq vision model
+        model = "meta-llama/llama-4-scout-17b-16e-instruct"
+        content_parts = []
+        for item in user_content:
+            if item.get("type") == "text":
+                content_parts.append({"type": "text", "text": item["text"]})
+            elif item.get("type") == "image":
+                src = item["source"]
+                data_url = f"data:{src['media_type']};base64,{src['data']}"
+                content_parts.append({
+                    "type":      "image_url",
+                    "image_url": {"url": data_url},
+                })
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": content_parts},
+        ]
+
+    payload = {
+        "model":       model,
+        "messages":    messages,
+        "max_tokens":  2048,
+        "temperature": 0.4,
+    }
+
+    resp = http_requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    return data["choices"][0]["message"]["content"]
 
 
 @app.route("/ai-notices/generate-notice", methods=["POST"])
@@ -386,7 +396,7 @@ def ai_generate_notice():
             f"demand to stop/rectify immediately, and consequences if not complied with."
         )
 
-        ai_text = call_gemini(system_prompt, user_prompt)
+        ai_text = call_groq(system_prompt, user_prompt)
         subject = f"Sub: Notice Regarding {notice_type} — Immediate Compliance Required."
 
         docx_bytes = build_ai_notice_docx(ref_no, flat_no, member_name, issued_date, subject, ai_text)
@@ -462,7 +472,7 @@ def ai_generate_mom():
             "Structure clearly with numbered decisions. Use proper Marathi legal and administrative vocabulary."
         )
 
-        mom_text  = call_gemini(system_prompt, user_content)
+        mom_text  = call_groq(system_prompt, user_content)
         docx_bytes = build_mom_docx(mom_text, meeting_date, society_name)
 
         sess_id  = str(uuid.uuid4())
