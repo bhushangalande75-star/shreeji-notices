@@ -3,75 +3,48 @@
 {% block page_title %}Society Management{% endblock %}
 {% block page_sub %}Add and manage all registered societies on the platform{% endblock %}
 {% block topbar_right %}
-  <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    Add Society
-  </button>
+  <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">+ Add Society</button>
 {% endblock %}
 
 {% block content %}
 
-<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); max-width: 640px;">
-  <div class="stat-card teal">
-    <div class="stat-icon">
-      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
-    </div>
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="stat-card red">
+    <div class="stat-num c-red">{{ societies|length }}</div>
     <div class="stat-label">Total Societies</div>
-    <div class="stat-num">{{ societies|length }}</div>
-    <div class="stat-note"><span class="trend trend-teal">Registered</span></div>
   </div>
   <div class="stat-card green">
-    <div class="stat-icon"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg></div>
+    <div class="stat-num c-green">{{ societies|selectattr('active')|list|length }}</div>
     <div class="stat-label">Active</div>
-    <div class="stat-num">{{ societies|selectattr('active')|list|length }}</div>
-    <div class="stat-note"><span class="trend trend-up">Online</span></div>
   </div>
-  <div class="stat-card amber">
-    <div class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
-    <div class="stat-label">Platform</div>
-    <div class="stat-num">∞</div>
-    <div class="stat-note"><span class="trend trend-teal">Capacity</span></div>
+  <div class="stat-card gold">
+    <div class="stat-num c-gold">∞</div>
+    <div class="stat-label">Platform Capacity</div>
   </div>
 </div>
 
 <div class="card">
-  <div class="card-body" style="padding-bottom:0;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-      <div class="card-title">Registered Societies</div>
-      {% if societies %}
-      <span style="font-size:12px;color:var(--muted);">{{ societies|length }} total</span>
-      {% endif %}
-    </div>
-  </div>
-
+  <div style="font-size:15px;font-weight:600;margin-bottom:20px;">Registered Societies</div>
   {% if societies %}
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>Society Name</th>
-          <th>Username</th>
-          <th>Regd. No</th>
-          <th>Status</th>
-          <th>Created</th>
-          <th>Action</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Society Name</th><th>Username</th><th>Regd. No</th><th>Members</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
       <tbody>
         {% for s in societies %}
         <tr>
           <td>
-            <div style="font-weight:600;color:var(--ink);font-size:13px;">{{ s.name }}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">{{ s.address or '—' }}</div>
+            <div style="font-weight:600;">{{ s.name }}</div>
+            <div style="font-size:12px;color:var(--muted);">{{ s.address or '—' }}</div>
           </td>
-          <td><span class="badge badge-teal"><span class="badge-dot"></span>{{ s.username }}</span></td>
-          <td><span class="muted-text">{{ s.regd_no or '—' }}</span></td>
+          <td><span class="badge badge-blue">{{ s.username }}</span></td>
+          <td style="color:var(--muted);font-size:13px;">{{ s.regd_no or '—' }}</td>
           <td>
-            <span class="badge {{ 'badge-green' if s.active else 'badge-red' }}">
-              <span class="badge-dot"></span>{{ 'Active' if s.active else 'Inactive' }}
-            </span>
+            <span style="font-size:12px;color:var(--muted);">{{ s.member_count or 0 }} members</span>
+            <button class="btn btn-secondary btn-sm" onclick="openUploadModal({{ s.id }}, '{{ s.name }}')"
+              style="margin-left:6px;padding:3px 8px;font-size:11px;">📊 Upload</button>
           </td>
-          <td><span class="muted-text">{{ s.created_at.strftime('%d-%m-%Y') if s.created_at else '—' }}</span></td>
+          <td><span class="badge {{ 'badge-green' if s.active else 'badge-red' }}">{{ 'Active' if s.active else 'Inactive' }}</span></td>
+          <td style="color:var(--muted);font-size:13px;">{{ s.created_at.strftime('%d-%m-%Y') if s.created_at else '—' }}</td>
           <td>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ s.id }}, '{{ s.name }}')">Delete</button>
           </td>
@@ -80,28 +53,17 @@
       </tbody>
     </table>
   </div>
-  <div style="padding:14px 20px;border-top:1px solid var(--border2);background:var(--surface2);border-radius:0 0 16px 16px;">
-    <span style="font-size:12px;color:var(--muted);">{{ societies|length }} society/ies registered</span>
-  </div>
   {% else %}
-  <div class="empty-state">
-    <div class="empty-icon">🏢</div>
-    <h3>No Societies Yet</h3>
-    <p>Add your first housing society to get started</p>
-    <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Add Society
-    </button>
-  </div>
+  <div style="text-align:center;padding:40px;color:var(--muted);">No societies registered yet.</div>
   {% endif %}
 </div>
 
 <!-- Add Society Modal -->
 <div class="modal-overlay" id="addModal">
-  <div class="modal" style="width:520px;max-width:95%;">
+  <div class="modal" style="width:520px;">
     <h3>🏢 Add New Society</h3>
-    <p>Create login credentials for a new housing society on the platform.</p>
-    <form method="POST" action="/admin/create_society">
+    <p>Create login credentials for a new housing society</p>
+    <form method="POST" action="/admin/create_society" enctype="multipart/form-data" id="createSocietyForm">
       <div class="form-grid">
         <div class="form-group full">
           <label class="form-label">Society Name</label>
@@ -123,23 +85,67 @@
           <label class="form-label">Password</label>
           <input class="form-input" type="text" name="password" placeholder="Set a strong password" required/>
         </div>
+        <div class="form-group full">
+          <label class="form-label">
+            Member Directory Excel
+            <span style="font-weight:400;color:var(--muted);text-transform:none;font-size:11px;margin-left:6px;">optional — can upload later</span>
+          </label>
+          <input class="form-input" type="file" name="member_excel" accept=".xlsx,.xls"
+            style="padding:8px;cursor:pointer;"/>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.7;">
+            Columns: <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Building No</code>
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Flat No</code>
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Flat Combo</code>
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Name</code>
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Phone</code>
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Email</code>
+          </div>
+        </div>
       </div>
       <div class="modal-btns">
-        <button type="button" class="btn btn-outline" onclick="document.getElementById('addModal').classList.remove('show')">Cancel</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('addModal').classList.remove('show')">Cancel</button>
         <button type="submit" class="btn btn-primary">Create Society</button>
       </div>
     </form>
   </div>
 </div>
 
+
+<!-- Upload Members Modal (for existing societies) -->
+<div class="modal-overlay" id="uploadMembersModal">
+  <div class="modal" style="width:480px;">
+    <h3>📊 Upload Member Directory</h3>
+    <p id="uploadModalDesc">Upload Excel for this society</p>
+    <div style="margin:16px 0;">
+      <label class="form-label">Select Excel File</label>
+      <input class="form-input" type="file" id="uploadMemberFile" accept=".xlsx,.xls"
+        style="padding:8px;cursor:pointer;margin-top:6px;"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;">
+        Columns: <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Building No</code>
+        <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Flat No</code>
+        <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Flat Combo</code>
+        <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Name</code>
+        <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Phone</code>
+        <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">Email</code>
+      </div>
+    </div>
+    <div id="uploadMembersStatus" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;"></div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-secondary"
+        onclick="document.getElementById('uploadMembersModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="submitMemberUpload()">Upload Members</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete Modal -->
 <div class="modal-overlay" id="deleteModal">
   <div class="modal">
-    <h3 style="color:#DC2626;">⚠️ Delete Society?</h3>
+    <h3 style="color:#ff6b6b;">⚠️ Delete Society?</h3>
     <p id="deleteText">This will permanently delete the society and ALL its data.</p>
     <div class="modal-btns">
-      <button class="btn btn-outline" onclick="document.getElementById('deleteModal').classList.remove('show')">Cancel</button>
-      <button class="btn btn-danger" id="deleteConfirmBtn" style="background:#EF4444;color:white;border-color:transparent;">Delete Permanently</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('deleteModal').classList.remove('show')">Cancel</button>
+      <button class="btn btn-danger" id="deleteConfirmBtn" style="background:var(--red);color:white;">Delete Permanently</button>
     </div>
   </div>
 </div>
@@ -153,6 +159,51 @@
     };
     document.getElementById('deleteModal').classList.add('show');
   }
+  let _uploadSocietyId = null;
+
+  function openUploadModal(id, name) {
+    _uploadSocietyId = id;
+    document.getElementById('uploadModalDesc').textContent = `Upload member directory for: ${name}`;
+    document.getElementById('uploadMemberFile').value = '';
+    document.getElementById('uploadMembersStatus').style.display = 'none';
+    document.getElementById('uploadMembersModal').classList.add('show');
+  }
+
+  async function submitMemberUpload() {
+    const file = document.getElementById('uploadMemberFile').files[0];
+    const statusEl = document.getElementById('uploadMembersStatus');
+    if (!file) { alert('Please select an Excel file.'); return; }
+
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(10,191,163,0.08)';
+    statusEl.style.border = '1px solid rgba(10,191,163,0.25)';
+    statusEl.style.color = '#0abfa3';
+    statusEl.textContent = '⏳ Uploading...';
+
+    const fd = new FormData();
+    fd.append('excel', file);
+    fd.append('society_id', _uploadSocietyId);
+
+    try {
+      const res  = await fetch('/members/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        statusEl.style.background = 'rgba(37,211,102,0.1)';
+        statusEl.style.border = '1px solid rgba(37,211,102,0.3)';
+        statusEl.style.color = '#128C7E';
+        statusEl.textContent = `✅ ${data.count} members uploaded successfully.`;
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        statusEl.style.background = 'rgba(239,68,68,0.08)';
+        statusEl.style.border = '1px solid rgba(239,68,68,0.25)';
+        statusEl.style.color = '#B91C1C';
+        statusEl.textContent = '❌ ' + data.error;
+      }
+    } catch(e) {
+      statusEl.textContent = '❌ Upload failed: ' + e.message;
+    }
+  }
+
   document.querySelectorAll('.modal-overlay').forEach(m => {
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
   });

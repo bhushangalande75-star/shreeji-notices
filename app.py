@@ -13,7 +13,8 @@ from pypdf import PdfWriter, PdfReader
 from database import (save_batch, get_batches, get_batch_notices, update_payment,
                       get_eligible_for_2nd, get_paid_members, delete_batch,
                       get_society_by_username, get_all_societies, create_society,
-                      delete_society, get_society_stats)
+                      delete_society, get_society_stats,
+                      upsert_members, get_members, get_member_by_flat, delete_all_members)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -46,6 +47,16 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("is_admin"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+def society_required(f):
+    """Allows only logged-in society users. Blocks admin."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("society_id"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
@@ -86,18 +97,28 @@ def logout():
 @admin_required
 def admin_dashboard():
     societies = get_all_societies()
+    # Attach member counts to each society
+    for s in societies:
+        s["member_count"] = len(get_members(s["id"]))
     return render_template("admin.html", societies=societies, society_name=session.get("society_name", "Admin"))
 
 @app.route("/admin/create_society", methods=["POST"])
 @admin_required
 def admin_create_society():
-    create_society(
+    sid = create_society(
         request.form.get("name"),
         request.form.get("address"),
         request.form.get("username"),
         request.form.get("password"),
         request.form.get("regd_no")
     )
+    # Optionally process member Excel if uploaded with the form
+    member_file = request.files.get("member_excel")
+    if member_file and member_file.filename:
+        try:
+            _process_member_excel(member_file, sid)
+        except Exception as e:
+            print(f"[WARN] Member Excel upload failed during society creation: {e}")
     return redirect(url_for("admin_dashboard"))
 
 @app.route("/admin/delete_society/<int:society_id>", methods=["POST"])
@@ -279,7 +300,9 @@ def generate():
                 writer.write(f)
             pdf_pages = len(writer.pages)
 
-        yield f"data: {json.dumps({'type':'done','sess_id':sess_id,'count':count,'pages':pdf_pages,'has_pdf':soffice is not None})}\n\n"
+        # Build member list for WhatsApp preview (flat_no → name)
+        wa_members = [{"flat_no": m["flat_no"], "name": m["name"]} for m in members_log]
+        yield f"data: {json.dumps({'type':'done','sess_id':sess_id,'count':count,'pages':pdf_pages,'has_pdf':soffice is not None,'wa_members':wa_members})}\n\n"
 
     return Response(stream_with_context(stream()), mimetype="text/event-stream")
 
@@ -622,6 +645,361 @@ def ai_download(sess_id, filename):
 
 
 # ── AI Notices & MOM ───────────────────────────────────────────
+@app.route("/whatsapp/batch-preview", methods=["POST"])
+@society_required
+def whatsapp_batch_preview():
+    """
+    Given a sess_id and list of {flat_no, name}, look up each member's phone
+    from the directory. Returns a preview list for admin confirmation.
+    """
+    data       = request.json
+    sess_id    = data.get("sess_id", "")
+    wa_members = data.get("wa_members", [])  # [{flat_no, name}, ...]
+    society_id = session["society_id"]
+
+    results = []
+    for m in wa_members:
+        flat_combo = m["flat_no"].strip().upper()
+        member     = get_member_by_flat(society_id, flat_combo)
+        results.append({
+            "flat_no" : m["flat_no"],
+            "name"    : m["name"],
+            "phone"   : member["phone"] if member else None,
+            "found"   : member is not None,
+        })
+
+    found   = sum(1 for r in results if r["found"])
+    missing = sum(1 for r in results if not r["found"])
+
+    return jsonify({
+        "success": True,
+        "members": results,
+        "found"  : found,
+        "missing": missing,
+        "sess_id": sess_id,
+    })
+
+
+@app.route("/whatsapp/send-batch", methods=["POST"])
+@society_required
+def whatsapp_send_batch():
+    """
+    Send individual PDF notices to each matched member via WhatsApp.
+    Streams back SSE-style JSON lines so the UI can show progress.
+    """
+    data         = request.json
+    sess_id      = data.get("sess_id", "")
+    members      = data.get("members", [])  # [{flat_no, name, phone}, ...]
+    society_name = session.get("society_name", "Society")
+    society_id   = session["society_id"]
+    sess_dir     = os.path.join(TEMP_DIR, sess_id)
+
+    def stream():
+        sent = 0; failed = 0
+        for m in members:
+            if not m.get("phone"):
+                yield f"data: {json.dumps({'flat_no':m['flat_no'],'name':m['name'],'status':'skipped','reason':'No phone found'})}\n\n"
+                failed += 1
+                continue
+
+            # Find the docx for this flat_no
+            flat_safe  = m["flat_no"].replace("/", "-").replace(" ", "_")
+            # Search for docx matching this flat
+            candidates = glob.glob(os.path.join(sess_dir, f"*_{m['flat_no']}*.docx"))
+            if not candidates:
+                candidates = glob.glob(os.path.join(sess_dir, f"*{flat_safe}*.docx"))
+            if not candidates:
+                yield f"data: {json.dumps({'flat_no':m['flat_no'],'name':m['name'],'status':'skipped','reason':'Notice file not found'})}\n\n"
+                failed += 1
+                continue
+
+            docx_path = candidates[0]
+            pdf_path  = _docx_to_pdf(docx_path)
+            if not pdf_path:
+                yield f"data: {json.dumps({'flat_no':m['flat_no'],'name':m['name'],'status':'failed','reason':'PDF conversion failed'})}\n\n"
+                failed += 1
+                continue
+
+            pdf_filename = os.path.basename(pdf_path)
+            caption      = (f"Dear {m['name']},\n\n"
+                            f"Please find attached the official notice from {society_name}.\n\n"
+                            f"Regards,\n{society_name}")
+
+            success, msg = _send_whatsapp_document(m["phone"], pdf_path, caption, pdf_filename)
+            if success:
+                sent += 1
+                yield f"data: {json.dumps({'flat_no':m['flat_no'],'name':m['name'],'status':'sent','phone':m['phone']})}\n\n"
+            else:
+                failed += 1
+                yield f"data: {json.dumps({'flat_no':m['flat_no'],'name':m['name'],'status':'failed','reason':msg})}\n\n"
+
+        yield f"data: {json.dumps({'type':'complete','sent':sent,'failed':failed})}\n\n"
+
+    return Response(stream_with_context(stream()), mimetype="text/event-stream")
+
+
+def _process_member_excel(file_obj, society_id):
+    """
+    Parse a member directory Excel/CSV and upsert into society_members.
+    Returns count of members processed.
+    """
+    df = pd.read_excel(file_obj)
+    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+
+    col_map = {
+        "building_no": ["building_no", "building", "bldg", "bldg_no"],
+        "flat_no"    : ["flat_no", "flat", "unit", "unit_no"],
+        "flat_combo" : ["flat_combo", "combo", "flat_combination", "building_flat"],
+        "name"       : ["name", "member_name", "owner_name", "resident_name"],
+        "phone"      : ["phone", "mobile", "phone_no", "mobile_no", "contact"],
+        "email"      : ["email", "email_id", "email_address"],
+    }
+
+    def find_col(key):
+        for alias in col_map[key]:
+            if alias in df.columns:
+                return alias
+        return None
+
+    building_col = find_col("building_no")
+    flat_col     = find_col("flat_no")
+    combo_col    = find_col("flat_combo")
+    name_col     = find_col("name")
+    phone_col    = find_col("phone")
+    email_col    = find_col("email")
+
+    if not name_col or not phone_col:
+        raise ValueError("Excel must have Name and Phone columns")
+
+    members = []
+    for _, row in df.iterrows():
+        name  = str(row.get(name_col, "")).strip()
+        phone = str(row.get(phone_col, "")).strip().replace(" ", "").replace("-", "")
+        if not name or not phone or name.lower() == "nan":
+            continue
+        building = str(row.get(building_col, "")).strip() if building_col else ""
+        flat     = str(row.get(flat_col,     "")).strip() if flat_col     else ""
+        email    = str(row.get(email_col,    "")).strip() if email_col    else ""
+        email    = "" if email.lower() == "nan" else email
+        if combo_col:
+            combo = str(row.get(combo_col, "")).strip()
+        elif building and flat:
+            combo = f"{building}-{flat}"
+        else:
+            combo = flat or building
+        if not combo:
+            continue
+        members.append({
+            "building_no": building,
+            "flat_no"    : flat,
+            "flat_combo" : combo.upper(),
+            "name"       : name,
+            "phone"      : phone,
+            "email"      : email,
+        })
+
+    upsert_members(society_id, members)
+    return len(members)
+
+
+# ══════════════════════════════════════════════════════════════
+#  SOCIETY MEMBERS DIRECTORY
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/members")
+@society_required
+def members_directory():
+    society_id = session["society_id"]
+    members    = get_members(society_id)
+    return render_template("members.html",
+                           society_name=session["society_name"],
+                           members=members)
+
+
+@app.route("/members/upload", methods=["POST"])
+@admin_required
+def members_upload():
+    """Upload an Excel file with member directory. Upserts on flat_combo."""
+    if "excel" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    file       = request.files["excel"]
+    # Admin uploads on behalf of a society — society_id comes from request
+    society_id = request.form.get("society_id") or request.args.get("society_id")
+    if not society_id:
+        return jsonify({"success": False, "error": "society_id required"}), 400
+    try:
+        society_id = int(society_id)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid society_id"}), 400
+
+    try:
+        count = _process_member_excel(file, society_id)
+        return jsonify({"success": True, "count": count})
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/members/delete-all", methods=["POST"])
+@society_required
+def members_delete_all():
+    delete_all_members(session["society_id"])
+    return jsonify({"success": True})
+
+
+# ══════════════════════════════════════════════════════════════
+#  WHATSAPP NOTICE SENDING
+# ══════════════════════════════════════════════════════════════
+
+WABA_TOKEN    = os.environ.get("WHATSAPP_TOKEN", "")
+WABA_PHONE_ID = os.environ.get("WHATSAPP_PHONE_ID", "")
+
+
+def _docx_to_pdf(docx_path):
+    """Convert a docx file to PDF using LibreOffice. Returns pdf path or None."""
+    soffice = get_libreoffice_path()
+    if not soffice:
+        return None
+    out_dir = os.path.dirname(docx_path)
+    result  = subprocess.run(
+        [soffice, "--headless", "--convert-to", "pdf", "--outdir", out_dir, docx_path],
+        capture_output=True, timeout=30
+    )
+    base    = os.path.splitext(os.path.basename(docx_path))[0]
+    pdf_path = os.path.join(out_dir, base + ".pdf")
+    return pdf_path if os.path.exists(pdf_path) else None
+
+
+def _send_whatsapp_document(to_phone, pdf_path, caption, filename):
+    """
+    Send a PDF document via WhatsApp Business Cloud API.
+    Returns (success:bool, message:str).
+    """
+    if not WABA_TOKEN or not WABA_PHONE_ID:
+        return False, "WhatsApp credentials not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in Render env vars."
+
+    # Step 1: Upload media to WhatsApp
+    with open(pdf_path, "rb") as f:
+        upload_resp = http_requests.post(
+            f"https://graph.facebook.com/v19.0/{WABA_PHONE_ID}/media",
+            headers={"Authorization": f"Bearer {WABA_TOKEN}"},
+            files={"file": (filename, f, "application/pdf")},
+            data={"messaging_product": "whatsapp"},
+            timeout=30
+        )
+    if upload_resp.status_code != 200:
+        return False, f"Media upload failed: {upload_resp.text}"
+
+    media_id = upload_resp.json().get("id")
+    if not media_id:
+        return False, "No media_id returned from WhatsApp upload"
+
+    # Normalise phone: must be E.164 without +
+    phone = to_phone.strip().lstrip("+").replace(" ", "").replace("-", "")
+    if len(phone) == 10:
+        phone = "91" + phone   # India default
+
+    # Step 2: Send document message
+    send_resp = http_requests.post(
+        f"https://graph.facebook.com/v19.0/{WABA_PHONE_ID}/messages",
+        headers={
+            "Authorization" : f"Bearer {WABA_TOKEN}",
+            "Content-Type"  : "application/json",
+        },
+        json={
+            "messaging_product": "whatsapp",
+            "to"               : phone,
+            "type"             : "document",
+            "document"         : {
+                "id"      : media_id,
+                "caption" : caption,
+                "filename": filename,
+            },
+        },
+        timeout=30
+    )
+    if send_resp.status_code == 200:
+        return True, "Sent successfully"
+    return False, f"Send failed: {send_resp.text}"
+
+
+@app.route("/whatsapp/preview", methods=["POST"])
+@society_required
+def whatsapp_preview():
+    """
+    Given a sess_id + filename (the generated notice docx),
+    look up the member phone from the members directory using flat_no.
+    Returns member info for the confirmation modal.
+    """
+    sess_id    = request.json.get("sess_id", "")
+    filename   = request.json.get("filename", "")
+    flat_combo = request.json.get("flat_combo", "").strip().upper()
+    society_id = session["society_id"]
+
+    if not flat_combo:
+        return jsonify({"success": False, "error": "Flat number not provided"}), 400
+
+    member = get_member_by_flat(society_id, flat_combo)
+    if not member:
+        return jsonify({
+            "success"  : False,
+            "error"    : f"No member found for flat '{flat_combo}' in directory. "
+                         "Please upload the member directory first.",
+            "not_found": True,
+        }), 404
+
+    return jsonify({
+        "success"   : True,
+        "name"      : member["name"],
+        "phone"     : member["phone"],
+        "flat_combo": member["flat_combo"],
+        "email"     : member.get("email", ""),
+        "sess_id"   : sess_id,
+        "filename"  : filename,
+    })
+
+
+@app.route("/whatsapp/send", methods=["POST"])
+@society_required
+def whatsapp_send():
+    """
+    Convert the saved docx to PDF and send via WhatsApp to the confirmed phone number.
+    """
+    data      = request.json
+    sess_id   = data.get("sess_id", "")
+    filename  = data.get("filename", "")
+    phone     = data.get("phone", "").strip()
+    member_name = data.get("name", "Member")
+    society_name = session.get("society_name", "Society")
+
+    docx_path = os.path.join(TEMP_DIR, sess_id, filename)
+    if not os.path.exists(docx_path):
+        return jsonify({"success": False, "error": "Notice file not found. Please regenerate."}), 404
+
+    # Convert to PDF
+    pdf_path = _docx_to_pdf(docx_path)
+    if not pdf_path:
+        return jsonify({"success": False,
+                        "error": "PDF conversion failed — LibreOffice not available on this server."}), 500
+
+    pdf_filename = os.path.splitext(filename)[0] + ".pdf"
+    caption      = (f"Dear {member_name},
+
+"
+                    f"Please find attached the official notice from {society_name}.
+
+"
+                    f"Regards,
+{society_name}")
+
+    success, msg = _send_whatsapp_document(phone, pdf_path, caption, pdf_filename)
+    if success:
+        return jsonify({"success": True, "message": f"Notice sent to {phone}"})
+    return jsonify({"success": False, "error": msg}), 500
+
+
 if __name__ == "__main__":
     lo = get_libreoffice_path()
     print("="*55)

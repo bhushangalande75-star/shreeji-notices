@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Member Directory — SocietyNotice Pro{% endblock %}
+{% block page_title %}Member Directory{% endblock %}
+{% block page_sub %}Upload member data for WhatsApp notice delivery{% endblock %}
+
+{% block extra_head %}
+<style>
+  .upload-zone {
+    border: 2px dashed rgba(192,0,0,0.3);
+    border-radius: 14px; padding: 36px 24px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s; background: rgba(192,0,0,0.02);
+  }
+  .upload-zone:hover { background: rgba(192,0,0,0.05); border-color: var(--red); }
+  .upload-zone input { display: none; }
+
+  .col-spec {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 20px; font-size: 12px;
+    line-height: 2; color: var(--ink3);
+  }
+  .col-spec code {
+    background: rgba(192,0,0,0.08); color: var(--red);
+    border-radius: 4px; padding: 1px 6px; font-size: 11px;
+  }
+
+  .member-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .member-table th {
+    background: var(--surface2); padding: 10px 14px;
+    text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+  }
+  .member-table td {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    color: var(--ink2);
+  }
+  .member-table tr:hover td { background: var(--surface2); }
+  .combo-badge {
+    font-family: monospace; font-size: 12px; font-weight: 600;
+    background: rgba(192,0,0,0.08); color: var(--red);
+    padding: 3px 8px; border-radius: 6px;
+  }
+  .phone-tag {
+    font-family: monospace; font-size: 12px;
+    background: rgba(37,211,102,0.1); color: #128C7E;
+    padding: 3px 8px; border-radius: 6px;
+  }
+  .tbl-wrap { max-height: 520px; overflow-y: auto; border-radius: 12px; border: 1px solid var(--border); }
+  .stat-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 5px 14px; font-size: 12px; color: var(--ink3);
+  }
+  .stat-pill strong { color: var(--red); }
+  .spinner-sm {
+    display: none; width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid rgba(192,0,0,0.2); border-top-color: var(--red);
+    animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block topbar_right %}
+  <a class="btn btn-outline" href="/ai-notices">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    AI Notices
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;">
+
+  <!-- Left: Upload -->
+  <div>
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:4px;">Upload Member Excel</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">
+          Upload once, reuse for all WhatsApp notice sending. New uploads merge with existing data.
+        </div>
+
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('memberExcel').click()">
+          <div style="font-size:36px;margin-bottom:10px;">📊</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Click to upload Excel file</div>
+          <div style="font-size:12px;color:var(--muted);">.xlsx or .xls</div>
+          <input type="file" id="memberExcel" accept=".xlsx,.xls" onchange="uploadMembers(this)"/>
+        </div>
+
+        <div id="uploadStatus" style="display:none;margin-top:14px;padding:12px 16px;border-radius:10px;font-size:13px;"></div>
+
+        <!-- Column spec -->
+        <div class="col-spec" style="margin-top:18px;">
+          <div style="font-weight:600;color:var(--ink2);margin-bottom:8px;">📋 Required Excel Columns</div>
+          <div><code>Building No</code> — e.g. B01, B02, A</div>
+          <div><code>Flat No</code> — e.g. 001, 102, 204</div>
+          <div><code>Flat Combo</code> — e.g. <strong>B01-001</strong> (must match notice flat no)</div>
+          <div><code>Name</code> — Member / Owner name</div>
+          <div><code>Phone</code> — 10-digit mobile number</div>
+          <div><code>Email</code> — optional</div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+            ℹ️ Column names are flexible — e.g. "mobile", "contact", "owner_name" all work.
+            If Flat Combo column is absent, it is auto-built as Building No + "-" + Flat No.
+          </div>
+        </div>
+
+        <!-- Download sample -->
+        <button onclick="downloadSample()"
+          style="margin-top:14px;width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font);">
+          📥 Download Sample Excel Template
+        </button>
+
+        {% if members %}
+        <button onclick="confirmDeleteAll()"
+          style="margin-top:10px;width:100%;padding:11px;border-radius:10px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.05);color:#B91C1C;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font);">
+          🗑️ Clear All Members
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Stats + info -->
+  <div>
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:16px;">Directory Status</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+          <div class="stat-pill">Total members: <strong>{{ members|length }}</strong></div>
+          <div class="stat-pill">Buildings: <strong>{{ members|map(attribute='building_no')|select|unique|list|length }}</strong></div>
+        </div>
+
+        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:10px;">⚡ How WhatsApp sending works</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--ink3);line-height:1.7;">
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <span style="background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">1</span>
+            Generate a notice in AI Notices tab
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <span style="background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">2</span>
+            Click "Send via WhatsApp" — the app looks up the member using the Flat No you entered
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <span style="background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">3</span>
+            You see a confirmation with member name &amp; phone — click Confirm to send
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <span style="background:#25D366;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">4</span>
+            Notice is converted to PDF and delivered as a WhatsApp document
+          </div>
+        </div>
+
+        <div style="margin-top:18px;padding:12px 14px;background:rgba(37,211,102,0.07);border:1px solid rgba(37,211,102,0.2);border-radius:10px;font-size:12px;color:#128C7E;">
+          <strong>Setup needed:</strong> Add <code style="background:rgba(37,211,102,0.15);border-radius:4px;padding:1px 5px;">WHATSAPP_TOKEN</code> and
+          <code style="background:rgba(37,211,102,0.15);border-radius:4px;padding:1px 5px;">WHATSAPP_PHONE_ID</code> in your Render environment variables
+          (WhatsApp Business Cloud API credentials).
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Member Table -->
+{% if members %}
+<div class="card" style="margin-top:22px;">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="card-title">Member Directory ({{ members|length }} records)</div>
+      <input type="text" id="memberSearch" placeholder="Search name, flat, phone..."
+        oninput="filterMembers(this.value)"
+        style="padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink2);font-size:12px;font-family:var(--font);width:220px;"/>
+    </div>
+    <div class="tbl-wrap">
+      <table class="member-table" id="memberTable">
+        <thead>
+          <tr>
+            <th>Flat Combo</th>
+            <th>Building</th>
+            <th>Flat No</th>
+            <th>Member Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+          </tr>
+        </thead>
+        <tbody id="memberTbody">
+          {% for m in members %}
+          <tr>
+            <td><span class="combo-badge">{{ m.flat_combo }}</span></td>
+            <td>{{ m.building_no }}</td>
+            <td>{{ m.flat_no }}</td>
+            <td style="font-weight:500;">{{ m.name }}</td>
+            <td><span class="phone-tag">{{ m.phone }}</span></td>
+            <td style="color:var(--muted);">{{ m.email or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+  async function uploadMembers(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('uploadStatus');
+    statusEl.style.display  = 'block';
+    statusEl.style.background = 'rgba(10,191,163,0.08)';
+    statusEl.style.border     = '1px solid rgba(10,191,163,0.25)';
+    statusEl.style.color      = 'var(--teal3)';
+    statusEl.textContent      = '⏳ Uploading and processing...';
+
+    const fd = new FormData();
+    fd.append('excel', file);
+    try {
+      const res  = await fetch('/members/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        statusEl.style.background = 'rgba(37,211,102,0.1)';
+        statusEl.style.border     = '1px solid rgba(37,211,102,0.3)';
+        statusEl.style.color      = '#128C7E';
+        statusEl.textContent      = `✅ ${data.count} members uploaded successfully. Reloading...`;
+        setTimeout(() => location.reload(), 1200);
+      } else {
+        statusEl.style.background = 'rgba(239,68,68,0.08)';
+        statusEl.style.border     = '1px solid rgba(239,68,68,0.25)';
+        statusEl.style.color      = '#B91C1C';
+        statusEl.textContent      = '❌ ' + data.error;
+      }
+    } catch(e) {
+      statusEl.textContent = '❌ Upload failed: ' + e.message;
+    }
+    input.value = '';
+  }
+
+  async function confirmDeleteAll() {
+    if (!confirm('Delete ALL members from this society? This cannot be undone.')) return;
+    await fetch('/members/delete-all', { method: 'POST' });
+    location.reload();
+  }
+
+  function filterMembers(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('#memberTbody tr').forEach(row => {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+
+  function downloadSample() {
+    // Build a minimal CSV sample for download
+    const csv = [
+      'Building No,Flat No,Flat Combo,Name,Phone,Email',
+      'B01,001,B01-001,Rajesh Sharma,9876543210,rajesh@email.com',
+      'B01,002,B01-002,Priya Patel,9876543211,priya@email.com',
+      'B02,101,B02-101,Suresh Kumar,9876543212,',
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'member_directory_sample.csv';
+    a.click();
+  }
+</script>
+{% endblock %}

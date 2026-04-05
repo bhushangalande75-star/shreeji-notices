@@ -67,6 +67,22 @@ def init_db():
         ON CONFLICT (username) DO NOTHING;
     """)
 
+    # Society members directory (for WhatsApp lookup)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS society_members (
+            id           SERIAL PRIMARY KEY,
+            society_id   INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            building_no  TEXT NOT NULL,
+            flat_no      TEXT NOT NULL,
+            flat_combo   TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            phone        TEXT NOT NULL,
+            email        TEXT,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(society_id, flat_combo)
+        );
+    """)
+
     conn.commit()
     cur.close()
     conn.close()
@@ -193,5 +209,55 @@ def get_society_stats(society_id):
     pending = cur.fetchone()['total']
     cur.close(); conn.close()
     return {'batches': batches, 'members': members, 'paid': paid, 'pending': pending}
+
+# ── Society Members (WhatsApp directory) ──────────────────────
+
+def upsert_members(society_id, members):
+    """Insert or update members from Excel upload. Keyed on (society_id, flat_combo)."""
+    conn = get_db()
+    cur  = conn.cursor()
+    for m in members:
+        cur.execute("""
+            INSERT INTO society_members (society_id, building_no, flat_no, flat_combo, name, phone, email)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (society_id, flat_combo)
+            DO UPDATE SET name=EXCLUDED.name, phone=EXCLUDED.phone,
+                          email=EXCLUDED.email, building_no=EXCLUDED.building_no,
+                          flat_no=EXCLUDED.flat_no
+        """, (society_id, m['building_no'], m['flat_no'], m['flat_combo'],
+              m['name'], m['phone'], m.get('email', '')))
+    conn.commit()
+    cur.close(); conn.close()
+
+def get_members(society_id):
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT * FROM society_members
+        WHERE society_id=%s ORDER BY building_no, flat_no
+    """, (society_id,))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def get_member_by_flat(society_id, flat_combo):
+    """Lookup a member by their flat combination code (e.g. B01-001)."""
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT * FROM society_members
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+    """, (society_id, flat_combo.strip()))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    return dict(row) if row else None
+
+def delete_all_members(society_id):
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("DELETE FROM society_members WHERE society_id=%s", (society_id,))
+    conn.commit()
+    cur.close(); conn.close()
+
 
 init_db()
