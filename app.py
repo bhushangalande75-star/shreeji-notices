@@ -985,14 +985,11 @@ def whatsapp_send():
                         "error": "PDF conversion failed — LibreOffice not available on this server."}), 500
 
     pdf_filename = os.path.splitext(filename)[0] + ".pdf"
-    caption      = (f"Dear {member_name},
-
-"
-                    f"Please find attached the official notice from {society_name}.
-
-"
-                    f"Regards,
-{society_name}")
+    caption=(
+    f"Dear {member_name},\n\n"
+    f"Please find attached the official notice from {society_name}.\n\n"
+    f"Regards,\n{society_name}"
+)
 
     success, msg = _send_whatsapp_document(phone, pdf_path, caption, pdf_filename)
     if success:
