@@ -22,13 +22,13 @@
     <div class="stat-num">{{ batches|length }}</div>
     <div class="stat-note"><span class="trend trend-teal">All batches</span></div>
   </div>
-  <div class="stat-card teal" style="background:linear-gradient(135deg,#fff,#EEF9F7);border-color:#A8D8D0;">
-    <div class="stat-icon" style="background:linear-gradient(135deg,#DBEAFE,#BFDBFE);box-shadow:0 3px 10px rgba(59,130,246,0.2);">
-      <svg viewBox="0 0 24 24" style="stroke:#1D4ED8;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+  <div class="stat-card blue">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
     </div>
-    <div class="stat-label" style="color:#5B78D6;">Total Notices</div>
-    <div class="stat-num" style="color:#1D4ED8;">{{ stats.members }}</div>
-    <div class="stat-note" style="color:#3B82F6;"><span class="trend" style="background:rgba(59,130,246,0.12);color:#1D4ED8;">Issued</span></div>
+    <div class="stat-label">Total Notices</div>
+    <div class="stat-num" style="color:#2563EB;">{{ stats.members }}</div>
+    <div class="stat-note"><span class="trend" style="background:#DBEAFE;color:#1E40AF;">Issued</span></div>
   </div>
   <div class="stat-card green">
     <div class="stat-icon"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg></div>
