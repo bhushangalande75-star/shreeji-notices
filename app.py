@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, make_response, Response, stream_with_context, session, redirect, url_for, jsonify
 import pandas as pd
 import os, io, zipfile, json, uuid, tempfile, glob, subprocess, sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from notice_generator import generate_notice
 from notice_generator_ai import build_ai_notice_docx, build_mom_docx
 from notice_generator_2nd import generate_notice_2nd
@@ -20,6 +20,44 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "shreeji-iconic-chs-2026")
+
+# ── Session timeout: 10 minutes of inactivity ──────────────────────────────────
+INACTIVITY_TIMEOUT = timedelta(minutes=10)
+app.config["PERMANENT_SESSION_LIFETIME"] = INACTIVITY_TIMEOUT
+
+@app.before_request
+def check_session_timeout():
+    """Log out any user who has been inactive for more than 10 minutes."""
+    # Skip static files and the login/logout routes themselves
+    if request.endpoint in ("login", "logout", "static", None):
+        return
+
+    # Only enforce for logged-in users
+    if not session.get("society_id") and not session.get("is_admin"):
+        return
+
+    last_activity = session.get("_last_activity")
+    now           = datetime.now(tz=None)
+
+    if last_activity:
+        # last_activity is stored as ISO string to survive session serialisation
+        try:
+            last_dt = datetime.fromisoformat(last_activity)
+        except Exception:
+            last_dt = None
+
+        if last_dt and (now - last_dt) > INACTIVITY_TIMEOUT:
+            session.clear()
+            # For JSON/API endpoints return 401 so JS can redirect
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                from flask import abort
+                abort(401)
+            return redirect(url_for("login"))
+
+    # Refresh timestamp on every request
+    session["_last_activity"] = now.isoformat()
+    session.permanent = True      # honour PERMANENT_SESSION_LIFETIME
+
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin@2026")
 
 TEMP_DIR = os.path.join(tempfile.gettempdir(), "society_notices")
@@ -86,6 +124,14 @@ def login():
 
         error = "❌ Invalid username or password."
     return render_template("login.html", error=error)
+
+
+@app.route("/session/ping", methods=["POST"])
+@login_required
+def session_ping():
+    """Lightweight endpoint called by the client to reset the inactivity timer."""
+    session["_last_activity"] = datetime.now().isoformat()
+    return jsonify({"ok": True})
 
 @app.route("/logout")
 def logout():
