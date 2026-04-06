@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}AI Notices & MOM — SocietyNotice Pro{% endblock %}
 {% block page_title %}AI Assistant{% endblock %}
-{% block page_sub %}Generate custom notices & Marathi Minutes of Meeting using AI{% endblock %}
+{% block page_sub %}Generate custom notices, committee meeting notices &amp; MOM using AI{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -154,7 +154,11 @@
   </button>
   <button class="ai-tab" id="tab-mom-btn" onclick="switchTab('mom')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-    MOM Generator (मराठी)
+    MOM Generator
+  </button>
+  <button class="ai-tab" id="tab-committee-btn" onclick="switchTab('committee')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    Committee Notice
   </button>
 </div>
 
@@ -256,6 +260,12 @@
           <a href="#" class="dl-notice-btn" id="noticeDlBtn" download>
             📥 Download Notice (.docx)
           </a>
+          {% if not session.get('is_admin') %}
+          <button id="noticeWaBtn" onclick="openWaModal('notice')"
+            style="display:none;margin-top:8px;width:100%;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;box-shadow:0 4px 14px rgba(37,211,102,0.35);align-items:center;justify-content:center;gap:8px;">
+            📲 Send via WhatsApp
+          </button>
+          {% endif %}
         </div>
       </div>
 
@@ -367,6 +377,12 @@
           <a href="#" class="dl-notice-btn" id="momDlBtn" download>
             📥 Download MOM (.docx)
           </a>
+          {% if not session.get('is_admin') %}
+          <button id="momWaBtn" onclick="openWaModal('mom')"
+            style="display:none;margin-top:8px;width:100%;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;box-shadow:0 4px 14px rgba(37,211,102,0.35);align-items:center;justify-content:center;gap:8px;">
+            📲 Send via WhatsApp
+          </button>
+          {% endif %}
         </div>
       </div>
 
@@ -386,6 +402,124 @@
 
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 3: COMMITTEE MEETING NOTICE
+═══════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-committee">
+  <div class="ai-layout">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:4px;">Committee Meeting Notice</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">AI generates a formal notice to committee members with the full meeting agenda</div>
+
+        <div class="form-label" style="margin-bottom:8px;">Output Language</div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+          <button class="n-chip selected" id="cm-lang-en" onclick="selectCmLang('English')">🇬🇧 English</button>
+          <button class="n-chip" id="cm-lang-mr" onclick="selectCmLang('Marathi')">🇮🇳 Marathi</button>
+          <button class="n-chip" id="cm-lang-hi" onclick="selectCmLang('Hindi')">🏛️ Hindi</button>
+        </div>
+        <input type="hidden" id="cmLangInput" value="English"/>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Meeting Date</label>
+            <input class="form-input" type="date" id="cm_date"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Meeting Time</label>
+            <input class="form-input" type="time" id="cm_time" value="18:00"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Venue</label>
+            <input class="form-input" type="text" id="cm_venue" placeholder="e.g. Society Office, Ground Floor"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ref No</label>
+            <input class="form-input" type="text" id="cm_ref" placeholder="e.g. SIC/CM/26/01"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notice Date</label>
+            <input class="form-input" type="date" id="cm_notice_date"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Meeting Type</label>
+            <select class="form-input" id="cm_meeting_type">
+              <option>Managing Committee Meeting</option>
+              <option>Special General Meeting (SGM)</option>
+              <option>Annual General Meeting (AGM)</option>
+              <option>Emergency Meeting</option>
+              <option>Sub-Committee Meeting</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Committee Members to Notify</label>
+            <input class="form-input" type="text" id="cm_members"
+              placeholder="e.g. Chairman, Secretary, Treasurer, Mr. Sharma (B01-201)"/>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Agenda Items <span style="color:var(--teal3);font-weight:400;text-transform:none;">(one per line)</span></label>
+            <textarea class="form-input" id="cm_agenda" rows="5"
+              placeholder="e.g.&#10;1. Water pump repair — approve Rs. 45,000 budget&#10;2. New security guard hiring&#10;3. Parking policy revision&#10;4. AGM date finalization&#10;5. Any other matter with permission of Chair"
+              style="resize:vertical;line-height:1.6;"></textarea>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Additional Instructions <span style="color:var(--muted);font-weight:400;text-transform:none;">(optional)</span></label>
+            <input class="form-input" type="text" id="cm_notes"
+              placeholder="e.g. Quorum of 5 members required, please confirm attendance by reply"/>
+          </div>
+        </div>
+
+        <button onclick="generateCommitteeNotice()" id="genCmBtn"
+          style="width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 4px 14px var(--teal-glow);transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px;">
+          <div class="spinner" id="cmSpinner"></div>
+          <span id="cmBtnText">✨ Generate Committee Notice</span>
+        </button>
+        <div class="error-banner" id="cmError"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="card-title">Notice Preview</div>
+            <span style="font-size:11px;color:var(--muted);">AI-drafted · formal</span>
+          </div>
+          <div class="preview-box" id="cmPreview">
+            <div class="preview-placeholder">
+              <div style="font-size:36px;">🏛️</div>
+              <div style="font-size:13px;">Committee notice will appear here</div>
+              <div style="font-size:11px;color:var(--faint);">Fill agenda and click Generate</div>
+            </div>
+          </div>
+          <a href="#" class="dl-notice-btn" id="cmDlBtn" style="display:none;" download>
+            📥 Download Notice (.docx)
+          </a>
+          {% if not session.get('is_admin') %}
+          <button id="cmWaBtn" onclick="openWaModal('cm')"
+            style="display:none;margin-top:8px;width:100%;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;box-shadow:0 4px 14px rgba(37,211,102,0.35);align-items:center;justify-content:center;gap:8px;">
+            📲 Send via WhatsApp
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div style="font-size:12px;font-weight:600;color:var(--teal3);margin-bottom:12px;">📋 Notice will include</div>
+          <div style="display:flex;flex-direction:column;gap:9px;font-size:12px;color:var(--ink3);line-height:1.6;">
+            <div>✅ Formal invitation to committee members</div>
+            <div>✅ Meeting date, time &amp; venue details</div>
+            <div>✅ Numbered agenda items</div>
+            <div>✅ Quorum &amp; attendance requirements</div>
+            <div>✅ Society letterhead + Secretary signature</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script>
   // Set default dates
@@ -480,6 +614,9 @@
         preview.textContent = data.preview;
         dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
         dlBtn.style.display = 'block';
+        window._waNotice = { sessId: data.sess_id, filename: data.filename };
+        const waBtn = document.getElementById('noticeWaBtn');
+        if (waBtn) { waBtn.style.display = 'flex'; }
       } else {
         throw new Error(data.error || 'Unknown error');
       }
@@ -525,6 +662,9 @@
         preview.textContent = data.preview;
         dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
         dlBtn.style.display = 'block';
+        window._waMom = { sessId: data.sess_id, filename: data.filename };
+        const waBtn = document.getElementById('momWaBtn');
+        if (waBtn) { waBtn.style.display = 'flex'; }
       } else {
         throw new Error(data.error || 'Unknown error');
       }
@@ -538,5 +678,200 @@
       btn.disabled = false;
     }
   }
+  // ── Committee date defaults ──────────────────────────────────
+  document.getElementById('cm_date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cm_notice_date').value = new Date().toISOString().split('T')[0];
+
+  function selectCmLang(lang) {
+    ['en','mr','hi'].forEach(l => document.getElementById('cm-lang-'+l).classList.remove('selected'));
+    const map = { English:'en', Marathi:'mr', Hindi:'hi' };
+    document.getElementById('cm-lang-' + map[lang]).classList.add('selected');
+    document.getElementById('cmLangInput').value = lang;
+  }
+
+  async function generateCommitteeNotice() {
+    const btn     = document.getElementById('genCmBtn');
+    const spinner = document.getElementById('cmSpinner');
+    const btnText = document.getElementById('cmBtnText');
+    const errDiv  = document.getElementById('cmError');
+    const preview = document.getElementById('cmPreview');
+    const dlBtn   = document.getElementById('cmDlBtn');
+    const waBtn   = document.getElementById('cmWaBtn');
+
+    errDiv.style.display = 'none';
+    spinner.style.display = 'block';
+    btnText.textContent = 'Generating...';
+    btn.disabled = true;
+    preview.innerHTML = '<div class="preview-placeholder"><div style="font-size:28px;">⚡</div><div style="font-size:13px;">AI is drafting committee notice...</div></div>';
+    dlBtn.style.display = 'none';
+    if (waBtn) waBtn.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('meeting_date', document.getElementById('cm_date').value);
+    fd.append('meeting_time', document.getElementById('cm_time').value);
+    fd.append('venue',        document.getElementById('cm_venue').value);
+    fd.append('ref_no',       document.getElementById('cm_ref').value);
+    fd.append('notice_date',  document.getElementById('cm_notice_date').value);
+    fd.append('meeting_type', document.getElementById('cm_meeting_type').value);
+    fd.append('members',      document.getElementById('cm_members').value);
+    fd.append('agenda',       document.getElementById('cm_agenda').value);
+    fd.append('notes',        document.getElementById('cm_notes').value);
+    fd.append('language',     document.getElementById('cmLangInput').value);
+
+    try {
+      const res  = await fetch('/ai-notices/generate-committee', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        preview.textContent = data.preview;
+        dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
+        dlBtn.style.display = 'block';
+        window._waCm = { sessId: data.sess_id, filename: data.filename };
+        if (waBtn) { waBtn.style.display = 'flex'; }
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch(e) {
+      errDiv.textContent = '❌ ' + e.message;
+      errDiv.style.display = 'block';
+      preview.innerHTML = '<div class="preview-placeholder"><div style="font-size:28px;">❌</div><div>Generation failed</div></div>';
+    } finally {
+      spinner.style.display = 'none';
+      btnText.textContent = '✨ Generate Committee Notice';
+      btn.disabled = false;
+    }
+  }
+
+  // ── WhatsApp modal ────────────────────────────────────────────
+  function openWaModal(type) {
+    let sessId, filename, flatNo = '';
+    if (type === 'notice') {
+      if (!window._waNotice) { alert('Generate the notice first.'); return; }
+      sessId = window._waNotice.sessId; filename = window._waNotice.filename;
+      flatNo = (document.getElementById('n_flat')?.value || '').trim().toUpperCase();
+    } else if (type === 'mom') {
+      if (!window._waMom) { alert('Generate the MOM first.'); return; }
+      sessId = window._waMom.sessId; filename = window._waMom.filename;
+    } else {
+      if (!window._waCm) { alert('Generate the committee notice first.'); return; }
+      sessId = window._waCm.sessId; filename = window._waCm.filename;
+    }
+    window._waSessId = sessId; window._waFilename = filename;
+
+    document.getElementById('waModal').style.display = 'flex';
+    document.getElementById('waSendStatus').style.display = 'none';
+    document.getElementById('waConfirmBtn').style.display = 'block';
+    document.getElementById('waConfirmBtn').textContent = '📲 Confirm & Send';
+    document.getElementById('waConfirmBtn').disabled = false;
+    document.getElementById('waConfirmBtn').onclick = null;
+
+    const body = document.getElementById('waModalBody');
+
+    if (flatNo) {
+      body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">🔍 Looking up member...</div>';
+      document.getElementById('waConfirmBtn').style.display = 'none';
+      fetch('/whatsapp/preview', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ sess_id: sessId, filename, flat_combo: flatNo })
+      }).then(r => r.json()).then(data => {
+        if (data.success) {
+          window._waPhone = data.phone; window._waName = data.name;
+          body.innerHTML = `<div style="background:rgba(37,211,102,0.07);border:1px solid rgba(37,211,102,0.2);border-radius:12px;padding:16px;margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:600;color:#128C7E;margin-bottom:10px;">📋 Recipient</div>
+            <table style="width:100%;font-size:13px;border-collapse:collapse;">
+              <tr><td style="color:var(--muted);padding:3px 0;width:80px;">Name</td><td style="font-weight:600;">${data.name}</td></tr>
+              <tr><td style="color:var(--muted);padding:3px 0;">Flat</td><td>${data.flat_combo}</td></tr>
+              <tr><td style="color:var(--muted);padding:3px 0;">Phone</td>
+                  <td><span style="font-family:monospace;background:rgba(37,211,102,0.1);padding:2px 8px;border-radius:5px;">
+                    +${data.phone.startsWith('91') ? data.phone : '91'+data.phone}</span></td></tr>
+            </table></div>
+            <div style="font-size:11px;color:var(--muted);padding:8px;background:var(--surface2);border-radius:6px;">📄 Will be sent as PDF via WhatsApp</div>`;
+          document.getElementById('waConfirmBtn').style.display = 'block';
+          document.getElementById('waConfirmBtn').onclick = confirmSendWhatsApp;
+        } else {
+          body.innerHTML = `<div style="text-align:center;padding:16px;">
+            <div style="font-size:28px;margin-bottom:8px;">🔍</div>
+            <div style="font-weight:600;margin-bottom:6px;">Member Not Found</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">${data.error}</div>
+            <a href="/members" style="color:var(--teal3);font-weight:600;font-size:13px;">→ Upload Member Directory</a></div>`;
+          document.getElementById('waConfirmBtn').style.display = 'none';
+        }
+      });
+    } else {
+      // Manual entry (MOM / committee)
+      body.innerHTML = `
+        <p style="font-size:13px;color:var(--ink3);margin-bottom:14px;">Enter the phone number to send this document:</p>
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Recipient Name</label>
+          <input id="waManualName" class="form-input" type="text" placeholder="e.g. Committee Members" style="width:100%;margin-top:4px;"/>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Phone Number</label>
+          <input id="waManualPhone" class="form-input" type="tel" placeholder="10-digit mobile number" style="width:100%;margin-top:4px;"/>
+        </div>
+        <div style="font-size:11px;color:var(--muted);">📄 Converted to PDF and sent as WhatsApp document.</div>`;
+      document.getElementById('waConfirmBtn').onclick = () => {
+        window._waPhone = document.getElementById('waManualPhone').value.trim();
+        window._waName  = document.getElementById('waManualName').value.trim() || 'Member';
+        confirmSendWhatsApp();
+      };
+    }
+  }
+
+  function closeWaModal() { document.getElementById('waModal').style.display = 'none'; }
+
+  async function confirmSendWhatsApp() {
+    const btn = document.getElementById('waConfirmBtn');
+    btn.disabled = true; btn.textContent = 'Sending...';
+    try {
+      const res  = await fetch('/whatsapp/send', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ sess_id: window._waSessId, filename: window._waFilename,
+                               phone: window._waPhone, name: window._waName })
+      });
+      const data = await res.json();
+      const st = document.getElementById('waSendStatus');
+      st.style.display = 'block';
+      if (data.success) {
+        st.style.cssText += ';background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.3);color:#128C7E;';
+        st.textContent = '✅ ' + data.message;
+        btn.style.display = 'none';
+      } else {
+        st.style.cssText += ';background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#B91C1C;';
+        st.textContent = '❌ ' + data.error;
+        btn.disabled = false; btn.textContent = '📲 Confirm & Send';
+      }
+    } catch(e) {
+      document.getElementById('waSendStatus').textContent = '❌ Network error';
+      btn.disabled = false; btn.textContent = '📲 Confirm & Send';
+    }
+  }
+
 </script>
+
+<!-- ══ WhatsApp Send Modal ════════════════════════════════════ -->
+<div id="waModal" style="display:none;position:fixed;inset:0;background:rgba(6,61,54,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:28px;max-width:420px;width:100%;box-shadow:0 32px 80px rgba(10,191,163,0.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#25D366,#128C7E);display:flex;align-items:center;justify-content:center;">
+          📲
+        </div>
+        <div style="font-weight:700;font-size:15px;color:var(--ink);">Send via WhatsApp</div>
+      </div>
+      <button onclick="closeWaModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1;">×</button>
+    </div>
+    <div id="waModalBody" style="min-height:80px;"></div>
+    <div id="waSendStatus" style="display:none;padding:11px 14px;border-radius:10px;font-size:13px;margin-top:12px;"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button onclick="closeWaModal()"
+        style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font);">
+        Cancel
+      </button>
+      <button id="waConfirmBtn"
+        style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);">
+        📲 Confirm & Send
+      </button>
+    </div>
+  </div>
+</div>
 {% endblock %}

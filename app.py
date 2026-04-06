@@ -631,6 +631,147 @@ def ai_generate_mom():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/ai-notices/generate-committee", methods=["POST"])
+@login_required
+def ai_generate_committee():
+    """Generate a formal committee meeting notice with agenda in chosen language."""
+    try:
+        meeting_date  = request.form.get("meeting_date", "").strip()
+        meeting_time  = request.form.get("meeting_time", "").strip()
+        venue         = request.form.get("venue", "").strip()
+        ref_no        = request.form.get("ref_no", "").strip()
+        notice_date   = request.form.get("notice_date", date.today().strftime("%d-%m-%Y"))
+        meeting_type  = request.form.get("meeting_type", "Managing Committee Meeting")
+        members       = request.form.get("members", "").strip()
+        agenda        = request.form.get("agenda", "").strip()
+        notes         = request.form.get("notes", "").strip()
+        language      = request.form.get("language", "English").strip()
+        society_name  = session.get("society_name", "Shreeji Iconic CHS Ltd.")
+
+        try:
+            meeting_date = datetime.strptime(meeting_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+            pass
+        try:
+            notice_date = datetime.strptime(notice_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+            pass
+
+        # Format agenda items
+        agenda_lines = [l.strip() for l in agenda.replace(",", "\n").split("\n") if l.strip()]
+        agenda_numbered = "\n".join(
+            f"{i+1}. {item}" if not item[0].isdigit() else item
+            for i, item in enumerate(agenda_lines)
+        )
+
+        lang_cfg = {
+            "English": {
+                "system": (
+                    "You are the official secretary of a Co-operative Housing Society in Maharashtra, India. "
+                    "Write a formal committee meeting notice in English. "
+                    "Include: formal salutation to committee members, meeting details, numbered agenda, "
+                    "and a request to confirm attendance. "
+                    "Write ONLY the body paragraphs — no letterhead, no subject line, no signature block. "
+                    "Reference the Maharashtra Co-operative Societies Act 1960 where relevant."
+                ),
+                "user": (
+                    f"Write a formal {meeting_type} notice for {society_name}.\n\n"
+                    f"Meeting Date: {meeting_date}\n"
+                    f"Time: {meeting_time}\n"
+                    f"Venue: {venue}\n"
+                    f"Committee Members: {members or 'All Committee Members'}\n\n"
+                    f"Agenda:\n{agenda_numbered}\n\n"
+                    f"{('Additional Notes: ' + notes) if notes else ''}\n\n"
+                    "Write 2-3 opening paragraphs formally notifying members of the meeting, "
+                    "then list the agenda items clearly, then close with attendance confirmation request."
+                ),
+                "subject_system": "You are the secretary of a Co-operative Housing Society.",
+                "subject_user": (
+                    f"Write a one-line formal English subject for a {meeting_type} notice. "
+                    f"Meeting date: {meeting_date}. "
+                    "Output ONLY the subject text, no prefix like 'Sub:' or 'Subject:'."
+                ),
+                "sub_label": "Sub:",
+            },
+            "Marathi": {
+                "system": (
+                    "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत सचिव आहात. "
+                    "समिती बैठकीची नोटीस मराठीत लिहा — औपचारिक आणि कायदेशीरदृष्ट्या योग्य भाषेत. "
+                    "फक्त मुख्य परिच्छेद लिहा — लेटरहेड, विषय ओळ किंवा स्वाक्षरी नको."
+                ),
+                "user": (
+                    f"{society_name} च्या {meeting_type} साठी मराठीत औपचारिक नोटीस लिहा.\n\n"
+                    f"बैठकीची तारीख: {meeting_date}\n"
+                    f"वेळ: {meeting_time}\n"
+                    f"ठिकाण: {venue}\n"
+                    f"समिती सदस्य: {members or 'सर्व समिती सदस्य'}\n\n"
+                    f"अजेंडा:\n{agenda_numbered}\n\n"
+                    f"{('अतिरिक्त सूचना: ' + notes) if notes else ''}\n\n"
+                    "सुरुवातीला बैठकीची औपचारिक सूचना द्या, नंतर अजेंडा क्रमांकित करा, "
+                    "शेवटी उपस्थितीची पुष्टी करण्याची विनंती करा."
+                ),
+                "subject_system": "तुम्ही एका सहकारी गृहनिर्माण संस्थेचे सचिव आहात.",
+                "subject_user": (
+                    f"'{meeting_type}' साठी एक ओळीचा औपचारिक मराठी विषय लिहा. "
+                    f"बैठकीची तारीख: {meeting_date}. "
+                    "फक्त विषय ओळ लिहा — 'विषय:' किंवा इतर कोणताही उपसर्ग न लिहिता."
+                ),
+                "sub_label": "विषय:",
+            },
+            "Hindi": {
+                "system": (
+                    "आप महाराष्ट्र की एक सहकारी आवास संस्था के आधिकारिक सचिव हैं. "
+                    "समिति बैठक की सूचना हिंदी में लिखें — औपचारिक और कानूनी रूप से उचित भाषा में. "
+                    "केवल मुख्य अनुच्छेद लिखें — लेटरहेड, विषय पंक्ति या हस्ताक्षर नहीं."
+                ),
+                "user": (
+                    f"{society_name} की {meeting_type} के लिए हिंदी में औपचारिक सूचना लिखें.\n\n"
+                    f"बैठक की तारीख: {meeting_date}\n"
+                    f"समय: {meeting_time}\n"
+                    f"स्थान: {venue}\n"
+                    f"समिति सदस्य: {members or 'सभी समिति सदस्य'}\n\n"
+                    f"एजेंडा:\n{agenda_numbered}\n\n"
+                    f"{('अतिरिक्त निर्देश: ' + notes) if notes else ''}\n\n"
+                    "औपचारिक रूप से बैठक की सूचना दें, एजेंडा क्रमांकित करें, "
+                    "और उपस्थिति की पुष्टि करने का अनुरोध करें."
+                ),
+                "subject_system": "आप एक सहकारी आवास संस्था के सचिव हैं.",
+                "subject_user": (
+                    f"'{meeting_type}' के लिए एक पंक्ति का औपचारिक हिंदी विषय लिखें. "
+                    f"बैठक की तारीख: {meeting_date}. "
+                    "केवल विषय पंक्ति लिखें — 'विषय:' या कोई उपसर्ग नहीं."
+                ),
+                "sub_label": "विषय:",
+            },
+        }
+
+        cfg = lang_cfg.get(language, lang_cfg["English"])
+
+        ai_text     = call_groq(cfg["system"], cfg["user"])
+        raw_subject = call_groq(cfg["subject_system"], cfg["subject_user"]).strip().strip('"').strip("'").strip()
+        for prefix in ("Sub:", "Subject:", "विषय:", "विषय :", "Vishay:"):
+            if raw_subject.lower().startswith(prefix.lower()):
+                raw_subject = raw_subject[len(prefix):].strip()
+                break
+        subject = f"{cfg['sub_label']} {raw_subject}"
+
+        docx_bytes = build_ai_notice_docx(ref_no, "", members or "Committee Members",
+                                          notice_date, subject, ai_text)
+
+        sess_id  = str(uuid.uuid4())
+        sess_dir = os.path.join(TEMP_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        safe_type = meeting_type.replace(" ", "_").replace("(", "").replace(")", "")
+        fname = f"Committee_Notice_{safe_type}_{meeting_date.replace('-','')}.docx"
+        with open(os.path.join(sess_dir, fname), "wb") as f:
+            f.write(docx_bytes)
+
+        return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/ai-notices/download/<sess_id>/<filename>")
 @login_required
 def ai_download(sess_id, filename):
