@@ -37,12 +37,15 @@
     <!-- Notice Type Toggle -->
     <div style="margin-bottom:24px;">
       <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
         <button id="btn1st" onclick="setType('1st')" style="padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
           📄 1st Notice
         </button>
         <button id="btn2nd" onclick="setType('2nd')" style="padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
           📄 2nd Notice
+        </button>
+        <button id="btn3rd" onclick="setType('3rd')" style="padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
+          📄 3rd Notice
         </button>
       </div>
     </div>
@@ -74,7 +77,8 @@
     <!-- Drop zone -->
     <div class="form-label" style="margin-bottom:10px;">
       Upload Defaulter Excel
-      <span id="col2ndHint" style="display:none;color:var(--gold);font-weight:400;text-transform:none;"> · Column I = Previous Ref No (for 2nd notice)</span>
+      <span id="col2ndHint" style="display:none;color:var(--gold);font-weight:400;text-transform:none;"> · Column I = 1st Ref No, Column J = 2nd Ref No (for 2nd notice)</span>
+      <span id="col3rdHint" style="display:none;color:var(--gold);font-weight:400;text-transform:none;"> · Column I = 1st Ref No, Column J = 2nd Ref No (for 3rd notice)</span>
     </div>
     <div id="dropZone" style="border:2px dashed rgba(192,0,0,0.4);border-radius:12px;padding:32px;text-align:center;cursor:pointer;position:relative;transition:all 0.2s;background:rgba(192,0,0,0.03);" onmouseover="this.style.background='rgba(192,0,0,0.06)'" onmouseout="this.style.background='rgba(192,0,0,0.03)'">
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"/>
@@ -166,20 +170,25 @@
   let noticeType = '1st';
   document.getElementById('issuedDate').value = new Date().toISOString().split('T')[0];
 
+  const BTN_ACTIVE   = 'padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
+  const BTN_INACTIVE = 'padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
+  const SUBJECTS = {
+    '1st': 'Sub: Notice for Recovery of Due Maintenance.',
+    '2nd': 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.',
+    '3rd': 'Sub: 3rd & Final Notice — Legal Action for Recovery of Outstanding Maintenance Dues.',
+  };
+
   function setType(type) {
     noticeType = type;
-    const b1 = document.getElementById('btn1st');
-    const b2 = document.getElementById('btn2nd');
-    if (type === '1st') {
-      b1.style.cssText = 'padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-      b2.style.cssText = 'padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-      document.getElementById('subjectLine').value = 'Sub: Notice for Recovery of Due Maintenance.';
-    } else {
-      b2.style.cssText = 'padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-      b1.style.cssText = 'padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-      document.getElementById('subjectLine').value = 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.';
-    }
+    ['btn1st','btn2nd','btn3rd'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.cssText = BTN_INACTIVE;
+    });
+    const activeBtn = document.getElementById('btn' + type);
+    if (activeBtn) activeBtn.style.cssText = BTN_ACTIVE;
+    document.getElementById('subjectLine').value = SUBJECTS[type] || '';
     document.getElementById('col2ndHint').style.display = type === '2nd' ? 'inline' : 'none';
+    document.getElementById('col3rdHint').style.display = type === '3rd' ? 'inline' : 'none';
   }
 
   const fileInput   = document.getElementById('fileInput');
