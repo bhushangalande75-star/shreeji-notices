@@ -6,3 +6,4 @@ pypdf
 gunicorn
 psycopg2-binary
 anthropic
+requests
