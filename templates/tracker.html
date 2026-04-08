@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Notice Tracker — SocietyNotice Pro{% endblock %}
+{% block extra_head %}
+<style>
+.tab-filter-btn { padding:7px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s;font-family:var(--font); }
+.tab-filter-btn:hover { border-color:var(--teal);color:var(--teal3); }
+.tab-filter-btn.active { background:linear-gradient(135deg,var(--teal),var(--teal2));color:#fff;border-color:transparent;box-shadow:0 3px 10px var(--teal-glow); }
+</style>
+{% endblock %}
 {% block page_title %}Notice Tracker{% endblock %}
 {% block page_sub %}Monitor payment status across all notice batches{% endblock %}
 {% block topbar_right %}
@@ -14,6 +21,22 @@
 {% endblock %}
 
 {% block content %}
+
+<!-- Notice Type Filter -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+  <span style="font-size:13px;font-weight:600;color:var(--ink3);">Filter by Notice Type:</span>
+  <div style="display:flex;gap:6px;">
+    <a href="/tracker" class="tab-filter-btn {{ 'active' if not selected_type }}">All</a>
+    <a href="/tracker?notice_type=1st" class="tab-filter-btn {{ 'active' if selected_type == '1st' }}">1st Notice</a>
+    <a href="/tracker?notice_type=2nd" class="tab-filter-btn {{ 'active' if selected_type == '2nd' }}">2nd Notice</a>
+    <a href="/tracker?notice_type=3rd" class="tab-filter-btn {{ 'active' if selected_type == '3rd' }}">3rd Notice</a>
+  </div>
+  {% if selected_type %}
+  <span style="font-size:12px;color:var(--muted);margin-left:4px;">
+    Showing <strong style="color:var(--teal3);">{{ selected_type }} Notice</strong> batches only
+  </span>
+  {% endif %}
+</div>
 
 <div class="stats-grid">
   <div class="stat-card teal">
@@ -124,13 +147,13 @@
   let deleteId = null;
   function confirmDelete(id, name) {
     deleteId = id;
-    document.getElementById('modalText').innerHTML = `Delete batch <strong>${name}</strong>?<br>All member records will be permanently removed.`;
+    document.getElementById('modalText').innerHTML = `Delete batch <strong>₹{name}</strong>?<br>All member records will be permanently removed.`;
     document.getElementById('modalOverlay').classList.add('show');
   }
   function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); deleteId = null; }
   async function deleteBatch() {
     if (!deleteId) return;
-    await fetch(`/tracker/delete_batch/${deleteId}`, { method: 'POST' });
+    await fetch(`/tracker/delete_batch/₹{deleteId}`, { method: 'POST' });
     closeModal(); location.reload();
   }
   document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });

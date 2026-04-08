@@ -3,6 +3,7 @@
 {% block page_title %}Society Management{% endblock %}
 {% block page_sub %}Add and manage all registered societies on the platform{% endblock %}
 {% block topbar_right %}
+  <a class="btn btn-secondary" href="/admin/billing" style="margin-right:8px;">🧾 Billing</a>
   <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">+ Add Society</button>
 {% endblock %}
 
@@ -46,6 +47,7 @@
           <td><span class="badge {{ 'badge-green' if s.active else 'badge-red' }}">{{ 'Active' if s.active else 'Inactive' }}</span></td>
           <td style="color:var(--muted);font-size:13px;">{{ s.created_at.strftime('%d-%m-%Y') if s.created_at else '—' }}</td>
           <td>
+            <button class="btn btn-secondary btn-sm" onclick="resetPassword({{ s.id }}, '{{ s.name }}')" style="margin-right:4px;">🔑 Reset</button>
             <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ s.id }}, '{{ s.name }}')">Delete</button>
           </td>
         </tr>
@@ -207,5 +209,27 @@
   document.querySelectorAll('.modal-overlay').forEach(m => {
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
   });
+
+  async function resetPassword(id, name) {
+    if (!confirm(`Reset password for ${name}? A new 6-digit password will be generated.`)) return;
+    const res  = await fetch(`/admin/reset-password/${id}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('resetPwResult').innerHTML =
+        `<strong>${name}</strong> new password: <code style="background:rgba(10,191,163,0.15);padding:3px 10px;border-radius:6px;font-size:16px;font-weight:700;color:var(--teal3);">${data.new_password}</code>`;
+      document.getElementById('resetPwModal').classList.add('show');
+    }
+  }
 </script>
+
+<!-- Reset Password Result Modal -->
+<div class="modal-overlay" id="resetPwModal">
+  <div class="modal" style="text-align:center;">
+    <h3>🔑 Password Reset</h3>
+    <p style="margin-bottom:16px;">New password generated successfully:</p>
+    <div id="resetPwResult" style="font-size:15px;margin-bottom:20px;"></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:20px;">⚠️ Please share this password with the society user securely. They can change it after login.</p>
+    <button class="btn btn-primary" style="width:100%;" onclick="document.getElementById('resetPwModal').classList.remove('show')">Close</button>
+  </div>
+</div>
 {% endblock %}

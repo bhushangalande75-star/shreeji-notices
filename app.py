@@ -14,7 +14,11 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       get_eligible_for_2nd, get_paid_members, delete_batch,
                       get_society_by_username, get_all_societies, create_society,
                       delete_society, get_society_stats,
-                      upsert_members, get_members, get_member_by_flat, delete_all_members)
+                      upsert_members, get_members, get_member_by_flat, delete_all_members,
+                      change_society_password, reset_society_password,
+                      get_stats_by_notice_type, get_unique_member_stats,
+                      get_batches_by_type, create_monthly_bill, get_bills_for_society,
+                      get_all_bills, update_bill_status, delete_bill)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -177,16 +181,20 @@ def admin_delete_society(society_id):
 @app.route("/")
 @login_required
 def index():
-    stats = get_society_stats(session["society_id"])
-    return render_template("index.html", society_name=session["society_name"], stats=stats)
+    sid = session.get("society_id")
+    stats = get_unique_member_stats(sid) if sid else {}
+    bills = get_bills_for_society(sid) if sid else []
+    return render_template("index.html", society_name=session["society_name"], stats=stats, bills=bills)
 
 @app.route("/tracker")
 @login_required
 def tracker():
-    society_id = session.get("society_id")
-    batches = get_batches(society_id) if society_id else []
-    stats   = get_society_stats(society_id) if society_id else {}
-    return render_template("tracker.html", batches=batches, society_name=session["society_name"], stats=stats)
+    society_id  = session.get("society_id")
+    notice_type = request.args.get("notice_type", "")
+    batches     = get_batches_by_type(society_id, notice_type or None) if society_id else []
+    stats       = get_stats_by_notice_type(society_id, notice_type or None) if society_id else {}
+    return render_template("tracker.html", batches=batches, society_name=session["society_name"],
+                           stats=stats, selected_type=notice_type)
 
 @app.route("/tracker/batch/<int:batch_id>")
 @login_required
@@ -1182,6 +1190,107 @@ def whatsapp_send():
     if success:
         return jsonify({"success": True, "message": f"Notice sent to {phone}"})
     return jsonify({"success": False, "error": msg}), 500
+
+
+# ── Password Management ────────────────────────────────────────
+@app.route("/change-password", methods=["GET","POST"])
+@login_required
+def change_password():
+    error = ""; success = ""
+    if request.method == "POST":
+        current  = request.form.get("current_password","").strip()
+        new_pw   = request.form.get("new_password","").strip()
+        confirm  = request.form.get("confirm_password","").strip()
+        if new_pw != confirm:
+            error = "New passwords do not match."
+        elif len(new_pw) < 6:
+            error = "Password must be at least 6 characters."
+        else:
+            sid = session.get("society_id")
+            if sid:
+                from database import get_society_by_username
+                soc = get_society_by_username(session.get("society_username",""))
+                # Re-fetch society to verify current password
+                from database import get_db
+                conn = get_db(); cur = conn.cursor()
+                cur.execute("SELECT password FROM societies WHERE id=%s", (sid,))
+                row = cur.fetchone(); cur.close(); conn.close()
+                if not row or row["password"] != current:
+                    error = "Current password is incorrect."
+                else:
+                    change_society_password(sid, new_pw)
+                    success = "Password changed successfully!"
+            else:
+                error = "Admin password must be changed via Render environment variables."
+    return render_template("change_password.html", society_name=session.get("society_name",""),
+                           error=error, success=success)
+
+@app.route("/admin/change-password", methods=["GET","POST"])
+@admin_required
+def admin_change_password():
+    error = ""; success = ""
+    if request.method == "POST":
+        current  = request.form.get("current_password","").strip()
+        new_pw   = request.form.get("new_password","").strip()
+        confirm  = request.form.get("confirm_password","").strip()
+        if current != ADMIN_PASSWORD:
+            error = "Current admin password is incorrect."
+        elif new_pw != confirm:
+            error = "New passwords do not match."
+        elif len(new_pw) < 6:
+            error = "Password must be at least 6 characters."
+        else:
+            success = "To permanently change admin password, update ADMIN_PASSWORD in Render environment variables."
+    return render_template("change_password.html", society_name="Admin",
+                           error=error, success=success, is_admin=True)
+
+@app.route("/admin/reset-password/<int:society_id>", methods=["POST"])
+@admin_required
+def admin_reset_password(society_id):
+    import random, string
+    new_pw = "".join(random.choices(string.digits, k=6))
+    reset_society_password(society_id, new_pw)
+    return jsonify({"success": True, "new_password": new_pw})
+
+# ── Monthly Billing ────────────────────────────────────────────
+@app.route("/admin/billing")
+@admin_required
+def admin_billing():
+    from database import get_all_bills
+    societies = get_all_societies()
+    bills     = get_all_bills()
+    return render_template("admin_billing.html", societies=societies, bills=bills,
+                           society_name="Admin")
+
+@app.route("/admin/billing/create", methods=["POST"])
+@admin_required
+def admin_create_bill():
+    sid     = int(request.form.get("society_id"))
+    month   = request.form.get("bill_month")
+    year    = request.form.get("bill_year")
+    amount  = float(request.form.get("amount", 0))
+    desc    = request.form.get("description","")
+    create_monthly_bill(sid, month, year, amount, desc)
+    return redirect(url_for("admin_billing"))
+
+@app.route("/admin/billing/status/<int:bill_id>", methods=["POST"])
+@admin_required
+def admin_update_bill_status(bill_id):
+    status = request.json.get("status","Unpaid")
+    update_bill_status(bill_id, status)
+    return jsonify({"success": True})
+
+@app.route("/admin/billing/delete/<int:bill_id>", methods=["POST"])
+@admin_required
+def admin_delete_bill(bill_id):
+    delete_bill(bill_id)
+    return jsonify({"success": True})
+
+@app.route("/my-bills")
+@society_required
+def my_bills():
+    bills = get_bills_for_society(session["society_id"])
+    return render_template("my_bills.html", bills=bills, society_name=session["society_name"])
 
 
 if __name__ == "__main__":

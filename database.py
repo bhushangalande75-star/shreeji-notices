@@ -260,4 +260,175 @@ def delete_all_members(society_id):
     cur.close(); conn.close()
 
 
+# ── Password management ───────────────────────────────────────
+def change_society_password(society_id, new_password):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE societies SET password=%s WHERE id=%s", (new_password, society_id))
+    conn.commit(); cur.close(); conn.close()
+
+def change_admin_password(username, new_password):
+    """For admin: store in societies table with username='admin' if exists, else env."""
+    # We just return True — admin password is managed via env variable
+    return True
+
+def reset_society_password(society_id, new_password):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE societies SET password=%s WHERE id=%s", (new_password, society_id))
+    conn.commit(); cur.close(); conn.close()
+
+# ── Notice-type filtered stats ────────────────────────────────
+def get_stats_by_notice_type(society_id, notice_type=None):
+    """Stats filtered by notice type. If notice_type is None, returns all."""
+    conn = get_db(); cur = conn.cursor()
+    if notice_type:
+        cur.execute("SELECT COUNT(*) as total FROM notice_batches WHERE society_id=%s AND notice_type=%s",
+                    (society_id, notice_type))
+    else:
+        cur.execute("SELECT COUNT(*) as total FROM notice_batches WHERE society_id=%s", (society_id,))
+    batches = cur.fetchone()['total']
+
+    if notice_type:
+        cur.execute("""SELECT COUNT(*) as total FROM notices n
+                       JOIN notice_batches b ON n.batch_id=b.id
+                       WHERE n.society_id=%s AND b.notice_type=%s""", (society_id, notice_type))
+    else:
+        cur.execute("SELECT COUNT(*) as total FROM notices WHERE society_id=%s", (society_id,))
+    members = cur.fetchone()['total']
+
+    if notice_type:
+        cur.execute("""SELECT COUNT(*) as total FROM notices n
+                       JOIN notice_batches b ON n.batch_id=b.id
+                       WHERE n.society_id=%s AND b.notice_type=%s AND n.payment_status='Paid'""",
+                    (society_id, notice_type))
+    else:
+        cur.execute("SELECT COUNT(*) as total FROM notices WHERE society_id=%s AND payment_status='Paid'",
+                    (society_id,))
+    paid = cur.fetchone()['total']
+
+    if notice_type:
+        cur.execute("""SELECT COUNT(*) as total FROM notices n
+                       JOIN notice_batches b ON n.batch_id=b.id
+                       WHERE n.society_id=%s AND b.notice_type=%s AND n.payment_status='Pending'""",
+                    (society_id, notice_type))
+    else:
+        cur.execute("SELECT COUNT(*) as total FROM notices WHERE society_id=%s AND payment_status='Pending'",
+                    (society_id,))
+    pending = cur.fetchone()['total']
+
+    cur.close(); conn.close()
+    return {'batches': batches, 'members': members, 'paid': paid, 'pending': pending}
+
+def get_unique_member_stats(society_id):
+    """Deduplicates members across notice types using flat_no as unique key."""
+    conn = get_db(); cur = conn.cursor()
+    # Unique members (distinct flat_no)
+    cur.execute("""SELECT COUNT(DISTINCT flat_no) as total FROM notices WHERE society_id=%s""", (society_id,))
+    unique_members = cur.fetchone()['total']
+    # Paid (flat paid at least once in latest batch)
+    cur.execute("""SELECT COUNT(DISTINCT flat_no) as total FROM notices
+                   WHERE society_id=%s AND payment_status='Paid'""", (society_id,))
+    paid = cur.fetchone()['total']
+    # Outstanding = unique members who have ANY pending notice
+    cur.execute("""SELECT COUNT(DISTINCT flat_no) as total FROM notices
+                   WHERE society_id=%s AND payment_status='Pending'""", (society_id,))
+    pending = cur.fetchone()['total']
+    # Total outstanding amount (latest pending per member)
+    cur.execute("""SELECT COALESCE(SUM(amount),0) as total FROM (
+                     SELECT DISTINCT ON (flat_no) flat_no, amount
+                     FROM notices WHERE society_id=%s AND payment_status='Pending'
+                     ORDER BY flat_no, created_at DESC
+                   ) sub""", (society_id,))
+    outstanding_amount = cur.fetchone()['total']
+    # Total collected
+    cur.execute("""SELECT COALESCE(SUM(payment_amount),0) as total FROM notices
+                   WHERE society_id=%s AND payment_status='Paid'""", (society_id,))
+    collected_amount = cur.fetchone()['total']
+    cur.close(); conn.close()
+    return {
+        'unique_members': unique_members,
+        'paid': paid,
+        'pending': pending,
+        'outstanding_amount': outstanding_amount,
+        'collected_amount': collected_amount
+    }
+
+def get_batches_by_type(society_id, notice_type=None):
+    """Get batches filtered by notice type."""
+    conn = get_db(); cur = conn.cursor()
+    if notice_type:
+        cur.execute("""
+            SELECT b.*,
+                   COUNT(CASE WHEN n.payment_status='Paid'    THEN 1 END) as paid_count,
+                   COUNT(CASE WHEN n.payment_status='Pending' THEN 1 END) as pending_count
+            FROM notice_batches b
+            LEFT JOIN notices n ON n.batch_id = b.id
+            WHERE b.society_id=%s AND b.notice_type=%s
+            GROUP BY b.id ORDER BY b.created_at DESC
+        """, (society_id, notice_type))
+    else:
+        cur.execute("""
+            SELECT b.*,
+                   COUNT(CASE WHEN n.payment_status='Paid'    THEN 1 END) as paid_count,
+                   COUNT(CASE WHEN n.payment_status='Pending' THEN 1 END) as pending_count
+            FROM notice_batches b
+            LEFT JOIN notices n ON n.batch_id = b.id
+            WHERE b.society_id=%s
+            GROUP BY b.id ORDER BY b.created_at DESC
+        """, (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+# ── Monthly billing ────────────────────────────────────────────
+def init_billing_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS monthly_bills (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            bill_month  TEXT NOT NULL,
+            bill_year   TEXT NOT NULL,
+            amount      NUMERIC(12,2) NOT NULL,
+            description TEXT,
+            status      TEXT DEFAULT 'Unpaid',
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+def create_monthly_bill(society_id, bill_month, bill_year, amount, description):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO monthly_bills (society_id, bill_month, bill_year, amount, description)
+        VALUES (%s,%s,%s,%s,%s) RETURNING id
+    """, (society_id, bill_month, bill_year, amount, description))
+    bid = cur.fetchone()['id']; conn.commit(); cur.close(); conn.close()
+    return bid
+
+def get_bills_for_society(society_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM monthly_bills WHERE society_id=%s ORDER BY created_at DESC", (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def get_all_bills():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT mb.*, s.name as society_name FROM monthly_bills mb
+        JOIN societies s ON mb.society_id=s.id
+        ORDER BY mb.created_at DESC
+    """)
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def update_bill_status(bill_id, status):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE monthly_bills SET status=%s WHERE id=%s", (status, bill_id))
+    conn.commit(); cur.close(); conn.close()
+
+def delete_bill(bill_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("DELETE FROM monthly_bills WHERE id=%s", (bill_id,))
+    conn.commit(); cur.close(); conn.close()
+
+init_billing_table()
 init_db()

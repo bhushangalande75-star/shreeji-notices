@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Billing — SocietyNotice Pro{% endblock %}
+{% block page_title %}Monthly Billing{% endblock %}
+{% block page_sub %}Generate and manage monthly bills for societies{% endblock %}
+{% block topbar_right %}
+  <a class="btn btn-outline" href="/admin">← Back to Societies</a>
+  <button class="btn btn-primary" onclick="document.getElementById('createBillModal').classList.add('show')">+ Create Bill</button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats -->
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px;">
+  <div class="stat-card teal">
+    <div class="stat-label">Total Bills</div>
+    <div class="stat-num" style="color:var(--teal);">{{ bills|length }}</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">Paid Bills</div>
+    <div class="stat-num" style="color:#059669;">{{ bills|selectattr('status','equalto','Paid')|list|length }}</div>
+  </div>
+  <div class="stat-card amber">
+    <div class="stat-label">Unpaid Bills</div>
+    <div class="stat-num" style="color:#D97706;">{{ bills|selectattr('status','equalto','Unpaid')|list|length }}</div>
+  </div>
+</div>
+
+<!-- Bills Table -->
+<div class="card">
+  <div style="font-size:15px;font-weight:600;margin-bottom:20px;">All Society Bills</div>
+  {% if bills %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Society</th><th>Month / Year</th><th>Amount (₹)</th><th>Description</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for b in bills %}
+        <tr>
+          <td style="font-weight:600;">{{ b.society_name }}</td>
+          <td>{{ b.bill_month }} {{ b.bill_year }}</td>
+          <td style="font-weight:700;color:var(--ink);">₹{{ "{:,.2f}".format(b.amount|float) }}</td>
+          <td style="color:var(--muted);font-size:12px;">{{ b.description or '—' }}</td>
+          <td>
+            <span class="badge {{ 'badge-green' if b.status == 'Paid' else 'badge-amber' }}">
+              <span class="badge-dot"></span>{{ b.status }}
+            </span>
+          </td>
+          <td style="color:var(--muted);font-size:12px;">{{ b.created_at.strftime('%d-%m-%Y') if b.created_at else '—' }}</td>
+          <td style="display:flex;gap:6px;">
+            {% if b.status == 'Unpaid' %}
+            <button class="btn btn-success btn-sm" onclick="updateStatus({{ b.id }}, 'Paid')">Mark Paid</button>
+            {% else %}
+            <button class="btn btn-secondary btn-sm" onclick="updateStatus({{ b.id }}, 'Unpaid')">Mark Unpaid</button>
+            {% endif %}
+            <button class="btn btn-danger btn-sm" onclick="deleteBill({{ b.id }})">Delete</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:40px;color:var(--muted);">No bills created yet. Click "+ Create Bill" to get started.</div>
+  {% endif %}
+</div>
+
+<!-- Create Bill Modal -->
+<div class="modal-overlay" id="createBillModal">
+  <div class="modal" style="width:500px;">
+    <h3>🧾 Create Monthly Bill</h3>
+    <p>Generate a general maintenance bill for a society</p>
+    <form method="POST" action="/admin/billing/create">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label">Society</label>
+          <select class="form-input form-select" name="society_id" required>
+            <option value="">Select society...</option>
+            {% for s in societies %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Month</label>
+          <select class="form-input form-select" name="bill_month" required>
+            {% for m in ['January','February','March','April','May','June','July','August','September','October','November','December'] %}
+            <option value="{{ m }}">{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Year</label>
+          <input class="form-input" type="text" name="bill_year" value="2026" required placeholder="e.g. 2026"/>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Amount (₹)</label>
+          <input class="form-input" type="number" name="amount" required placeholder="e.g. 5000" step="0.01"/>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Description <span style="font-weight:400;color:var(--muted);text-transform:none;">(optional)</span></label>
+          <input class="form-input" type="text" name="description" placeholder="e.g. Monthly platform subscription charge"/>
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('createBillModal').classList.remove('show')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Bill</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  async function updateStatus(id, status) {
+    await fetch(`/admin/billing/status/${id}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({status})
+    });
+    location.reload();
+  }
+  async function deleteBill(id) {
+    if (!confirm('Delete this bill permanently?')) return;
+    await fetch(`/admin/billing/delete/${id}`, { method: 'POST' });
+    location.reload();
+  }
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+  });
+</script>
+{% endblock %}
