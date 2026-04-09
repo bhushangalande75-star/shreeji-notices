@@ -556,7 +556,8 @@ def ai_generate_notice():
         sess_id  = str(uuid.uuid4())
         sess_dir = os.path.join(TEMP_DIR, sess_id)
         os.makedirs(sess_dir, exist_ok=True)
-        fname = f"Notice_{notice_type.replace(' ', '_')}_{flat_no or 'General'}.docx"
+        safe_notice = notice_type.replace(' ', '_').replace('/', '-').replace('\\', '-').replace(':', '').replace('(', '').replace(')', '').replace('*', '').replace('?', '').replace('"', '').replace('<', '').replace('>', '').replace('|', '')
+        fname = f"Notice_{safe_notice}_{flat_no or 'General'}.docx"
         with open(os.path.join(sess_dir, fname), "wb") as f:
             f.write(docx_bytes)
 
