@@ -432,3 +432,13 @@ def delete_bill(bill_id):
 
 init_billing_table()
 init_db()
+def get_bill_by_id(bill_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT mb.*, s.name as society_name, s.address as society_address, s.regd_no
+        FROM monthly_bills mb
+        JOIN societies s ON mb.society_id = s.id
+        WHERE mb.id = %s
+    """, (bill_id,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return dict(row) if row else None

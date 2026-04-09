@@ -3,38 +3,140 @@
 {% block page_title %}My Bills{% endblock %}
 {% block page_sub %}Monthly platform bills for your society{% endblock %}
 
+{% block extra_head %}
+<style>
+  .bill-row { cursor: default; }
+  .download-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 9px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--ink3); text-decoration: none; transition: all 0.18s;
+    font-family: var(--font);
+  }
+  .download-btn:hover {
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    color: #fff; border-color: transparent;
+    box-shadow: 0 4px 14px var(--teal-glow);
+    transform: translateY(-1px);
+  }
+  .download-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; transition: stroke 0.18s; }
+  .bill-amount { font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: -0.3px; }
+  .bill-period { font-size: 14px; font-weight: 600; color: var(--ink2); }
+  .bill-desc   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .empty-bills { text-align: center; padding: 60px 24px; }
+  .empty-bills-icon { font-size: 52px; margin-bottom: 16px; }
+  .empty-bills h3 { font-size: 18px; font-weight: 700; color: var(--ink2); margin-bottom: 8px; letter-spacing: -0.3px; }
+  .empty-bills p  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .card-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .card-header-row .card-title { margin-bottom: 0; }
+  .bills-count { font-size: 12px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 12px; font-weight: 500; }
+</style>
+{% endblock %}
+
 {% block content %}
+
+{% if bills %}
+<!-- Summary stats -->
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:22px;">
+  <div class="stat-card teal">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    </div>
+    <div class="stat-label">Total Bills</div>
+    <div class="stat-num">{{ bills|length }}</div>
+    <div class="stat-note"><span class="trend trend-teal">All time</span></div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
+    </div>
+    <div class="stat-label">Paid</div>
+    <div class="stat-num">{{ bills|selectattr('status','equalto','Paid')|list|length }}</div>
+    <div class="stat-note"><span class="trend trend-up">Cleared</span></div>
+  </div>
+  <div class="stat-card amber">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+    </div>
+    <div class="stat-label">Unpaid</div>
+    <div class="stat-num">{{ bills|selectattr('status','equalto','Unpaid')|list|length }}</div>
+    <div class="stat-note"><span class="trend trend-dn">Pending</span></div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card">
-  <div style="font-size:15px;font-weight:600;margin-bottom:20px;">🧾 Monthly Bills</div>
   {% if bills %}
+  <div class="card-header-row">
+    <div class="card-title">🧾 Monthly Bills</div>
+    <span class="bills-count">{{ bills|length }} bill{{ 's' if bills|length != 1 else '' }}</span>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Month / Year</th><th>Amount (₹)</th><th>Description</th><th>Status</th><th>Date</th></tr>
+        <tr>
+          <th>Month / Year</th>
+          <th>Description</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Issued On</th>
+          <th>Download</th>
+        </tr>
       </thead>
       <tbody>
         {% for b in bills %}
-        <tr>
-          <td style="font-weight:600;">{{ b.bill_month }} {{ b.bill_year }}</td>
-          <td style="font-weight:700;color:var(--ink);">₹{{ "{:,.2f}".format(b.amount|float) }}</td>
-          <td style="color:var(--muted);font-size:13px;">{{ b.description or '—' }}</td>
+        <tr class="bill-row">
+          <td>
+            <div class="bill-period">{{ b.bill_month }} {{ b.bill_year }}</div>
+          </td>
+          <td>
+            <div class="bill-desc">{{ b.description or 'Monthly platform access fee' }}</div>
+          </td>
+          <td>
+            <div class="bill-amount">₹{{ "{:,.2f}".format(b.amount|float) }}</div>
+          </td>
           <td>
             <span class="badge {{ 'badge-green' if b.status == 'Paid' else 'badge-amber' }}">
               <span class="badge-dot"></span>{{ b.status }}
             </span>
           </td>
-          <td style="color:var(--muted);font-size:12px;">{{ b.created_at.strftime('%d-%m-%Y') if b.created_at else '—' }}</td>
+          <td>
+            <span class="muted-text">{{ b.created_at.strftime('%d %b %Y') if b.created_at else '—' }}</span>
+          </td>
+          <td>
+            <a class="download-btn" href="/my-bills/download/{{ b.id }}" target="_blank">
+              <svg viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7,10 12,15 17,10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              PDF
+            </a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+
+  <!-- Note -->
+  <div style="margin-top:20px;padding:14px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;display:flex;align-items:flex-start;gap:10px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" style="flex-shrink:0;margin-top:1px;">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span style="font-size:12px;color:var(--muted);line-height:1.6;">
+      Downloaded bills are <strong style="color:var(--ink2);">system-generated</strong> and do not require a physical signature or stamp.
+      They are valid for all official purposes as per the SocietyNotice platform agreement.
+    </span>
+  </div>
+
   {% else %}
-  <div style="text-align:center;padding:40px;color:var(--muted);">
-    <div style="font-size:40px;margin-bottom:12px;">🧾</div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:6px;">No bills yet</div>
-    <div style="font-size:13px;">Your monthly bills will appear here once generated by admin.</div>
+  <div class="empty-bills">
+    <div class="empty-bills-icon">🧾</div>
+    <h3>No bills yet</h3>
+    <p>Your monthly platform bills will appear here once generated by the admin.<br>Each bill can be downloaded as a PDF.</p>
   </div>
   {% endif %}
 </div>
+
 {% endblock %}

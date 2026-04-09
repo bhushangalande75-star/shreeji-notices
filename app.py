@@ -18,7 +18,8 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       change_society_password, reset_society_password,
                       get_stats_by_notice_type, get_unique_member_stats,
                       get_batches_by_type, create_monthly_bill, get_bills_for_society,
-                      get_all_bills, update_bill_status, delete_bill)
+                      get_all_bills, update_bill_status, delete_bill,
+                      get_bill_by_id)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -1291,6 +1292,321 @@ def admin_delete_bill(bill_id):
 def my_bills():
     bills = get_bills_for_society(session["society_id"])
     return render_template("my_bills.html", bills=bills, society_name=session["society_name"])
+
+
+@app.route("/my-bills/download/<int:bill_id>")
+@society_required
+def download_bill_pdf(bill_id):
+    """Generate and return a luxury PDF bill using reportlab (no system deps)."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm, cm
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                    TableStyle, HRFlowable, KeepTogether)
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+    from reportlab.graphics.shapes import Drawing, Rect, String, Circle
+    from reportlab.graphics import renderPDF
+
+    bill = get_bill_by_id(bill_id)
+    if not bill or bill["society_id"] != session["society_id"]:
+        return "Bill not found", 404
+
+    # ── Colours ──────────────────────────────────────────────
+    TEAL      = colors.HexColor("#0ABFA3")
+    TEAL2     = colors.HexColor("#069A82")
+    TEAL_LITE = colors.HexColor("#E8FAF7")
+    TEAL_BDR  = colors.HexColor("#C2EDE6")
+    BG_PAGE   = colors.HexColor("#EEF9F7")
+    INK       = colors.HexColor("#063D36")
+    INK2      = colors.HexColor("#0A4F48")
+    INK3      = colors.HexColor("#4A8A84")
+    MUTED     = colors.HexColor("#7ABFB8")
+    WHITE     = colors.white
+    AMBER     = colors.HexColor("#F59E0B")
+    AMBER_BG  = colors.HexColor("#FEF3C7")
+    GREEN_BG  = colors.HexColor("#D1FAE5")
+    GREEN_FG  = colors.HexColor("#065F46")
+
+    # ── Derived values ────────────────────────────────────────
+    amount_fmt  = "₹{:,.2f}".format(float(bill["amount"]))
+    created_str = bill["created_at"].strftime("%d %B %Y") if bill["created_at"] else "—"
+    bill_no     = f"SNP/{bill['bill_year']}/{bill['id']:04d}"
+    is_paid     = bill["status"] == "Paid"
+    status_fg   = GREEN_FG  if is_paid else colors.HexColor("#92400E")
+    status_bg   = GREEN_BG  if is_paid else AMBER_BG
+    status_bdr  = colors.HexColor("#6EE7B7") if is_paid else colors.HexColor("#FCD34D")
+
+    # ── PDF buffer ────────────────────────────────────────────
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=18*mm, rightMargin=18*mm,
+        topMargin=0, bottomMargin=14*mm,
+    )
+    W = A4[0] - 36*mm   # usable width
+
+    story = []
+
+    # ═══════════════════════════════════════════════════════
+    # HEADER BAND  (teal gradient simulated via table fill)
+    # ═══════════════════════════════════════════════════════
+    hdr_left = [
+        Paragraph("<font color='#FFFFFF' size='18'><b>SocietyNotice</b></font>", ParagraphStyle("x")),
+        Paragraph("<font color='#B2EDE6' size='8'>MANAGEMENT SUITE</font>",      ParagraphStyle("x")),
+        Spacer(1, 8),
+        Paragraph(f"<font color='#FFFFFF' size='11'><b>{bill['society_name']}</b></font>", ParagraphStyle("x")),
+        Paragraph(f"<font color='#CCF0EC' size='9'>{bill['society_address'] or 'Maharashtra, India'}</font>", ParagraphStyle("x")),
+    ]
+    if bill.get("regd_no"):
+        hdr_left.append(Paragraph(f"<font color='#99DDD8' size='8'>Regd. No: {bill['regd_no']}</font>", ParagraphStyle("x")))
+
+    hdr_right = [
+        Paragraph("<font color='#FFFFFF' size='26'><b>INVOICE</b></font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+        Paragraph(f"<font color='#CCF0EC' size='9'>Bill No: {bill_no}</font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+        Spacer(1, 8),
+        Paragraph(f"<font color='#99DDD8' size='8'>Billing Period</font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+        Paragraph(f"<font color='#FFFFFF' size='12'><b>{bill['bill_month']} {bill['bill_year']}</b></font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+        Spacer(1, 4),
+        Paragraph(f"<font color='#99DDD8' size='8'>Issue Date</font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+        Paragraph(f"<font color='#FFFFFF' size='11'>{created_str}</font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+    ]
+
+    hdr_table = Table([[hdr_left, hdr_right]], colWidths=[W*0.55, W*0.45])
+    hdr_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0), (-1,-1), TEAL),
+        ("VALIGN",        (0,0), (-1,-1), "TOP"),
+        ("TOPPADDING",    (0,0), (-1,-1), 22),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 22),
+        ("LEFTPADDING",   (0,0), (0,-1),  20),
+        ("RIGHTPADDING",  (-1,0),(-1,-1), 20),
+        ("RIGHTPADDING",  (0,0), (0,-1),  8),
+    ]))
+    story.append(hdr_table)
+
+    # ── Teal accent line under header ─────────────────────
+    story.append(HRFlowable(width="100%", thickness=4, color=TEAL2, spaceAfter=18))
+
+    # ═══════════════════════════════════════════════════════
+    # AMOUNT HERO BOX
+    # ═══════════════════════════════════════════════════════
+    hero = Table([[
+        Paragraph("<font color='#7ABFB8' size='9'>TOTAL AMOUNT</font>",
+                  ParagraphStyle("hl", alignment=TA_LEFT)),
+        Paragraph(f"<font color='#063D36' size='28'><b>{amount_fmt}</b></font>",
+                  ParagraphStyle("hr", alignment=TA_RIGHT)),
+    ]], colWidths=[W*0.5, W*0.5])
+    hero.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), TEAL_LITE),
+        ("TOPPADDING",    (0,0),(-1,-1), 16),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 16),
+        ("LEFTPADDING",   (0,0),(0,-1),  18),
+        ("RIGHTPADDING",  (-1,0),(-1,-1),18),
+        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("ROUNDEDCORNERS",(0,0),(-1,-1), [8,8,8,8]),
+        ("BOX",           (0,0),(-1,-1), 1, TEAL_BDR),
+    ]))
+    story.append(hero)
+    story.append(Spacer(1, 16))
+
+    # ═══════════════════════════════════════════════════════
+    # BILLED TO  +  STATUS  (side by side)
+    # ═══════════════════════════════════════════════════════
+    billed_content = [
+        Paragraph("<font color='#7ABFB8' size='8'><b>BILLED TO</b></font>", ParagraphStyle("x")),
+        Spacer(1, 6),
+        Paragraph(f"<font color='#063D36' size='13'><b>{bill['society_name']}</b></font>", ParagraphStyle("x")),
+        Paragraph(f"<font color='#4A8A84' size='11'>{bill['society_address'] or 'Maharashtra, India'}</font>", ParagraphStyle("x")),
+    ]
+    if bill.get("regd_no"):
+        billed_content.append(Paragraph(f"<font color='#7ABFB8' size='10'>Regd. No: {bill['regd_no']}</font>", ParagraphStyle("x")))
+
+    status_content = [
+        Paragraph("<font color='#7ABFB8' size='8'><b>PAYMENT STATUS</b></font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+        Spacer(1, 6),
+        Paragraph(f"<font size='14'><b>{bill['status'].upper()}</b></font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT,
+                                 textColor=status_fg)),
+        Paragraph(f"<font color='#7ABFB8' size='10'>Bill generated on {created_str}</font>",
+                  ParagraphStyle("r", alignment=TA_RIGHT)),
+    ]
+
+    side_table = Table([[billed_content, status_content]], colWidths=[W*0.58, W*0.42])
+    side_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(0,-1),  TEAL_LITE),
+        ("BACKGROUND",    (1,0),(1,-1),  status_bg),
+        ("BOX",           (0,0),(0,-1),  1, TEAL_BDR),
+        ("BOX",           (1,0),(1,-1),  1, status_bdr),
+        ("TOPPADDING",    (0,0),(-1,-1), 14),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 14),
+        ("LEFTPADDING",   (0,0),(0,-1),  16),
+        ("LEFTPADDING",   (1,0),(1,-1),  12),
+        ("RIGHTPADDING",  (0,0),(0,-1),  12),
+        ("RIGHTPADDING",  (1,0),(1,-1),  16),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+        ("COLUMNPADDING", (0,0),(-1,-1), 6),
+    ]))
+    story.append(side_table)
+    story.append(Spacer(1, 20))
+
+    # ═══════════════════════════════════════════════════════
+    # LINE ITEMS TABLE
+    # ═══════════════════════════════════════════════════════
+    story.append(HRFlowable(width="100%", thickness=0.5, color=TEAL_BDR, spaceAfter=8))
+    story.append(Paragraph(
+        "<font color='#7ABFB8' size='9'><b>BILL DETAILS</b></font>",
+        ParagraphStyle("sec", spaceBefore=0, spaceAfter=10)
+    ))
+
+    desc_text = bill["description"] or "Monthly platform access fee"
+    items_data = [
+        [
+            Paragraph("<font color='#7ABFB8' size='9'><b>DESCRIPTION</b></font>", ParagraphStyle("th")),
+            Paragraph("<font color='#7ABFB8' size='9'><b>PERIOD</b></font>",      ParagraphStyle("thc", alignment=TA_CENTER)),
+            Paragraph("<font color='#7ABFB8' size='9'><b>AMOUNT</b></font>",      ParagraphStyle("thr", alignment=TA_RIGHT)),
+        ],
+        [
+            [
+                Paragraph("<font color='#063D36' size='12'><b>SocietyNotice Platform — Monthly Subscription</b></font>", ParagraphStyle("x")),
+                Paragraph(f"<font color='#7ABFB8' size='10'>{desc_text}</font>", ParagraphStyle("x")),
+            ],
+            Paragraph(f"<font color='#4A8A84' size='11'>{bill['bill_month']} {bill['bill_year']}</font>",
+                      ParagraphStyle("c", alignment=TA_CENTER)),
+            Paragraph(f"<font color='#063D36' size='12'><b>{amount_fmt}</b></font>",
+                      ParagraphStyle("r", alignment=TA_RIGHT)),
+        ],
+        [
+            Paragraph("<font color='#7ABFB8' size='10'><b>TOTAL</b></font>", ParagraphStyle("x")),
+            "",
+            Paragraph(f"<font color='#0ABFA3' size='14'><b>{amount_fmt}</b></font>",
+                      ParagraphStyle("r", alignment=TA_RIGHT)),
+        ],
+    ]
+
+    items_table = Table(items_data, colWidths=[W*0.55, W*0.22, W*0.23])
+    items_table.setStyle(TableStyle([
+        # Header row
+        ("BACKGROUND",    (0,0),(-1,0),  TEAL_LITE),
+        ("TOPPADDING",    (0,0),(-1,0),  10),
+        ("BOTTOMPADDING", (0,0),(-1,0),  10),
+        ("LINEBELOW",     (0,0),(-1,0),  1.5, TEAL),
+        # Body row
+        ("TOPPADDING",    (0,1),(-1,1),  14),
+        ("BOTTOMPADDING", (0,1),(-1,1),  14),
+        ("LINEBELOW",     (0,1),(-1,1),  0.5, TEAL_BDR),
+        # Total row
+        ("BACKGROUND",    (0,2),(-1,2),  TEAL_LITE),
+        ("TOPPADDING",    (0,2),(-1,2),  12),
+        ("BOTTOMPADDING", (0,2),(-1,2),  12),
+        ("LINEABOVE",     (0,2),(-1,2),  1.5, TEAL),
+        # All
+        ("LEFTPADDING",   (0,0),(-1,-1), 12),
+        ("RIGHTPADDING",  (-1,0),(-1,-1),12),
+        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+        ("BOX",           (0,0),(-1,-1), 1, TEAL_BDR),
+    ]))
+    story.append(items_table)
+    story.append(Spacer(1, 20))
+
+    # ═══════════════════════════════════════════════════════
+    # INFO GRID (3 cards)
+    # ═══════════════════════════════════════════════════════
+    def info_card(label, value, value_color=INK):
+        return [
+            Paragraph(f"<font color='#7ABFB8' size='8'><b>{label}</b></font>", ParagraphStyle("x")),
+            Spacer(1, 4),
+            Paragraph(f"<font size='12'><b>{value}</b></font>",
+                      ParagraphStyle("x", textColor=value_color)),
+        ]
+
+    grid_data = [[
+        info_card("BILL NUMBER",    bill_no),
+        info_card("BILLING MONTH",  f"{bill['bill_month']} {bill['bill_year']}"),
+        info_card("PAYMENT STATUS", bill["status"], status_fg),
+    ]]
+    grid = Table(grid_data, colWidths=[W/3]*3)
+    grid.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), TEAL_LITE),
+        ("BOX",           (0,0),(0,-1),  1, TEAL_BDR),
+        ("BOX",           (1,0),(1,-1),  1, TEAL_BDR),
+        ("BOX",           (2,0),(2,-1),  1, TEAL_BDR),
+        ("TOPPADDING",    (0,0),(-1,-1), 14),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 14),
+        ("LEFTPADDING",   (0,0),(-1,-1), 14),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 14),
+        ("VALIGN",        (0,0),(-1,-1), "TOP"),
+        ("COLUMNPADDING", (0,0),(-1,-1), 4),
+    ]))
+    story.append(grid)
+    story.append(Spacer(1, 22))
+
+    # ═══════════════════════════════════════════════════════
+    # SYSTEM GENERATED NOTE
+    # ═══════════════════════════════════════════════════════
+    note_table = Table([[
+        Paragraph(
+            "<font color='#0A4F48' size='10'>"
+            "<b>Note:</b> This is a <b>system-generated bill</b> and does <b>not require</b> "
+            "any physical signature or stamp. This document is legally valid without a manual "
+            "signature as per the terms of the SocietyNotice platform agreement. "
+            "For any queries, please contact your platform administrator."
+            "</font>",
+            ParagraphStyle("note", leading=15)
+        )
+    ]], colWidths=[W])
+    note_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), TEAL_LITE),
+        ("BOX",           (0,0),(-1,-1), 1, TEAL_BDR),
+        ("LEFTPADDING",   (0,0),(-1,-1), 16),
+        ("RIGHTPADDING",  (0,0),(-1,-1), 16),
+        ("TOPPADDING",    (0,0),(-1,-1), 14),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 14),
+    ]))
+    story.append(note_table)
+    story.append(Spacer(1, 16))
+
+    # ═══════════════════════════════════════════════════════
+    # FOOTER
+    # ═══════════════════════════════════════════════════════
+    story.append(HRFlowable(width="100%", thickness=0.5, color=TEAL_BDR, spaceAfter=10))
+    story.append(Paragraph(
+        f"<font color='#7ABFB8' size='9'>"
+        f"Generated by <b><font color='#0ABFA3'>SocietyNotice</font></b> Management Suite"
+        f" &nbsp;·&nbsp; Powered by AI &nbsp;·&nbsp; {created_str}"
+        f"</font>",
+        ParagraphStyle("footer", alignment=TA_CENTER)
+    ))
+
+    # ═══════════════════════════════════════════════════════
+    # BUILD PDF
+    # ═══════════════════════════════════════════════════════
+    def draw_background(canvas, doc):
+        canvas.saveState()
+        canvas.setFillColor(colors.HexColor("#EEF9F7"))
+        canvas.rect(0, 0, A4[0], A4[1], fill=1, stroke=0)
+        # Teal accent bar at top
+        canvas.setFillColor(TEAL)
+        canvas.rect(0, A4[1]-4, A4[0], 4, fill=1, stroke=0)
+        # Teal accent bar at bottom
+        canvas.setFillColor(TEAL2)
+        canvas.rect(0, 0, A4[0], 4, fill=1, stroke=0)
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=draw_background, onLaterPages=draw_background)
+
+    buf.seek(0)
+    fname = f"Bill_{bill['bill_month']}_{bill['bill_year']}_{bill_no.replace('/','_')}.pdf"
+    resp = make_response(buf.read())
+    resp.headers["Content-Type"]        = "application/pdf"
+    resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
+    return resp
 
 
 if __name__ == "__main__":
