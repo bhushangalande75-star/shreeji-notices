@@ -1297,318 +1297,330 @@ def my_bills():
 @app.route("/my-bills/download/<int:bill_id>")
 @society_required
 def download_bill_pdf(bill_id):
-    """Generate and return a luxury PDF bill using reportlab (no system deps)."""
+    """Generate a luxury PDF bill using ReportLab with canvas (no Unicode issues)."""
+    from reportlab.pdfgen import canvas as rl_canvas
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
     from reportlab.lib import colors
-    from reportlab.lib.units import mm, cm
-    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
-                                    TableStyle, HRFlowable, KeepTogether)
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
-    from reportlab.graphics.shapes import Drawing, Rect, String, Circle
-    from reportlab.graphics import renderPDF
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import textwrap
 
     bill = get_bill_by_id(bill_id)
     if not bill or bill["society_id"] != session["society_id"]:
         return "Bill not found", 404
+
+    # ── Values ───────────────────────────────────────────────
+    amount_fmt  = "Rs. {:,.2f}".format(float(bill["amount"]))
+    created_str = bill["created_at"].strftime("%d %B %Y") if bill["created_at"] else "N/A"
+    bill_no     = "SNP/{}/{}".format(bill["bill_year"], str(bill["id"]).zfill(4))
+    is_paid     = bill["status"] == "Paid"
+    period      = "{} {}".format(bill["bill_month"], bill["bill_year"])
+    soc_name    = bill["society_name"] or ""
+    soc_addr    = bill["society_address"] or "Maharashtra, India"
+    regd_no     = bill.get("regd_no") or ""
+    desc_text   = bill["description"] or "Monthly platform access fee"
 
     # ── Colours ──────────────────────────────────────────────
     TEAL      = colors.HexColor("#0ABFA3")
     TEAL2     = colors.HexColor("#069A82")
     TEAL_LITE = colors.HexColor("#E8FAF7")
     TEAL_BDR  = colors.HexColor("#C2EDE6")
-    BG_PAGE   = colors.HexColor("#EEF9F7")
+    BG        = colors.HexColor("#EEF9F7")
     INK       = colors.HexColor("#063D36")
     INK2      = colors.HexColor("#0A4F48")
     INK3      = colors.HexColor("#4A8A84")
     MUTED     = colors.HexColor("#7ABFB8")
     WHITE     = colors.white
-    AMBER     = colors.HexColor("#F59E0B")
-    AMBER_BG  = colors.HexColor("#FEF3C7")
-    GREEN_BG  = colors.HexColor("#D1FAE5")
-    GREEN_FG  = colors.HexColor("#065F46")
+    STATUS_FG = colors.HexColor("#065F46") if is_paid else colors.HexColor("#92400E")
+    STATUS_BG = colors.HexColor("#D1FAE5") if is_paid else colors.HexColor("#FEF3C7")
+    STATUS_BD = colors.HexColor("#6EE7B7") if is_paid else colors.HexColor("#FCD34D")
 
-    # ── Derived values ────────────────────────────────────────
-    amount_fmt  = "₹{:,.2f}".format(float(bill["amount"]))
-    created_str = bill["created_at"].strftime("%d %B %Y") if bill["created_at"] else "—"
-    bill_no     = f"SNP/{bill['bill_year']}/{bill['id']:04d}"
-    is_paid     = bill["status"] == "Paid"
-    status_fg   = GREEN_FG  if is_paid else colors.HexColor("#92400E")
-    status_bg   = GREEN_BG  if is_paid else AMBER_BG
-    status_bdr  = colors.HexColor("#6EE7B7") if is_paid else colors.HexColor("#FCD34D")
-
-    # ── PDF buffer ────────────────────────────────────────────
+    # ── Canvas setup ─────────────────────────────────────────
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=18*mm, rightMargin=18*mm,
-        topMargin=0, bottomMargin=14*mm,
+    W, H = A4          # 595.27 x 841.89 pt
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+
+    # helpers
+    def rgb(col):
+        return col.red, col.green, col.blue
+
+    def filled_rect(x, y, w, h, fill_col, stroke_col=None, radius=0):
+        c.saveState()
+        c.setFillColor(fill_col)
+        if stroke_col:
+            c.setStrokeColor(stroke_col)
+            c.setLineWidth(0.8)
+        else:
+            c.setLineWidth(0)
+        if radius:
+            c.roundRect(x, y, w, h, radius, fill=1, stroke=1 if stroke_col else 0)
+        else:
+            c.rect(x, y, w, h, fill=1, stroke=1 if stroke_col else 0)
+        c.restoreState()
+
+    def text_line(txt, x, y, font="Helvetica", size=10, color=INK, align="left", max_width=None):
+        c.saveState()
+        c.setFont(font, size)
+        c.setFillColor(color)
+        if max_width:
+            # simple truncation
+            while c.stringWidth(txt, font, size) > max_width and len(txt) > 4:
+                txt = txt[:-2]
+        if align == "right":
+            c.drawRightString(x, y, txt)
+        elif align == "center":
+            c.drawCentredString(x, y, txt)
+        else:
+            c.drawString(x, y, txt)
+        c.restoreState()
+
+    def wrap_text(txt, x, y, font, size, color, max_width, line_height):
+        """Draw wrapped text, return final y position."""
+        c.saveState()
+        c.setFont(font, size)
+        c.setFillColor(color)
+        words = txt.split()
+        line = ""
+        cur_y = y
+        for word in words:
+            test = (line + " " + word).strip()
+            if c.stringWidth(test, font, size) <= max_width:
+                line = test
+            else:
+                if line:
+                    c.drawString(x, cur_y, line)
+                    cur_y -= line_height
+                line = word
+        if line:
+            c.drawString(x, cur_y, line)
+            cur_y -= line_height
+        c.restoreState()
+        return cur_y
+
+    def hr(y, col=TEAL_BDR, thickness=0.5):
+        c.saveState()
+        c.setStrokeColor(col)
+        c.setLineWidth(thickness)
+        c.line(LM, y, W - LM, y)
+        c.restoreState()
+
+    LM = 22*mm   # left margin
+    RM = W - 22*mm  # right edge
+    CW = RM - LM    # content width
+
+    # ════════════════════════════════════════════════════════
+    # PAGE BACKGROUND
+    # ════════════════════════════════════════════════════════
+    filled_rect(0, 0, W, H, BG)
+
+    # ════════════════════════════════════════════════════════
+    # HEADER BAND
+    # ════════════════════════════════════════════════════════
+    HDR_H = 52*mm
+    HDR_Y = H - HDR_H
+    filled_rect(0, HDR_Y, W, HDR_H, TEAL)
+    # decorative circles
+    c.saveState()
+    c.setFillColor(colors.HexColor("#FFFFFF"))
+    c.setFillAlpha(0.07)
+    c.circle(W - 25*mm, H - 12*mm, 38*mm, fill=1, stroke=0)
+    c.circle(20*mm, HDR_Y - 10*mm, 30*mm, fill=1, stroke=0)
+    c.restoreState()
+    # top teal-dark bar
+    filled_rect(0, H - 3, W, 3, TEAL2)
+
+    # Brand left
+    text_line("SocietyNotice", LM, H - 14*mm, "Helvetica-Bold", 18, WHITE)
+    text_line("MANAGEMENT SUITE", LM, H - 20*mm, "Helvetica", 7.5,
+              colors.HexColor("#CCF0EC"))
+
+    # Invoice right
+    text_line("INVOICE", RM, H - 14*mm, "Helvetica-Bold", 26, WHITE, "right")
+    text_line("Bill No: {}".format(bill_no), RM, H - 21*mm, "Helvetica", 9,
+              colors.HexColor("#CCF0EC"), "right")
+
+    # Divider in header
+    c.saveState()
+    c.setStrokeColor(colors.HexColor("#FFFFFF"))
+    c.setStrokeAlpha(0.2)
+    c.setLineWidth(0.5)
+    c.line(LM, H - 27*mm, RM, H - 27*mm)
+    c.restoreState()
+
+    # Meta row — Billing Period | Issue Date | Amount
+    m1x = LM
+    m2x = LM + CW * 0.38
+    m3x = RM
+
+    meta_label_y = H - 33*mm
+    meta_val_y   = H - 39*mm
+
+    text_line("Billing Period", m1x, meta_label_y, "Helvetica", 8,
+              colors.HexColor("#99DDD8"))
+    text_line(period, m1x, meta_val_y, "Helvetica-Bold", 12, WHITE)
+
+    text_line("Issue Date", m2x, meta_label_y, "Helvetica", 8,
+              colors.HexColor("#99DDD8"))
+    text_line(created_str, m2x, meta_val_y, "Helvetica-Bold", 12, WHITE)
+
+    text_line("Total Amount", m3x, meta_label_y, "Helvetica", 8,
+              colors.HexColor("#99DDD8"), "right")
+    text_line(amount_fmt, m3x, meta_val_y, "Helvetica-Bold", 20, WHITE, "right")
+
+    # ════════════════════════════════════════════════════════
+    # BODY  — start just below header
+    # ════════════════════════════════════════════════════════
+    cy = HDR_Y - 10*mm   # current y cursor (moves downward)
+
+    # ── AMOUNT HERO ──────────────────────────────────────────
+    HERO_H = 16*mm
+    filled_rect(LM, cy - HERO_H, CW, HERO_H, TEAL_LITE, TEAL_BDR, 6)
+    text_line("TOTAL AMOUNT", LM + 5*mm, cy - 7*mm, "Helvetica", 8, MUTED)
+    text_line(amount_fmt, RM - 5*mm, cy - 8.5*mm,
+              "Helvetica-Bold", 18, INK, "right")
+    cy -= HERO_H + 7*mm
+
+    # ── BILLED TO + STATUS (side by side) ────────────────────
+    BOX_H  = 26*mm
+    LEFT_W = CW * 0.57
+    GAP    = 3*mm
+    RIGHT_W = CW - LEFT_W - GAP
+
+    # Billed-to box
+    filled_rect(LM, cy - BOX_H, LEFT_W, BOX_H, TEAL_LITE, TEAL_BDR, 6)
+    text_line("BILLED TO", LM + 4*mm, cy - 6*mm, "Helvetica-Bold", 7.5, MUTED)
+    text_line(soc_name, LM + 4*mm, cy - 11.5*mm, "Helvetica-Bold", 11, INK,
+              max_width=LEFT_W - 8*mm)
+    wrap_text(soc_addr, LM + 4*mm, cy - 16*mm, "Helvetica", 9, INK3,
+              LEFT_W - 8*mm, 4*mm)
+    if regd_no:
+        text_line("Regd. No: {}".format(regd_no), LM + 4*mm, cy - 22*mm,
+                  "Helvetica", 8, MUTED, max_width=LEFT_W - 8*mm)
+
+    # Status box
+    SX = LM + LEFT_W + GAP
+    filled_rect(SX, cy - BOX_H, RIGHT_W, BOX_H, STATUS_BG, STATUS_BD, 6)
+    text_line("PAYMENT STATUS", SX + 4*mm, cy - 6*mm,
+              "Helvetica-Bold", 7.5, MUTED)
+    text_line(bill["status"].upper(), SX + 4*mm, cy - 12.5*mm,
+              "Helvetica-Bold", 14, STATUS_FG)
+    text_line("Bill generated on {}".format(created_str),
+              SX + 4*mm, cy - 18*mm, "Helvetica", 8, MUTED,
+              max_width=RIGHT_W - 8*mm)
+
+    cy -= BOX_H + 8*mm
+
+    # ── BILL DETAILS SECTION ─────────────────────────────────
+    hr(cy, TEAL_BDR, 0.5)
+    cy -= 5*mm
+    text_line("BILL DETAILS", LM, cy, "Helvetica-Bold", 8, MUTED)
+    cy -= 6*mm
+
+    # Table header
+    TH_H = 10*mm
+    filled_rect(LM, cy - TH_H, CW, TH_H, TEAL_LITE)
+    c.saveState()
+    c.setStrokeColor(TEAL)
+    c.setLineWidth(1.5)
+    c.line(LM, cy - TH_H, LM + CW, cy - TH_H)
+    c.line(LM, cy,         LM + CW, cy)
+    c.restoreState()
+
+    COL1 = LM + 4*mm
+    COL2 = LM + CW * 0.58
+    COL3 = RM - 4*mm
+    THY  = cy - 6.5*mm
+
+    text_line("DESCRIPTION",   COL1, THY, "Helvetica-Bold", 8, MUTED)
+    text_line("PERIOD",        COL2, THY, "Helvetica-Bold", 8, MUTED, "center")
+    text_line("AMOUNT",        COL3, THY, "Helvetica-Bold", 8, MUTED, "right")
+    cy -= TH_H
+
+    # Table row
+    ROW_H = 20*mm
+    c.saveState()
+    c.setStrokeColor(TEAL_BDR)
+    c.setLineWidth(0.5)
+    c.line(LM, cy - ROW_H, LM + CW, cy - ROW_H)
+    c.restoreState()
+
+    text_line("SocietyNotice Platform - Monthly Subscription",
+              COL1, cy - 6*mm, "Helvetica-Bold", 10, INK, max_width=CW*0.54)
+    text_line(desc_text, COL1, cy - 11*mm, "Helvetica", 8.5, MUTED,
+              max_width=CW * 0.54)
+    text_line(period, COL2, cy - 7.5*mm, "Helvetica", 10, INK3, "center")
+    text_line(amount_fmt, COL3, cy - 7.5*mm, "Helvetica-Bold", 11, INK, "right")
+    cy -= ROW_H
+
+    # Total row
+    TOT_H = 12*mm
+    filled_rect(LM, cy - TOT_H, CW, TOT_H, TEAL_LITE)
+    c.saveState()
+    c.setStrokeColor(TEAL)
+    c.setLineWidth(1.5)
+    c.line(LM, cy, LM + CW, cy)
+    c.line(LM, cy - TOT_H, LM + CW, cy - TOT_H)
+    c.restoreState()
+    text_line("TOTAL", COL1, cy - 7.5*mm, "Helvetica-Bold", 9, MUTED)
+    text_line(amount_fmt, COL3, cy - 7*mm, "Helvetica-Bold", 13, TEAL, "right")
+    cy -= TOT_H + 8*mm
+
+    # ── INFO GRID (3 cards) ──────────────────────────────────
+    CARD_W = (CW - 4*mm) / 3
+    CARD_H = 18*mm
+    cards = [
+        ("BILL NUMBER",    bill_no,                    INK),
+        ("BILLING MONTH",  period,                     INK),
+        ("PAYMENT STATUS", bill["status"],             STATUS_FG),
+    ]
+    for i, (lbl, val, vcol) in enumerate(cards):
+        cx_ = LM + i * (CARD_W + 2*mm)
+        filled_rect(cx_, cy - CARD_H, CARD_W, CARD_H, TEAL_LITE, TEAL_BDR, 5)
+        text_line(lbl, cx_ + 4*mm, cy - 6*mm,  "Helvetica-Bold", 7.5, MUTED)
+        text_line(val, cx_ + 4*mm, cy - 12.5*mm, "Helvetica-Bold", 10, vcol,
+                  max_width=CARD_W - 8*mm)
+
+    cy -= CARD_H + 8*mm
+
+    # ── SYSTEM NOTE ──────────────────────────────────────────
+    NOTE_H = 22*mm
+    filled_rect(LM, cy - NOTE_H, CW, NOTE_H, TEAL_LITE, TEAL_BDR, 6)
+    note_x  = LM + 5*mm
+    note_mw = CW - 10*mm
+    note_text = (
+        "Note: This is a system-generated bill and does not require any physical "
+        "signature or stamp. This document is legally valid without a manual signature "
+        "as per the terms of the SocietyNotice platform agreement. "
+        "For any queries, please contact your platform administrator."
     )
-    W = A4[0] - 36*mm   # usable width
+    # Bold "Note:"
+    text_line("Note:", note_x, cy - 6*mm, "Helvetica-Bold", 9, INK2)
+    note_body = note_text[5:].strip()
+    wrap_text(note_body, note_x + 22, cy - 6*mm, "Helvetica", 9, INK3,
+              note_mw - 22, 4.5*mm)
 
-    story = []
+    cy -= NOTE_H + 6*mm
 
-    # ═══════════════════════════════════════════════════════
-    # HEADER BAND  (teal gradient simulated via table fill)
-    # ═══════════════════════════════════════════════════════
-    hdr_left = [
-        Paragraph("<font color='#FFFFFF' size='18'><b>SocietyNotice</b></font>", ParagraphStyle("x")),
-        Paragraph("<font color='#B2EDE6' size='8'>MANAGEMENT SUITE</font>",      ParagraphStyle("x")),
-        Spacer(1, 8),
-        Paragraph(f"<font color='#FFFFFF' size='11'><b>{bill['society_name']}</b></font>", ParagraphStyle("x")),
-        Paragraph(f"<font color='#CCF0EC' size='9'>{bill['society_address'] or 'Maharashtra, India'}</font>", ParagraphStyle("x")),
-    ]
-    if bill.get("regd_no"):
-        hdr_left.append(Paragraph(f"<font color='#99DDD8' size='8'>Regd. No: {bill['regd_no']}</font>", ParagraphStyle("x")))
+    # ── FOOTER ───────────────────────────────────────────────
+    hr(cy, TEAL_BDR, 0.5)
+    cy -= 5*mm
+    footer = "Generated by SocietyNotice Management Suite  |  {}".format(created_str)
+    text_line(footer, W / 2, cy, "Helvetica", 8, MUTED, "center")
 
-    hdr_right = [
-        Paragraph("<font color='#FFFFFF' size='26'><b>INVOICE</b></font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-        Paragraph(f"<font color='#CCF0EC' size='9'>Bill No: {bill_no}</font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-        Spacer(1, 8),
-        Paragraph(f"<font color='#99DDD8' size='8'>Billing Period</font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-        Paragraph(f"<font color='#FFFFFF' size='12'><b>{bill['bill_month']} {bill['bill_year']}</b></font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-        Spacer(1, 4),
-        Paragraph(f"<font color='#99DDD8' size='8'>Issue Date</font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-        Paragraph(f"<font color='#FFFFFF' size='11'>{created_str}</font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-    ]
+    # Bottom teal bar
+    filled_rect(0, 0, W, 4, TEAL2)
 
-    hdr_table = Table([[hdr_left, hdr_right]], colWidths=[W*0.55, W*0.45])
-    hdr_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0), (-1,-1), TEAL),
-        ("VALIGN",        (0,0), (-1,-1), "TOP"),
-        ("TOPPADDING",    (0,0), (-1,-1), 22),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 22),
-        ("LEFTPADDING",   (0,0), (0,-1),  20),
-        ("RIGHTPADDING",  (-1,0),(-1,-1), 20),
-        ("RIGHTPADDING",  (0,0), (0,-1),  8),
-    ]))
-    story.append(hdr_table)
-
-    # ── Teal accent line under header ─────────────────────
-    story.append(HRFlowable(width="100%", thickness=4, color=TEAL2, spaceAfter=18))
-
-    # ═══════════════════════════════════════════════════════
-    # AMOUNT HERO BOX
-    # ═══════════════════════════════════════════════════════
-    hero = Table([[
-        Paragraph("<font color='#7ABFB8' size='9'>TOTAL AMOUNT</font>",
-                  ParagraphStyle("hl", alignment=TA_LEFT)),
-        Paragraph(f"<font color='#063D36' size='28'><b>{amount_fmt}</b></font>",
-                  ParagraphStyle("hr", alignment=TA_RIGHT)),
-    ]], colWidths=[W*0.5, W*0.5])
-    hero.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0),(-1,-1), TEAL_LITE),
-        ("TOPPADDING",    (0,0),(-1,-1), 16),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 16),
-        ("LEFTPADDING",   (0,0),(0,-1),  18),
-        ("RIGHTPADDING",  (-1,0),(-1,-1),18),
-        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
-        ("ROUNDEDCORNERS",(0,0),(-1,-1), [8,8,8,8]),
-        ("BOX",           (0,0),(-1,-1), 1, TEAL_BDR),
-    ]))
-    story.append(hero)
-    story.append(Spacer(1, 16))
-
-    # ═══════════════════════════════════════════════════════
-    # BILLED TO  +  STATUS  (side by side)
-    # ═══════════════════════════════════════════════════════
-    billed_content = [
-        Paragraph("<font color='#7ABFB8' size='8'><b>BILLED TO</b></font>", ParagraphStyle("x")),
-        Spacer(1, 6),
-        Paragraph(f"<font color='#063D36' size='13'><b>{bill['society_name']}</b></font>", ParagraphStyle("x")),
-        Paragraph(f"<font color='#4A8A84' size='11'>{bill['society_address'] or 'Maharashtra, India'}</font>", ParagraphStyle("x")),
-    ]
-    if bill.get("regd_no"):
-        billed_content.append(Paragraph(f"<font color='#7ABFB8' size='10'>Regd. No: {bill['regd_no']}</font>", ParagraphStyle("x")))
-
-    status_content = [
-        Paragraph("<font color='#7ABFB8' size='8'><b>PAYMENT STATUS</b></font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-        Spacer(1, 6),
-        Paragraph(f"<font size='14'><b>{bill['status'].upper()}</b></font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT,
-                                 textColor=status_fg)),
-        Paragraph(f"<font color='#7ABFB8' size='10'>Bill generated on {created_str}</font>",
-                  ParagraphStyle("r", alignment=TA_RIGHT)),
-    ]
-
-    side_table = Table([[billed_content, status_content]], colWidths=[W*0.58, W*0.42])
-    side_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0),(0,-1),  TEAL_LITE),
-        ("BACKGROUND",    (1,0),(1,-1),  status_bg),
-        ("BOX",           (0,0),(0,-1),  1, TEAL_BDR),
-        ("BOX",           (1,0),(1,-1),  1, status_bdr),
-        ("TOPPADDING",    (0,0),(-1,-1), 14),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 14),
-        ("LEFTPADDING",   (0,0),(0,-1),  16),
-        ("LEFTPADDING",   (1,0),(1,-1),  12),
-        ("RIGHTPADDING",  (0,0),(0,-1),  12),
-        ("RIGHTPADDING",  (1,0),(1,-1),  16),
-        ("VALIGN",        (0,0),(-1,-1), "TOP"),
-        ("COLUMNPADDING", (0,0),(-1,-1), 6),
-    ]))
-    story.append(side_table)
-    story.append(Spacer(1, 20))
-
-    # ═══════════════════════════════════════════════════════
-    # LINE ITEMS TABLE
-    # ═══════════════════════════════════════════════════════
-    story.append(HRFlowable(width="100%", thickness=0.5, color=TEAL_BDR, spaceAfter=8))
-    story.append(Paragraph(
-        "<font color='#7ABFB8' size='9'><b>BILL DETAILS</b></font>",
-        ParagraphStyle("sec", spaceBefore=0, spaceAfter=10)
-    ))
-
-    desc_text = bill["description"] or "Monthly platform access fee"
-    items_data = [
-        [
-            Paragraph("<font color='#7ABFB8' size='9'><b>DESCRIPTION</b></font>", ParagraphStyle("th")),
-            Paragraph("<font color='#7ABFB8' size='9'><b>PERIOD</b></font>",      ParagraphStyle("thc", alignment=TA_CENTER)),
-            Paragraph("<font color='#7ABFB8' size='9'><b>AMOUNT</b></font>",      ParagraphStyle("thr", alignment=TA_RIGHT)),
-        ],
-        [
-            [
-                Paragraph("<font color='#063D36' size='12'><b>SocietyNotice Platform — Monthly Subscription</b></font>", ParagraphStyle("x")),
-                Paragraph(f"<font color='#7ABFB8' size='10'>{desc_text}</font>", ParagraphStyle("x")),
-            ],
-            Paragraph(f"<font color='#4A8A84' size='11'>{bill['bill_month']} {bill['bill_year']}</font>",
-                      ParagraphStyle("c", alignment=TA_CENTER)),
-            Paragraph(f"<font color='#063D36' size='12'><b>{amount_fmt}</b></font>",
-                      ParagraphStyle("r", alignment=TA_RIGHT)),
-        ],
-        [
-            Paragraph("<font color='#7ABFB8' size='10'><b>TOTAL</b></font>", ParagraphStyle("x")),
-            "",
-            Paragraph(f"<font color='#0ABFA3' size='14'><b>{amount_fmt}</b></font>",
-                      ParagraphStyle("r", alignment=TA_RIGHT)),
-        ],
-    ]
-
-    items_table = Table(items_data, colWidths=[W*0.55, W*0.22, W*0.23])
-    items_table.setStyle(TableStyle([
-        # Header row
-        ("BACKGROUND",    (0,0),(-1,0),  TEAL_LITE),
-        ("TOPPADDING",    (0,0),(-1,0),  10),
-        ("BOTTOMPADDING", (0,0),(-1,0),  10),
-        ("LINEBELOW",     (0,0),(-1,0),  1.5, TEAL),
-        # Body row
-        ("TOPPADDING",    (0,1),(-1,1),  14),
-        ("BOTTOMPADDING", (0,1),(-1,1),  14),
-        ("LINEBELOW",     (0,1),(-1,1),  0.5, TEAL_BDR),
-        # Total row
-        ("BACKGROUND",    (0,2),(-1,2),  TEAL_LITE),
-        ("TOPPADDING",    (0,2),(-1,2),  12),
-        ("BOTTOMPADDING", (0,2),(-1,2),  12),
-        ("LINEABOVE",     (0,2),(-1,2),  1.5, TEAL),
-        # All
-        ("LEFTPADDING",   (0,0),(-1,-1), 12),
-        ("RIGHTPADDING",  (-1,0),(-1,-1),12),
-        ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
-        ("BOX",           (0,0),(-1,-1), 1, TEAL_BDR),
-    ]))
-    story.append(items_table)
-    story.append(Spacer(1, 20))
-
-    # ═══════════════════════════════════════════════════════
-    # INFO GRID (3 cards)
-    # ═══════════════════════════════════════════════════════
-    def info_card(label, value, value_color=INK):
-        return [
-            Paragraph(f"<font color='#7ABFB8' size='8'><b>{label}</b></font>", ParagraphStyle("x")),
-            Spacer(1, 4),
-            Paragraph(f"<font size='12'><b>{value}</b></font>",
-                      ParagraphStyle("x", textColor=value_color)),
-        ]
-
-    grid_data = [[
-        info_card("BILL NUMBER",    bill_no),
-        info_card("BILLING MONTH",  f"{bill['bill_month']} {bill['bill_year']}"),
-        info_card("PAYMENT STATUS", bill["status"], status_fg),
-    ]]
-    grid = Table(grid_data, colWidths=[W/3]*3)
-    grid.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0),(-1,-1), TEAL_LITE),
-        ("BOX",           (0,0),(0,-1),  1, TEAL_BDR),
-        ("BOX",           (1,0),(1,-1),  1, TEAL_BDR),
-        ("BOX",           (2,0),(2,-1),  1, TEAL_BDR),
-        ("TOPPADDING",    (0,0),(-1,-1), 14),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 14),
-        ("LEFTPADDING",   (0,0),(-1,-1), 14),
-        ("RIGHTPADDING",  (0,0),(-1,-1), 14),
-        ("VALIGN",        (0,0),(-1,-1), "TOP"),
-        ("COLUMNPADDING", (0,0),(-1,-1), 4),
-    ]))
-    story.append(grid)
-    story.append(Spacer(1, 22))
-
-    # ═══════════════════════════════════════════════════════
-    # SYSTEM GENERATED NOTE
-    # ═══════════════════════════════════════════════════════
-    note_table = Table([[
-        Paragraph(
-            "<font color='#0A4F48' size='10'>"
-            "<b>Note:</b> This is a <b>system-generated bill</b> and does <b>not require</b> "
-            "any physical signature or stamp. This document is legally valid without a manual "
-            "signature as per the terms of the SocietyNotice platform agreement. "
-            "For any queries, please contact your platform administrator."
-            "</font>",
-            ParagraphStyle("note", leading=15)
-        )
-    ]], colWidths=[W])
-    note_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0),(-1,-1), TEAL_LITE),
-        ("BOX",           (0,0),(-1,-1), 1, TEAL_BDR),
-        ("LEFTPADDING",   (0,0),(-1,-1), 16),
-        ("RIGHTPADDING",  (0,0),(-1,-1), 16),
-        ("TOPPADDING",    (0,0),(-1,-1), 14),
-        ("BOTTOMPADDING", (0,0),(-1,-1), 14),
-    ]))
-    story.append(note_table)
-    story.append(Spacer(1, 16))
-
-    # ═══════════════════════════════════════════════════════
-    # FOOTER
-    # ═══════════════════════════════════════════════════════
-    story.append(HRFlowable(width="100%", thickness=0.5, color=TEAL_BDR, spaceAfter=10))
-    story.append(Paragraph(
-        f"<font color='#7ABFB8' size='9'>"
-        f"Generated by <b><font color='#0ABFA3'>SocietyNotice</font></b> Management Suite"
-        f" &nbsp;·&nbsp; Powered by AI &nbsp;·&nbsp; {created_str}"
-        f"</font>",
-        ParagraphStyle("footer", alignment=TA_CENTER)
-    ))
-
-    # ═══════════════════════════════════════════════════════
-    # BUILD PDF
-    # ═══════════════════════════════════════════════════════
-    def draw_background(canvas, doc):
-        canvas.saveState()
-        canvas.setFillColor(colors.HexColor("#EEF9F7"))
-        canvas.rect(0, 0, A4[0], A4[1], fill=1, stroke=0)
-        # Teal accent bar at top
-        canvas.setFillColor(TEAL)
-        canvas.rect(0, A4[1]-4, A4[0], 4, fill=1, stroke=0)
-        # Teal accent bar at bottom
-        canvas.setFillColor(TEAL2)
-        canvas.rect(0, 0, A4[0], 4, fill=1, stroke=0)
-        canvas.restoreState()
-
-    doc.build(story, onFirstPage=draw_background, onLaterPages=draw_background)
+    # ════════════════════════════════════════════════════════
+    c.showPage()
+    c.save()
 
     buf.seek(0)
-    fname = f"Bill_{bill['bill_month']}_{bill['bill_year']}_{bill_no.replace('/','_')}.pdf"
+    fname = "Bill_{}_{}.pdf".format(period.replace(" ", "_"), bill_no.replace("/", "_"))
     resp = make_response(buf.read())
     resp.headers["Content-Type"]        = "application/pdf"
     resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
     return resp
-
-
 if __name__ == "__main__":
     lo = get_libreoffice_path()
     print("="*55)

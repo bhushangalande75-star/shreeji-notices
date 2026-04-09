@@ -42,13 +42,13 @@
     <div style="margin-bottom:24px;">
       <div class="form-label" style="margin-bottom:10px;">Notice Type</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-        <button id="btn1st" onclick="setType('1st')" style="padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
+        <button id="btn1st" onclick="setType('1st')" style="padding:14px;border-radius:12px;border:2px solid #0ABFA3;background:rgba(10,191,163,0.12);color:#0ABFA3;font-weight:700;font-size:14px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;">
           📄 1st Notice
         </button>
-        <button id="btn2nd" onclick="setType('2nd')" style="padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
+        <button id="btn2nd" onclick="setType('2nd')" style="padding:14px;border-radius:12px;border:1px solid #C2EDE6;background:transparent;color:#7ABFB8;font-weight:700;font-size:14px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;">
           📄 2nd Notice
         </button>
-        <button id="btn3rd" onclick="setType('3rd')" style="padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;">
+        <button id="btn3rd" onclick="setType('3rd')" style="padding:14px;border-radius:12px;border:1px solid #C2EDE6;background:transparent;color:#7ABFB8;font-weight:700;font-size:14px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;">
           📄 3rd Notice
         </button>
       </div>
@@ -84,19 +84,19 @@
       <span id="col2ndHint" style="display:none;color:var(--gold);font-weight:400;text-transform:none;"> · Column I = 1st Ref No, Column J = 2nd Ref No (for 2nd notice)</span>
       <span id="col3rdHint" style="display:none;color:var(--gold);font-weight:400;text-transform:none;"> · Column I = 1st Ref No, Column J = 2nd Ref No (for 3rd notice)</span>
     </div>
-    <div id="dropZone" style="border:2px dashed rgba(192,0,0,0.4);border-radius:12px;padding:32px;text-align:center;cursor:pointer;position:relative;transition:all 0.2s;background:rgba(192,0,0,0.03);" onmouseover="this.style.background='rgba(192,0,0,0.06)'" onmouseout="this.style.background='rgba(192,0,0,0.03)'">
+    <div id="dropZone" style="border:2px dashed rgba(10,191,163,0.45);border-radius:12px;padding:32px;text-align:center;cursor:pointer;position:relative;transition:all 0.2s;background:rgba(10,191,163,0.03);" onmouseover="this.style.background='rgba(10,191,163,0.07)'" onmouseout="this.style.background='rgba(10,191,163,0.03)'">
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"/>
       <div style="font-size:32px;margin-bottom:8px;">📂</div>
-      <div style="color:var(--muted);font-size:14px;">Drop Excel file here or <span style="color:var(--red);font-weight:600;">browse</span></div>
+      <div style="color:var(--muted);font-size:14px;">Drop Excel file here or <span style="color:#0ABFA3;font-weight:600;">browse</span></div>
       <div style="font-size:12px;color:#444;margin-top:4px;">.xlsx / .xls · Columns: C=Flat, E=Ref, F=Name, H=Amount</div>
     </div>
 
-    <div id="fileBadge" style="display:none;background:rgba(192,0,0,0.1);border:1px solid rgba(192,0,0,0.25);border-radius:10px;padding:10px 16px;margin-top:12px;font-size:13px;color:#ff6b6b;font-weight:600;">
+    <div id="fileBadge" style="display:none;background:rgba(10,191,163,0.1);border:1px solid rgba(10,191,163,0.3);border-radius:10px;padding:10px 16px;margin-top:12px;font-size:13px;color:#0ABFA3;font-weight:600;">
       📄 <span id="fileName"></span>
     </div>
 
     <button id="generateBtn" onclick="startGenerate()" disabled
-      style="margin-top:20px;padding:15px;width:100%;background:linear-gradient(135deg,var(--red),var(--red2));border:none;border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;opacity:0.4;">
+      style="margin-top:20px;padding:15px;width:100%;background:linear-gradient(135deg,#0ABFA3,#069A82);border:none;border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;opacity:0.4;">
       ⚡ Generate Notices
     </button>
   </div>
@@ -109,10 +109,10 @@
       <div style="font-size:15px;font-weight:600;margin-bottom:16px;">⚡ Generating...</div>
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px;">
         <span id="progressText">Processing...</span>
-        <span id="progressCount" style="font-weight:700;color:var(--red);">0/0</span>
+        <span id="progressCount" style="font-weight:700;color:#0ABFA3;">0/0</span>
       </div>
       <div style="background:var(--dark4);border-radius:99px;height:8px;overflow:hidden;margin-bottom:12px;">
-        <div id="progressFill" style="height:100%;background:linear-gradient(90deg,var(--red),#ff4444);border-radius:99px;width:0%;transition:width 0.3s;"></div>
+        <div id="progressFill" style="height:100%;background:linear-gradient(90deg,#0ABFA3,#08D4B8);border-radius:99px;width:0%;transition:width 0.3s;"></div>
       </div>
       <div id="statusMsg" style="font-size:12px;color:var(--muted);font-style:italic;min-height:16px;"></div>
     </div>
@@ -126,20 +126,20 @@
           <span style="color:#5dade2;font-weight:700;font-size:14px;">ZIP File</span>
           <span style="color:var(--muted);font-size:11px;">Individual .docx</span>
         </a>
-        <a id="btnPdf" href="#" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px;background:rgba(192,0,0,0.12);border:1px solid rgba(192,0,0,0.25);border-radius:12px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+        <a id="btnPdf" href="#" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px;background:rgba(10,191,163,0.1);border:1px solid rgba(10,191,163,0.3);border-radius:12px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
           <span style="font-size:24px;">📄</span>
-          <span style="color:#ff6b6b;font-weight:700;font-size:14px;">PDF File</span>
+          <span style="color:#0ABFA3;font-weight:700;font-size:14px;">PDF File</span>
           <span style="color:var(--muted);font-size:11px;">All in one PDF</span>
         </a>
       </div>
       {% if not session.get('is_admin') %}
       <button onclick="openBatchWaModal()" id="batchWaBtn"
-        style="margin-top:10px;width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(37,211,102,0.35);">
+        style="margin-top:10px;width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(37,211,102,0.35);">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.116 1.528 5.845L0 24l6.353-1.501A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.002-1.368l-.359-.213-3.72.878.894-3.629-.234-.373A9.818 9.818 0 1112 21.818z"/></svg>
         Send via WhatsApp
       </button>
       {% endif %}
-      <button onclick="resetForm()" style="margin-top:10px;width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='#ff6b6b'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+      <button onclick="resetForm()" style="margin-top:10px;width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;" onmouseover="this.style.borderColor='#0ABFA3';this.style.color='#0ABFA3'" onmouseout="this.style.borderColor='#C2EDE6';this.style.color='#7ABFB8'">
         🔄 Generate Another
       </button>
     </div>
@@ -149,19 +149,19 @@
       <div style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--gold);">📘 Quick Guide</div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">1</div>
+          <div style="width:22px;height:22px;border-radius:6px;background:rgba(10,191,163,0.15);color:#0ABFA3;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">1</div>
           <div style="font-size:13px;color:var(--muted);">Select notice type and fill in the configuration details</div>
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">2</div>
+          <div style="width:22px;height:22px;border-radius:6px;background:rgba(10,191,163,0.15);color:#0ABFA3;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">2</div>
           <div style="font-size:13px;color:var(--muted);">Upload the defaulter Excel sheet</div>
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">3</div>
+          <div style="width:22px;height:22px;border-radius:6px;background:rgba(10,191,163,0.15);color:#0ABFA3;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">3</div>
           <div style="font-size:13px;color:var(--muted);">Click Generate — download ZIP & PDF instantly</div>
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="width:22px;height:22px;border-radius:6px;background:rgba(192,0,0,0.15);color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">4</div>
+          <div style="width:22px;height:22px;border-radius:6px;background:rgba(10,191,163,0.15);color:#0ABFA3;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">4</div>
           <div style="font-size:13px;color:var(--muted);">Track payments in the Notice Tracker</div>
         </div>
       </div>
@@ -174,8 +174,8 @@
   let noticeType = '1st';
   document.getElementById('issuedDate').value = new Date().toISOString().split('T')[0];
 
-  const BTN_ACTIVE   = 'padding:14px;border-radius:12px;border:2px solid var(--red);background:rgba(192,0,0,0.12);color:#ff6b6b;font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-  const BTN_INACTIVE = 'padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;';
+  const BTN_ACTIVE   = 'padding:14px;border-radius:12px;border:2px solid #0ABFA3;background:rgba(10,191,163,0.12);color:#0ABFA3;font-weight:700;font-size:14px;cursor:pointer;font-family:"Plus Jakarta Sans",sans-serif;transition:all 0.2s;';
+  const BTN_INACTIVE = 'padding:14px;border-radius:12px;border:1px solid #C2EDE6;background:transparent;color:#7ABFB8;font-weight:700;font-size:14px;cursor:pointer;font-family:"Plus Jakarta Sans",sans-serif;transition:all 0.2s;';
   const SUBJECTS = {
     '1st': 'Sub: Notice for Recovery of Due Maintenance.',
     '2nd': 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.',
@@ -284,7 +284,7 @@
       window._batchSessId  = msg.sess_id;
       window._batchMembers = msg.wa_members || [];
     } else if (msg.type === 'failed') {
-      document.getElementById('statusMsg').style.color = '#ff6b6b';
+      document.getElementById('statusMsg').style.color = '#DC2626';
       document.getElementById('statusMsg').textContent = '❌ ' + msg.msg;
       generateBtn.disabled = false; generateBtn.style.opacity = '1';
     }
@@ -426,11 +426,11 @@
 
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button onclick="closeBatchWaModal()"
-        style="flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#888;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        style="flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#888;font-size:13px;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">
         Close
       </button>
       <button id="batchWaSendBtn" onclick="sendBatchWhatsApp()"
-        style="display:none;flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        style="display:none;flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">
         📲 Send to all
       </button>
     </div>
