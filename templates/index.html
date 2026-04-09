@@ -174,8 +174,6 @@
   let noticeType = '1st';
   document.getElementById('issuedDate').value = new Date().toISOString().split('T')[0];
 
-  const BTN_ACTIVE   = 'padding:14px;border-radius:12px;border:2px solid #0ABFA3;background:rgba(10,191,163,0.12);color:#0ABFA3;font-weight:700;font-size:14px;cursor:pointer;font-family:"Plus Jakarta Sans",sans-serif;transition:all 0.2s;';
-  const BTN_INACTIVE = 'padding:14px;border-radius:12px;border:1px solid #C2EDE6;background:transparent;color:#7ABFB8;font-weight:700;font-size:14px;cursor:pointer;font-family:"Plus Jakarta Sans",sans-serif;transition:all 0.2s;';
   const SUBJECTS = {
     '1st': 'Sub: Notice for Recovery of Due Maintenance.',
     '2nd': 'Sub: 2nd & Final Notice for Recovery of Outstanding Maintenance Dues.',
@@ -186,10 +184,19 @@
     noticeType = type;
     ['btn1st','btn2nd','btn3rd'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.style.cssText = BTN_INACTIVE;
+      if (!el) return;
+      el.style.border      = '1px solid #C2EDE6';
+      el.style.background  = 'transparent';
+      el.style.color       = '#7ABFB8';
+      el.style.boxShadow   = 'none';
     });
     const activeBtn = document.getElementById('btn' + type);
-    if (activeBtn) activeBtn.style.cssText = BTN_ACTIVE;
+    if (activeBtn) {
+      activeBtn.style.border     = '2px solid #0ABFA3';
+      activeBtn.style.background = 'rgba(10,191,163,0.12)';
+      activeBtn.style.color      = '#0A4F48';
+      activeBtn.style.boxShadow  = '0 4px 14px rgba(10,191,163,0.25)';
+    }
     document.getElementById('subjectLine').value = SUBJECTS[type] || '';
     document.getElementById('col2ndHint').style.display = type === '2nd' ? 'inline' : 'none';
     document.getElementById('col3rdHint').style.display = type === '3rd' ? 'inline' : 'none';
