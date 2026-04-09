@@ -14,12 +14,12 @@
   </div>
   <div class="stat-card amber">
     <div class="stat-label">Total Outstanding</div>
-    <div class="stat-num" style="font-size:20px;color:#D97706;">${{ "{:,}".format(stats.outstanding_amount|int) }}</div>
+    <div class="stat-num" style="font-size:20px;color:#D97706;">₹{{ "{:,}".format(stats.outstanding_amount|int) }}</div>
     <div class="stat-note"><span class="trend trend-dn">Pending amount</span></div>
   </div>
   <div class="stat-card green">
     <div class="stat-label">Total Collected</div>
-    <div class="stat-num" style="font-size:20px;color:#059669;">${{ "{:,}".format(stats.collected_amount|int) }}</div>
+    <div class="stat-num" style="font-size:20px;color:#059669;">₹{{ "{:,}".format(stats.collected_amount|int) }}</div>
     <div class="stat-note"><span class="trend trend-up">Received</span></div>
   </div>
   <div class="stat-card red">
