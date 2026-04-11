@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Announcements — SocietyNotice Pro{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+{% block page_sub %}Post notices and circulars visible to all your society members{% endblock %}
+{% block topbar_right %}
+  <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">+ New Announcement</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  {% if announcements %}
+  <div class="card-title" style="margin-bottom:18px;">Posted Announcements ({{ announcements|length }})</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Title</th><th>Category</th><th>Body</th><th>Posted</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for a in announcements %}
+        <tr>
+          <td style="font-weight:600;color:var(--ink);">{{ a.title }}</td>
+          <td><span class="badge badge-teal"><span class="badge-dot"></span>{{ a.category }}</span></td>
+          <td style="color:var(--muted);font-size:12px;max-width:280px;">{{ a.body[:100] }}{% if a.body|length > 100 %}…{% endif %}</td>
+          <td class="muted-text">{{ a.created_at.strftime('%d %b %Y') if a.created_at else '—' }}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="deleteAnn({{ a.id }})">Delete</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📢</div>
+    <h3>No announcements yet</h3>
+    <p>Post water shutdowns, AGM notices, rule reminders — members will see them in their portal.</p>
+    <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">+ Post First Announcement</button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal" style="width:520px;">
+    <h3>📢 New Announcement</h3>
+    <p>This will be visible to all members on their portal dashboard.</p>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label class="form-label">Title</label>
+        <input class="form-input" type="text" id="ann-title" placeholder="e.g. Water supply shutdown — 12 Apr 2026" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-input form-select" id="ann-category">
+          <option>General</option>
+          <option>Maintenance</option>
+          <option>Meeting</option>
+          <option>Rule</option>
+          <option>Emergency</option>
+          <option>Event</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="ann-body" rows="4" placeholder="Full announcement details..." style="resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div id="ann-status" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;"></div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="document.getElementById('addModal').classList.remove('show')">Cancel</button>
+      <button class="btn btn-primary" onclick="postAnn()">Post Announcement</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function postAnn() {
+    const title = document.getElementById('ann-title').value.trim();
+    const body  = document.getElementById('ann-body').value.trim();
+    const cat   = document.getElementById('ann-category').value;
+    const status = document.getElementById('ann-status');
+    if (!title || !body) { alert('Title and message are required.'); return; }
+    status.style.display = 'block';
+    status.style.background = 'rgba(10,191,163,0.08)';
+    status.style.border = '1px solid rgba(10,191,163,0.25)';
+    status.style.color = '#0A4F48';
+    status.textContent = '⏳ Posting...';
+    const res  = await fetch('/portal/announcements/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title, body, category: cat})
+    });
+    const data = await res.json();
+    if (data.success) { location.reload(); }
+    else { status.textContent = '❌ Error: ' + data.error; }
+  }
+
+  async function deleteAnn(id) {
+    if (!confirm('Delete this announcement? Members will no longer see it.')) return;
+    await fetch('/portal/announcements/delete/' + id, {method:'POST'});
+    location.reload();
+  }
+
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+  });
+</script>
+{% endblock %}

@@ -442,3 +442,128 @@ def get_bill_by_id(bill_id):
     """, (bill_id,))
     row = cur.fetchone(); cur.close(); conn.close()
     return dict(row) if row else None
+
+
+# ── Member Portal ───────────────────────────────────────────────
+def init_member_portal_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        ALTER TABLE societies
+        ADD COLUMN IF NOT EXISTS portal_code TEXT UNIQUE;
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS member_logins (
+            id           SERIAL PRIMARY KEY,
+            society_id   INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            flat_combo   TEXT NOT NULL,
+            pin_hash     TEXT NOT NULL,
+            must_change  BOOLEAN DEFAULT TRUE,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login   TIMESTAMP,
+            UNIQUE(society_id, flat_combo)
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+init_member_portal_table()
+
+def get_society_by_portal_code(portal_code):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM societies WHERE UPPER(portal_code)=UPPER(%s)", (portal_code,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return dict(row) if row else None
+
+def set_portal_code(society_id, portal_code):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE societies SET portal_code=UPPER(%s) WHERE id=%s",
+                (portal_code, society_id))
+    conn.commit(); cur.close(); conn.close()
+
+def get_member_login(society_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM member_logins WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)",
+                (society_id, flat_combo))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return dict(row) if row else None
+
+def upsert_member_login(society_id, flat_combo, pin_hash, must_change=True):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO member_logins (society_id, flat_combo, pin_hash, must_change)
+        VALUES (%s, UPPER(%s), %s, %s)
+        ON CONFLICT (society_id, flat_combo)
+        DO UPDATE SET pin_hash=EXCLUDED.pin_hash, must_change=EXCLUDED.must_change
+    """, (society_id, flat_combo, pin_hash, must_change))
+    conn.commit(); cur.close(); conn.close()
+
+def update_member_pin(society_id, flat_combo, new_pin_hash):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE member_logins
+        SET pin_hash=%s, must_change=FALSE, last_login=NOW()
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+    """, (new_pin_hash, society_id, flat_combo))
+    conn.commit(); cur.close(); conn.close()
+
+def touch_member_login(society_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE member_logins SET last_login=NOW() WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)",
+                (society_id, flat_combo))
+    conn.commit(); cur.close(); conn.close()
+
+def reset_member_pin(society_id, flat_combo):
+    """Reset PIN back to flat_combo (default)."""
+    import hashlib
+    pin_hash = hashlib.sha256(flat_combo.upper().encode()).hexdigest()
+    upsert_member_login(society_id, flat_combo, pin_hash, must_change=True)
+
+def get_member_notices(society_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT n.*, nb.batch_name, nb.notice_type, nb.issued_date
+        FROM notices n
+        JOIN notice_batches nb ON n.batch_id = nb.id
+        WHERE nb.society_id=%s AND UPPER(n.flat_no)=UPPER(%s)
+        ORDER BY nb.issued_date DESC
+    """, (society_id, flat_combo))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def get_member_announcements(society_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM announcements
+        WHERE society_id=%s ORDER BY created_at DESC LIMIT 10
+    """, (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def init_announcements_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS announcements (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            title       TEXT NOT NULL,
+            body        TEXT NOT NULL,
+            category    TEXT DEFAULT 'General',
+            posted_by   TEXT DEFAULT 'Committee',
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+init_announcements_table()
+
+def create_announcement(society_id, title, body, category='General', posted_by='Committee'):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO announcements (society_id, title, body, category, posted_by)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (society_id, title, body, category, posted_by))
+    conn.commit(); cur.close(); conn.close()
+
+def delete_announcement(ann_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("DELETE FROM announcements WHERE id=%s", (ann_id,))
+    conn.commit(); cur.close(); conn.close()

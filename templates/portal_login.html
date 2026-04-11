@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Member Portal — SocietyNotice</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--teal:#0ABFA3;--teal2:#08A891;--teal3:#069A82;--teal-glow:rgba(10,191,163,0.35);--bg:#C8F0EA;--surface:#FFFFFF;--surface2:#F4FDFB;--border:#C2EDE6;--ink:#063D36;--ink2:#0A4F48;--ink3:#4A8A84;--muted:#7ABFB8;--font:'Plus Jakarta Sans',sans-serif}
+    body{font-family:var(--font);background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .bg{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 15% 50%,rgba(10,191,163,0.25) 0%,transparent 55%),radial-gradient(ellipse at 85% 15%,rgba(10,191,163,0.12) 0%,transparent 45%),radial-gradient(ellipse at 50% 90%,rgba(10,191,163,0.1) 0%,transparent 40%),var(--bg)}
+    .bg::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 80px,rgba(10,191,163,0.06) 80px,rgba(10,191,163,0.06) 81px),repeating-linear-gradient(90deg,transparent,transparent 80px,rgba(10,191,163,0.06) 80px,rgba(10,191,163,0.06) 81px)}
+    .wrap{position:relative;z-index:1;display:flex;align-items:center;gap:64px;padding:40px;max-width:920px;width:100%}
+    .brand{flex:1;animation:fadeLeft 0.7s ease both}
+    .brand-logo{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+    .gem{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--teal),var(--teal2));display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px var(--teal-glow)}
+    .gem svg{width:24px;height:24px}
+    .brand-name{font-size:20px;font-weight:700;color:var(--ink);letter-spacing:-.4px}
+    .brand-sub{font-size:10px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+    .brand-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(10,191,163,0.15);border:1px solid rgba(10,191,163,0.35);border-radius:99px;padding:5px 14px;margin-bottom:20px;font-size:11px;font-weight:600;color:var(--teal3);letter-spacing:.5px}
+    .badge-pulse{width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite}
+    .brand h1{font-size:40px;line-height:1.1;font-weight:700;color:var(--ink);margin-bottom:12px;letter-spacing:-1.5px}
+    .brand p{color:var(--ink3);font-size:14px;line-height:1.65;max-width:320px}
+    .features{margin-top:32px;display:flex;flex-direction:column;gap:13px}
+    .feat{display:flex;align-items:center;gap:12px;color:var(--ink3);font-size:13px}
+    .feat-icon{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,0.7);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(10,191,163,0.1)}
+    .feat-icon svg{width:15px;height:15px;stroke:var(--teal);stroke-width:2;fill:none}
+    .card{width:400px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:36px;animation:fadeUp 0.7s ease 0.15s both;box-shadow:0 32px 80px rgba(10,191,163,0.18),0 8px 24px rgba(10,191,163,0.1),inset 0 1px 0 rgba(255,255,255,0.95)}
+    .card-head{margin-bottom:24px}
+    .card-head h2{font-size:22px;font-weight:700;color:var(--ink);margin-bottom:4px;letter-spacing:-.4px}
+    .card-head p{color:var(--muted);font-size:13px}
+    .form-group{margin-bottom:16px}
+    label{display:block;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+    input{width:100%;padding:12px 15px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--ink2);font-size:14px;font-family:var(--font);outline:none;transition:border-color 0.2s,box-shadow 0.2s}
+    input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(10,191,163,0.15)}
+    input::placeholder{color:#A8CFCC}
+    .hint{font-size:11px;color:var(--muted);margin-top:5px}
+    .error-msg{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:11px 15px;color:#B91C1C;font-size:13px;margin-bottom:18px}
+    .btn-login{width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:10px;color:white;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all 0.2s;letter-spacing:-.2px;box-shadow:0 4px 16px var(--teal-glow);margin-top:6px}
+    .btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 24px var(--teal-glow)}
+    .divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:22px 0}
+    .footer-links{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+    .footer-links a{color:var(--teal);text-decoration:none;font-weight:500}
+    @keyframes fadeLeft{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+    @media(max-width:768px){.wrap{flex-direction:column;gap:32px;padding:24px}.brand h1{font-size:28px}.card{width:100%}}
+  </style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-logo">
+      <div class="gem">
+        <svg viewBox="0 0 24 24" fill="none"><polygon points="12,2 20,7 20,17 12,22 4,17 4,7" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><polygon points="12,6 16,9 16,15 12,18 8,15 8,9" fill="white" opacity=".3"/><circle cx="12" cy="12" r="2.5" fill="white" opacity=".9"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">SocietyNotice</div>
+        <div class="brand-sub">Member Portal</div>
+      </div>
+    </div>
+    <div class="brand-badge"><span class="badge-pulse"></span> Secure Member Access</div>
+    <h1>Your Society,<br>Your Dashboard</h1>
+    <p>Access your notices, maintenance status, society announcements and AI assistant — all in one place.</p>
+    <div class="features">
+      <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>View all notices issued to your flat</div>
+      <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>Track maintenance payment status</div>
+      <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>AI assistant for instant answers</div>
+      <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>Society announcements & circulars</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Member sign in</h2>
+      <p>Enter your society code, flat number and PIN</p>
+    </div>
+    {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+    <form method="POST">
+      <div class="form-group">
+        <label>Society Code</label>
+        <input type="text" name="portal_code" placeholder="e.g. SHREEJI" autofocus required autocomplete="off" style="text-transform:uppercase;letter-spacing:.1em;font-weight:600"/>
+        <div class="hint">Given by your society committee</div>
+      </div>
+      <div class="form-group">
+        <label>Flat Number</label>
+        <input type="text" name="flat_combo" placeholder="e.g. B-204 or B204" required autocomplete="off" style="text-transform:uppercase"/>
+        <div class="hint">As registered in the society directory</div>
+      </div>
+      <div class="form-group">
+        <label>PIN</label>
+        <input type="password" name="pin" placeholder="Your 4–6 digit PIN" required maxlength="20"/>
+        <div class="hint">Default PIN = your flat number (first login)</div>
+      </div>
+      <button class="btn-login" type="submit">Sign In to Portal →</button>
+    </form>
+    <div class="divider"></div>
+    <div class="footer-links">
+      <span>Committee login? <a href="/login">Click here</a></span>
+      <a href="/portal">Need help?</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

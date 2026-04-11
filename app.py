@@ -18,8 +18,12 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       change_society_password, reset_society_password,
                       get_stats_by_notice_type, get_unique_member_stats,
                       get_batches_by_type, create_monthly_bill, get_bills_for_society,
-                      get_all_bills, update_bill_status, delete_bill,
-                      get_bill_by_id)
+                      get_all_bills, update_bill_status, delete_bill, get_bill_by_id,
+                      get_society_by_portal_code, set_portal_code,
+                      get_member_login, upsert_member_login, update_member_pin,
+                      touch_member_login, reset_member_pin,
+                      get_member_notices, get_member_announcements,
+                      create_announcement, delete_announcement)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -1622,6 +1626,227 @@ def download_bill_pdf(bill_id):
     resp.headers["Content-Type"]        = "application/pdf"
     resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
     return resp
+
+# ══════════════════════════════════════════════════════════════
+#  MEMBER PORTAL
+# ══════════════════════════════════════════════════════════════
+import hashlib as _hl
+
+def _pin_hash(pin): return _hl.sha256(pin.upper().encode()).hexdigest()
+
+def portal_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("member_flat"):
+            return redirect(url_for("portal_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/portal")
+def portal_home():
+    return redirect(url_for("portal_login"))
+
+
+@app.route("/portal/login", methods=["GET","POST"])
+def portal_login():
+    error = ""
+    if request.method == "POST":
+        portal_code = request.form.get("portal_code","").strip().upper()
+        flat_combo  = request.form.get("flat_combo","").strip().upper()
+        pin         = request.form.get("pin","").strip()
+
+        society = get_society_by_portal_code(portal_code)
+        if not society:
+            error = "Invalid society code. Please check and try again."
+        else:
+            member = get_member_by_flat(society["id"], flat_combo)
+            if not member:
+                error = "Flat number not found in member directory."
+            else:
+                ml = get_member_login(society["id"], flat_combo)
+                if not ml:
+                    # First ever login — create record with default PIN = flat_combo
+                    upsert_member_login(society["id"], flat_combo,
+                                        _pin_hash(flat_combo), must_change=True)
+                    ml = get_member_login(society["id"], flat_combo)
+
+                if ml["pin_hash"] != _pin_hash(pin):
+                    error = "Incorrect PIN. Default PIN is your flat number (e.g. B204)."
+                else:
+                    session["member_flat"]     = flat_combo
+                    session["member_name"]     = member["name"]
+                    session["member_society_id"] = society["id"]
+                    session["member_society"]  = society["name"]
+                    session["member_portal_code"] = portal_code
+                    touch_member_login(society["id"], flat_combo)
+                    if ml["must_change"]:
+                        return redirect(url_for("portal_set_pin"))
+                    return redirect(url_for("portal_dashboard"))
+
+    return render_template("portal_login.html", error=error)
+
+
+@app.route("/portal/logout")
+def portal_logout():
+    for k in ["member_flat","member_name","member_society_id",
+              "member_society","member_portal_code"]:
+        session.pop(k, None)
+    return redirect(url_for("portal_login"))
+
+
+@app.route("/portal/set-pin", methods=["GET","POST"])
+@portal_required
+def portal_set_pin():
+    error = ""; success = ""
+    if request.method == "POST":
+        new_pin = request.form.get("new_pin","").strip()
+        confirm = request.form.get("confirm_pin","").strip()
+        if len(new_pin) < 4:
+            error = "PIN must be at least 4 characters."
+        elif new_pin != confirm:
+            error = "PINs do not match."
+        elif new_pin.upper() == session["member_flat"].upper():
+            error = "PIN cannot be the same as your flat number."
+        else:
+            update_member_pin(session["member_society_id"],
+                              session["member_flat"], _pin_hash(new_pin))
+            return redirect(url_for("portal_dashboard"))
+    return render_template("portal_set_pin.html", error=error,
+                           society_name=session["member_society"],
+                           member_name=session["member_name"])
+
+
+@app.route("/portal/dashboard")
+@portal_required
+def portal_dashboard():
+    sid     = session["member_society_id"]
+    flat    = session["member_flat"]
+    notices = get_member_notices(sid, flat)
+    member  = get_member_by_flat(sid, flat)
+    anns    = get_member_announcements(sid)
+    society = get_all_societies()
+    soc     = next((s for s in society if s["id"] == sid), {})
+    return render_template("portal_dashboard.html",
+                           member=member, notices=notices,
+                           announcements=anns, society=soc,
+                           society_name=session["member_society"],
+                           flat=flat, member_name=session["member_name"])
+
+
+@app.route("/portal/chat", methods=["POST"])
+@portal_required
+def portal_chat():
+    """AI chatbot — answers questions using the member's own data as context."""
+    try:
+        user_msg = request.json.get("message","").strip()
+        if not user_msg:
+            return jsonify({"reply": "Please type a message."})
+
+        sid    = session["member_society_id"]
+        flat   = session["member_flat"]
+        name   = session["member_name"]
+        soc    = session["member_society"]
+
+        notices = get_member_notices(sid, flat)
+        member  = get_member_by_flat(sid, flat)
+        anns    = get_member_announcements(sid)
+
+        # Build context string
+        notice_lines = []
+        for n in notices[:10]:
+            paid_str = f", paid on {n.get('payment_date','')}" if n.get('payment_date') else ""
+            notice_lines.append(
+                f"- Ref {n['ref_no']}: {n['notice_type']} notice, "
+                f"issued {n['issued_date']}, amount Rs.{n['amount']}, "
+                f"status: {n['payment_status']}{paid_str}"
+            )
+
+        ann_lines = [f"- {a['title']}: {a['body'][:120]}" for a in anns[:5]]
+
+        context = f"""You are the official AI assistant for {soc} housing society.
+You are speaking with {name}, resident of Flat {flat}.
+
+MEMBER DATA:
+Name: {name}
+Flat: {flat}
+Society: {soc}
+Phone: {member.get('phone','N/A') if member else 'N/A'}
+
+NOTICES ISSUED TO THIS MEMBER:
+{chr(10).join(notice_lines) if notice_lines else 'No notices issued yet.'}
+
+RECENT SOCIETY ANNOUNCEMENTS:
+{chr(10).join(ann_lines) if ann_lines else 'No announcements yet.'}
+
+INSTRUCTIONS:
+- Answer ONLY questions about this member's data or general society information.
+- Be helpful, polite and concise. Reply in the same language the member uses.
+- For payment queries, refer to the notice data above.
+- Do NOT make up data. If you don't know, say so.
+- Keep replies short — 2-4 sentences max unless detail is needed.
+- You can suggest they contact the society office for issues you cannot resolve."""
+
+        reply = call_groq(context, user_msg)
+        return jsonify({"reply": reply})
+
+    except Exception as e:
+        return jsonify({"reply": f"Sorry, I'm having trouble right now. ({str(e)[:60]})"}), 500
+
+
+# ── Admin: Portal Code management & Announcements ─────────────
+@app.route("/admin/set-portal-code/<int:society_id>", methods=["POST"])
+@admin_required
+def admin_set_portal_code(society_id):
+    code = request.json.get("code","").strip().upper()
+    if not code:
+        return jsonify({"success": False, "error": "Code cannot be empty"}), 400
+    try:
+        set_portal_code(society_id, code)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/admin/reset-member-pin/<int:society_id>", methods=["POST"])
+@admin_required
+def admin_reset_member_pin(society_id):
+    flat = request.json.get("flat_combo","").strip().upper()
+    if not flat:
+        return jsonify({"success": False, "error": "Flat number required"}), 400
+    reset_member_pin(society_id, flat)
+    return jsonify({"success": True})
+
+
+@app.route("/portal/announcements/create", methods=["POST"])
+@login_required
+def create_announcement_route():
+    sid = session.get("society_id")
+    if not sid:
+        return jsonify({"success": False, "error": "Not a society user"}), 403
+    data = request.json
+    create_announcement(sid, data.get("title",""), data.get("body",""),
+                        data.get("category","General"))
+    return jsonify({"success": True})
+
+
+@app.route("/portal/announcements/delete/<int:ann_id>", methods=["POST"])
+@login_required
+def delete_announcement_route(ann_id):
+    delete_announcement(ann_id)
+    return jsonify({"success": True})
+
+
+@app.route("/portal/announcements")
+@login_required
+def manage_announcements():
+    sid  = session.get("society_id")
+    anns = get_member_announcements(sid) if sid else []
+    return render_template("announcements.html",
+                           announcements=anns,
+                           society_name=session.get("society_name",""))
+
 if __name__ == "__main__":
     lo = get_libreoffice_path()
     print("="*55)
