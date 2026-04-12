@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base — SocietyNotice Pro{% endblock %}
+{% block page_title %}AI Knowledge Base{% endblock %}
+{% block page_sub %}Upload outstanding amounts and society rules so the member portal AI gives accurate answers{% endblock %}
+
+{% block extra_head %}
+<style>
+  .kb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .kb-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .kb-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .kb-head-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .kb-head-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .kb-head-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .kb-body { padding: 20px 22px; }
+  .kb-status { font-size: 11px; padding: 6px 12px; border-radius: 20px; font-weight: 600; display: inline-flex; align-items: center; gap:5px; margin-bottom: 14px; }
+  .kb-status.loaded { background: #D1FAE5; color: #065F46; }
+  .kb-status.empty  { background: #FEF3C7; color: #92400E; }
+  .upload-zone { border: 2px dashed rgba(10,191,163,0.4); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all .2s; background: rgba(10,191,163,0.03); }
+  .upload-zone:hover { background: rgba(10,191,163,0.07); border-color: var(--teal); }
+  .upload-zone input { display: none; }
+  textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); color: var(--ink2); font-size: 13px; font-family: var(--font); resize: vertical; outline: none; min-height: 180px; line-height: 1.7; }
+  textarea:focus { border-color: var(--teal); }
+  .btn-save { padding: 10px 22px; background: var(--teal); border: none; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; margin-top: 12px; }
+  .btn-save:hover { background: var(--teal2); }
+  .status-msg { padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-top: 10px; display: none; }
+  .status-ok  { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
+  .status-err { background: #FEE2E2; color: #B91C1C; border: 1px solid #FECACA; }
+  .preview-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 11px; color: var(--ink3); font-family: monospace; line-height: 1.8; max-height: 150px; overflow-y: auto; margin-top: 12px; white-space: pre-wrap; word-break: break-word; }
+  .col-guide { background: rgba(10,191,163,0.06); border: 1px solid rgba(10,191,163,0.2); border-radius: 10px; padding: 14px 16px; font-size: 12px; color: var(--ink3); line-height: 2; margin-bottom: 16px; }
+  .col-guide code { background: rgba(192,0,0,0.08); color: var(--red); border-radius: 4px; padding: 1px 5px; }
+  .full-card { grid-column: 1 / -1; }
+  .how-it-works { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+  .how-step { flex: 1; min-width: 160px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: 12px; color: var(--ink3); line-height: 1.7; }
+  .how-step-num { font-size: 18px; font-weight: 800; color: var(--teal); margin-bottom: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- How it works strip -->
+<div class="card" style="margin-bottom:22px;">
+  <div class="card-body">
+    <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px;">How the AI uses this knowledge base</div>
+    <div class="how-it-works">
+      <div class="how-step">
+        <div class="how-step-num">1</div>
+        Upload the outstanding Excel — each row is one flat's dues. The AI reads the exact amount from this, not from the notice amount.
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">2</div>
+        Paste your society rules & regulations. Members can ask "what is the fine for late payment?" and get an accurate answer.
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">3</div>
+        Add general info — contact numbers, office hours, committee names, building amenities, etc.
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">4</div>
+        The AI always stays on-topic. Off-topic questions (politics, news, general knowledge) are politely redirected.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="kb-grid">
+
+  <!-- Outstanding amounts -->
+  <div class="kb-card">
+    <div class="kb-head">
+      <div class="kb-head-icon" style="background:rgba(10,191,163,0.1);">💰</div>
+      <div>
+        <div class="kb-head-title">Outstanding Amounts</div>
+        <div class="kb-head-sub">Upload Excel — AI reads actual dues per flat</div>
+      </div>
+    </div>
+    <div class="kb-body">
+      {% if kb.outstanding %}
+        <div class="kb-status loaded">✓ Loaded — {{ kb.outstanding.updated_at.strftime('%d %b %Y, %I:%M %p') if kb.outstanding.updated_at else 'uploaded' }}</div>
+      {% else %}
+        <div class="kb-status empty">⚠ Not uploaded yet — AI will use notice amounts as fallback</div>
+      {% endif %}
+
+      <div class="col-guide">
+        Recommended columns: <code>Flat Combo</code> &nbsp;<code>Outstanding Amount</code> &nbsp;<code>Remark</code><br>
+        Example row: <code>B01-310</code> &nbsp;<code>26567</code> &nbsp;<code>Maintenance Apr 2026</code>
+      </div>
+
+      <div class="upload-zone" onclick="document.getElementById('outstandingFile').click()">
+        <div style="font-size:28px;margin-bottom:8px;">📊</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Click to upload outstanding Excel</div>
+        <div style="font-size:11px;color:var(--muted);">.xlsx or .xls — one row per flat</div>
+        <input type="file" id="outstandingFile" accept=".xlsx,.xls" onchange="uploadOutstanding(this)"/>
+      </div>
+
+      <div id="outStatus" class="status-msg"></div>
+
+      {% if kb.outstanding %}
+      <div style="margin-top:12px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Preview (first 10 lines)</div>
+      <div class="preview-box">{{ kb.outstanding.content.splitlines()[:10]|join('\n') }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Rules & Regulations -->
+  <div class="kb-card">
+    <div class="kb-head">
+      <div class="kb-head-icon" style="background:rgba(124,58,237,0.1);">📜</div>
+      <div>
+        <div class="kb-head-title">Society Rules & Regulations</div>
+        <div class="kb-head-sub">Paste bye-laws, fines, policies — AI will quote these</div>
+      </div>
+    </div>
+    <div class="kb-body">
+      {% if kb.rules %}
+        <div class="kb-status loaded">✓ Saved — {{ kb.rules.updated_at.strftime('%d %b %Y, %I:%M %p') if kb.rules.updated_at else 'saved' }}</div>
+      {% else %}
+        <div class="kb-status empty">⚠ Not added yet</div>
+      {% endif %}
+
+      <textarea id="rulesText" placeholder="Paste society rules, bye-laws, maintenance charges, fine structure, parking rules, pet policy, visitor rules, etc.
+Example:
+- Late payment fine: Rs. 50 per day after due date
+- Parking: One vehicle per flat, visitor parking in B03 basement
+- Pets: Allowed with committee approval, must be on leash in common areas
+...">{{ kb.rules.content if kb.rules else '' }}</textarea>
+      <button class="btn-save" onclick="saveRules()">Save Rules</button>
+      <div id="rulesStatus" class="status-msg"></div>
+    </div>
+  </div>
+
+  <!-- General Information (full width) -->
+  <div class="kb-card full-card">
+    <div class="kb-head">
+      <div class="kb-head-icon" style="background:rgba(59,130,246,0.1);">ℹ️</div>
+      <div>
+        <div class="kb-head-title">General Society Information</div>
+        <div class="kb-head-sub">Office contacts, committee members, amenities, timings — anything members might ask about</div>
+      </div>
+    </div>
+    <div class="kb-body">
+      {% if kb.general %}
+        <div class="kb-status loaded">✓ Saved — {{ kb.general.updated_at.strftime('%d %b %Y, %I:%M %p') if kb.general.updated_at else 'saved' }}</div>
+      {% else %}
+        <div class="kb-status empty">⚠ Not added yet</div>
+      {% endif %}
+
+      <textarea id="generalText" rows="6" placeholder="Examples:
+Society Office: Ground floor, B01 wing. Hours: 10am–1pm and 4pm–7pm, Mon–Sat (closed Sundays)
+Secretary: Mr. Ramesh Sharma — 9876543210
+Treasurer: Mrs. Priya Patel — 9876543211
+Maintenance Helpdesk: 9876543212 (8am–8pm)
+Gym: B02 basement, 6am–10pm daily
+Swimming Pool: B03 terrace, open May–Oct, 6am–8pm
+CCTV complaints: security@shreeji.com
+Emergency: Building security 9876543213 (24x7)">{{ kb.general.content if kb.general else '' }}</textarea>
+      <button class="btn-save" onclick="saveGeneral()">Save General Info</button>
+      <div id="generalStatus" class="status-msg"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg ' + (ok ? 'status-ok' : 'status-err');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+async function uploadOutstanding(input) {
+  const file = input.files[0]; if (!file) return;
+  showStatus('outStatus', '⏳ Uploading and processing...', true);
+  const fd = new FormData(); fd.append('excel', file);
+  try {
+    const res  = await fetch('/knowledge/upload-outstanding', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showStatus('outStatus', `✓ ${data.rows} rows loaded into knowledge base. Reloading...`, true);
+      setTimeout(() => location.reload(), 1400);
+    } else {
+      showStatus('outStatus', '❌ ' + data.error, false);
+    }
+  } catch(e) { showStatus('outStatus', '❌ ' + e.message, false); }
+  input.value = '';
+}
+
+async function saveRules() {
+  const content = document.getElementById('rulesText').value.trim();
+  if (!content) { showStatus('rulesStatus', 'Rules cannot be empty.', false); return; }
+  const res  = await fetch('/knowledge/save-rules', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content}) });
+  const data = await res.json();
+  showStatus('rulesStatus', data.success ? '✓ Rules saved successfully.' : '❌ ' + data.error, data.success);
+}
+
+async function saveGeneral() {
+  const content = document.getElementById('generalText').value.trim();
+  if (!content) { showStatus('generalStatus', 'Content cannot be empty.', false); return; }
+  const res  = await fetch('/knowledge/save-general', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content}) });
+  const data = await res.json();
+  showStatus('generalStatus', data.success ? '✓ General info saved.' : '❌ ' + data.error, data.success);
+}
+</script>
+{% endblock %}

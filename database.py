@@ -591,6 +591,17 @@ def init_announcements_table():
             created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    # ── Knowledge base table (outstanding amounts + rules stored as text) ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS society_knowledge (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            kb_type     TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(society_id, kb_type)
+        );
+    """)
     conn.commit(); cur.close(); conn.close()
 
 init_announcements_table()
@@ -607,3 +618,41 @@ def delete_announcement(ann_id):
     conn = get_db(); cur = conn.cursor()
     cur.execute("DELETE FROM announcements WHERE id=%s", (ann_id,))
     conn.commit(); cur.close(); conn.close()
+
+# ── Society Knowledge Base ─────────────────────────────────────────────────────
+
+def upsert_knowledge(society_id, kb_type, content):
+    """Insert or replace a knowledge base entry for a society."""
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO society_knowledge (society_id, kb_type, content, updated_at)
+        VALUES (%s, %s, %s, NOW())
+        ON CONFLICT (society_id, kb_type)
+        DO UPDATE SET content=EXCLUDED.content, updated_at=NOW()
+    """, (society_id, kb_type, content))
+    conn.commit(); cur.close(); conn.close()
+
+def get_knowledge(society_id, kb_type=None):
+    """Return all knowledge entries for a society, or just one type."""
+    conn = get_db(); cur = conn.cursor()
+    if kb_type:
+        cur.execute("SELECT * FROM society_knowledge WHERE society_id=%s AND kb_type=%s",
+                    (society_id, kb_type))
+    else:
+        cur.execute("SELECT * FROM society_knowledge WHERE society_id=%s ORDER BY kb_type",
+                    (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def get_member_outstanding(society_id, flat_combo):
+    """Look up a flat's outstanding in the knowledge base outstanding text."""
+    rows = get_knowledge(society_id, 'outstanding')
+    if not rows:
+        return None
+    text = rows[0]['content']
+    # Scan line-by-line for the flat
+    flat_up = flat_combo.strip().upper()
+    for line in text.splitlines():
+        if flat_up in line.upper():
+            return line.strip()
+    return None

@@ -183,6 +183,7 @@
             <th>Member Name</th>
             <th>Phone</th>
             <th>Email</th>
+            <th>Portal PIN</th>
           </tr>
         </thead>
         <tbody id="memberTbody">
@@ -194,6 +195,12 @@
             <td style="font-weight:500;">{{ m.name }}</td>
             <td><span class="phone-tag">{{ m.phone }}</span></td>
             <td style="color:var(--muted);">{{ m.email or '—' }}</td>
+            <td>
+              <button class="reset-pin-btn" data-flat="{{ m.flat_combo }}"
+                style="padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.05);color:#B91C1C;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);">
+                Reset PIN
+              </button>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -252,7 +259,6 @@
   }
 
   function downloadSample() {
-    // Build a minimal CSV sample for download
     const csv = [
       'Building No,Flat No,Flat Combo,Name,Phone,Email',
       'B01,310,B01-310,Rajesh Sharma,9876543210,rajesh@email.com',
@@ -265,5 +271,46 @@
     a.download = 'member_directory_sample.csv';
     a.click();
   }
+
+  // Toast helper
+  function showToast(msg, ok=true) {
+    let t = document.getElementById('pinToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'pinToast';
+      t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;transition:opacity .3s;';
+      document.body.appendChild(t);
+    }
+    t.style.background = ok ? 'rgba(37,211,102,0.95)' : 'rgba(239,68,68,0.95)';
+    t.style.color = '#fff'; t.style.opacity = '1';
+    t.textContent = msg;
+    setTimeout(() => t.style.opacity = '0', 3000);
+  }
+
+  // Reset PIN buttons (works for both society and admin)
+  document.addEventListener('click', async function(e) {
+    const btn = e.target.closest('.reset-pin-btn');
+    if (!btn) return;
+    const flat = btn.dataset.flat;
+    if (!confirm(`Reset portal PIN for flat ${flat} to default (${flat.replace('-','')})?`)) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const res  = await fetch('/society/reset-member-pin', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({flat_combo: flat})
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✓ PIN for ${flat} reset to ${data.default_pin}`);
+        btn.textContent = 'Reset PIN'; btn.disabled = false;
+      } else {
+        showToast('❌ ' + (data.error || 'Reset failed'), false);
+        btn.textContent = 'Reset PIN'; btn.disabled = false;
+      }
+    } catch(err) {
+      showToast('❌ Network error', false);
+      btn.textContent = 'Reset PIN'; btn.disabled = false;
+    }
+  });
 </script>
 {% endblock %}

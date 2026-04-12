@@ -25,7 +25,8 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       get_member_notices, get_member_announcements,
                       create_announcement, delete_announcement,
                       check_password, hash_password,
-                      get_society_pin_format)
+                      get_society_pin_format,
+                      upsert_knowledge, get_knowledge, get_member_outstanding)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -1727,7 +1728,23 @@ def portal_login():
                                         _pin_hash(def_pin), must_change=True)
                     ml = get_member_login(society["id"], flat_combo)
 
-                if ml["pin_hash"] != _pin_hash(pin):
+                entered_hash = _pin_hash(pin)
+                # Backward-compat: members whose record was seeded with flat_combo
+                # (old code) can still log in — we upgrade their hash on the fly.
+                old_hash = _pin_hash(flat_combo)  # e.g. hash("B01-310")
+                if ml["pin_hash"] == old_hash and entered_hash != old_hash:
+                    # User typed new-style PIN (B01310) but record has old-style hash
+                    # — check new-style and silently upgrade
+                    pin_fmt = society.get("default_pin_format") or "no_hyphen"
+                    new_default = _default_pin(flat_combo, pin_fmt)
+                    if _pin_hash(pin) == _pin_hash(new_default):
+                        # Upgrade stored hash to new default
+                        upsert_member_login(society["id"], flat_combo,
+                                            _pin_hash(new_default), must_change=True)
+                        ml = get_member_login(society["id"], flat_combo)
+                        entered_hash = _pin_hash(new_default)
+
+                if ml["pin_hash"] != entered_hash:
                     pin_fmt  = society.get("default_pin_format") or "no_hyphen"
                     eg_flat  = "B01-310"
                     eg_pin   = _default_pin(eg_flat, pin_fmt)
@@ -1799,7 +1816,7 @@ def portal_dashboard():
 @app.route("/portal/chat", methods=["POST"])
 @portal_required
 def portal_chat():
-    """AI chatbot — answers questions using the member's own data as context."""
+    """AI chatbot — answers questions using the member's own data + society KB as context."""
     try:
         user_msg = request.json.get("message","").strip()
         if not user_msg:
@@ -1814,20 +1831,56 @@ def portal_chat():
         member  = get_member_by_flat(sid, flat)
         anns    = get_member_announcements(sid)
 
-        # Build context string
+        # ── Build notice context ──────────────────────────────────────────
         notice_lines = []
+        total_pending_amount = 0
         for n in notices[:10]:
             paid_str = f", paid on {n.get('payment_date','')}" if n.get('payment_date') else ""
             notice_lines.append(
                 f"- Ref {n['ref_no']}: {n['notice_type']} notice, "
-                f"issued {n['issued_date']}, amount Rs.{n['amount']}, "
+                f"issued {n['issued_date']}, notice amount Rs.{n['amount']}, "
                 f"status: {n['payment_status']}{paid_str}"
             )
+            if n["payment_status"] == "Pending":
+                total_pending_amount += int(n.get("amount", 0))
 
         ann_lines = [f"- {a['title']}: {a['body'][:120]}" for a in anns[:5]]
 
+        # ── Load society knowledge base ────────────────────────────────────
+        kb_entries = get_knowledge(sid)
+        kb_sections = []
+        flat_outstanding_line = None
+        for kb in kb_entries:
+            if kb["kb_type"] == "outstanding":
+                # Find this flat's specific outstanding row
+                for line in kb["content"].splitlines():
+                    if flat.upper() in line.upper():
+                        flat_outstanding_line = line.strip()
+                        break
+                kb_sections.append(f"OUTSTANDING AMOUNTS (from society records):\n{kb['content'][:3000]}")
+            elif kb["kb_type"] == "rules":
+                kb_sections.append(f"SOCIETY RULES & REGULATIONS:\n{kb['content'][:3000]}")
+            else:
+                kb_sections.append(f"SOCIETY INFORMATION ({kb['kb_type'].upper()}):\n{kb['content'][:2000]}")
+
+        kb_text = "\n\n".join(kb_sections) if kb_sections else "No additional society knowledge base loaded."
+
+        outstanding_summary = (
+            f"Outstanding for Flat {flat} (from society records): {flat_outstanding_line}"
+            if flat_outstanding_line
+            else f"Outstanding notices for Flat {flat}: Rs.{total_pending_amount:,} (based on {len([n for n in notices if n['payment_status']=='Pending'])} pending notice(s))"
+        )
+
         context = f"""You are the official AI assistant for {soc} housing society.
 You are speaking with {name}, resident of Flat {flat}.
+
+STRICT RULES:
+- Answer ONLY questions related to this member's notices, outstanding dues, society rules, announcements, or general society information.
+- If a member asks something unrelated to the society (e.g. news, politics, sports, general knowledge), respond: "I'm here to assist with {soc} society matters only. For other queries, please use a general search engine."
+- NEVER say "I don't know" — if you lack the data, say "Please contact the society office for this information."
+- Use the KNOWLEDGE BASE data for outstanding amount queries, not just notice amounts.
+- For notice-related questions (ref no, due date, notice amount), refer to NOTICES section.
+- Be helpful, polite, and concise (2-4 sentences). Reply in the same language the member uses.
 
 MEMBER DATA:
 Name: {name}
@@ -1835,19 +1888,16 @@ Flat: {flat}
 Society: {soc}
 Phone: {member.get('phone','N/A') if member else 'N/A'}
 
+OUTSTANDING SUMMARY:
+{outstanding_summary}
+
 NOTICES ISSUED TO THIS MEMBER:
 {chr(10).join(notice_lines) if notice_lines else 'No notices issued yet.'}
 
 RECENT SOCIETY ANNOUNCEMENTS:
 {chr(10).join(ann_lines) if ann_lines else 'No announcements yet.'}
 
-INSTRUCTIONS:
-- Answer ONLY questions about this member's data or general society information.
-- Be helpful, polite and concise. Reply in the same language the member uses.
-- For payment queries, refer to the notice data above.
-- Do NOT make up data. If you don't know, say so.
-- Keep replies short — 2-4 sentences max unless detail is needed.
-- You can suggest they contact the society office for issues you cannot resolve."""
+{kb_text}"""
 
         reply = call_groq(context, user_msg)
         return jsonify({"reply": reply})
@@ -1909,6 +1959,118 @@ def manage_announcements():
     return render_template("announcements.html",
                            announcements=anns,
                            society_name=session.get("society_name",""))
+
+# ══════════════════════════════════════════════════════════════
+#  KNOWLEDGE BASE — society can upload outstanding Excel + rules text
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/knowledge")
+@society_required
+def knowledge_page():
+    sid = session["society_id"]
+    kb  = {r["kb_type"]: r for r in get_knowledge(sid)}
+    return render_template("knowledge.html",
+                           society_name=session["society_name"],
+                           kb=kb)
+
+
+@app.route("/knowledge/upload-outstanding", methods=["POST"])
+@society_required
+def knowledge_upload_outstanding():
+    """Parse an Excel of outstanding amounts and store as text in the KB."""
+    if "excel" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+    file = request.files["excel"]
+    try:
+        df = pd.read_excel(file)
+        df.columns = [str(c).strip() for c in df.columns]
+        lines = ["Flat | Outstanding Amount | Remark"]
+        lines.append("-" * 50)
+        for _, row in df.iterrows():
+            parts = [str(v).strip() for v in row.values if str(v).strip() and str(v).lower() != "nan"]
+            if parts:
+                lines.append(" | ".join(parts))
+        content = "\n".join(lines)
+        upsert_knowledge(session["society_id"], "outstanding", content)
+        return jsonify({"success": True, "rows": len(df)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/knowledge/save-rules", methods=["POST"])
+@society_required
+def knowledge_save_rules():
+    """Save society rules/regulations text to the KB."""
+    content = request.json.get("content", "").strip()
+    if not content:
+        return jsonify({"success": False, "error": "Content cannot be empty"}), 400
+    upsert_knowledge(session["society_id"], "rules", content)
+    return jsonify({"success": True})
+
+
+@app.route("/knowledge/save-general", methods=["POST"])
+@society_required
+def knowledge_save_general():
+    """Save any general society info text to the KB."""
+    content = request.json.get("content", "").strip()
+    if not content:
+        return jsonify({"success": False, "error": "Content cannot be empty"}), 400
+    upsert_knowledge(session["society_id"], "general", content)
+    return jsonify({"success": True})
+
+
+# ══════════════════════════════════════════════════════════════
+#  MEMBER PORTAL — Change PIN
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/portal/change-pin", methods=["GET", "POST"])
+@portal_required
+def portal_change_pin():
+    error = ""; success = ""
+    if request.method == "POST":
+        current_pin = request.form.get("current_pin", "").strip()
+        new_pin     = request.form.get("new_pin", "").strip()
+        confirm_pin = request.form.get("confirm_pin", "").strip()
+        sid  = session["member_society_id"]
+        flat = session["member_flat"]
+        ml   = get_member_login(sid, flat)
+        if not ml or ml["pin_hash"] != _pin_hash(current_pin):
+            error = "Current PIN is incorrect."
+        elif len(new_pin) < 4:
+            error = "New PIN must be at least 4 characters."
+        elif new_pin != confirm_pin:
+            error = "New PINs do not match."
+        else:
+            flat_up      = flat.upper()
+            blocked_pins = {flat_up, flat_up.replace('-', '')}
+            if new_pin.upper() in blocked_pins:
+                error = "PIN cannot be the same as your flat number."
+            else:
+                update_member_pin(sid, flat, _pin_hash(new_pin))
+                success = "PIN changed successfully!"
+    return render_template("portal_change_pin.html",
+                           society_name=session["member_society"],
+                           member_name=session["member_name"],
+                           flat=session["member_flat"],
+                           error=error, success=success)
+
+
+# ══════════════════════════════════════════════════════════════
+#  SOCIETY (Committee) — Reset member PIN
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/society/reset-member-pin", methods=["POST"])
+@society_required
+def society_reset_member_pin():
+    """Allows committee (society login) to reset any member's PIN to the default."""
+    flat = request.json.get("flat_combo", "").strip().upper()
+    if not flat:
+        return jsonify({"success": False, "error": "Flat number required"}), 400
+    sid         = session["society_id"]
+    pin_fmt     = get_society_pin_format(sid)
+    default_pin = _default_pin(flat, pin_fmt)
+    reset_member_pin(sid, flat, default_pin)
+    return jsonify({"success": True, "default_pin": default_pin, "flat": flat})
 
 if __name__ == "__main__":
     lo = get_libreoffice_path()
