@@ -147,13 +147,13 @@
   let deleteId = null;
   function confirmDelete(id, name) {
     deleteId = id;
-    document.getElementById('modalText').innerHTML = `Delete batch <strong>₹{name}</strong>?<br>All member records will be permanently removed.`;
+    document.getElementById('modalText').innerHTML = `Delete batch <strong>${name}</strong>?<br>All member records will be permanently removed.`;
     document.getElementById('modalOverlay').classList.add('show');
   }
   function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); deleteId = null; }
   async function deleteBatch() {
     if (!deleteId) return;
-    await fetch(`/tracker/delete_batch/₹{deleteId}`, { method: 'POST' });
+    await fetch(`/tracker/delete_batch/${deleteId}`, { method: 'POST' });
     closeModal(); location.reload();
   }
   document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });

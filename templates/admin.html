@@ -232,6 +232,38 @@
       document.getElementById('resetPwModal').classList.add('show');
     }
   }
+
+  async function setPortalCode(id) {
+    const inp = document.getElementById('pc-' + id);
+    if (!inp) { alert('Input not found'); return; }
+    const val = inp.value.trim().toUpperCase();
+    if (!val) { alert('Please enter a portal code first.'); return; }
+    if (!/^[A-Z0-9]+$/.test(val)) { alert('Use only letters and numbers, no spaces.'); return; }
+    try {
+      const res  = await fetch('/admin/set-portal-code/' + id, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code: val})
+      });
+      const data = await res.json();
+      if (data.success) { location.reload(); }
+      else { alert('Error: ' + data.error); }
+    } catch(e) { alert('Network error: ' + e.message); }
+  }
+
+  async function resetMemberPin(societyId, flat) {
+    if (!confirm('Reset PIN for flat ' + flat + ' back to their flat number?')) return;
+    try {
+      const res  = await fetch('/admin/reset-member-pin/' + societyId, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({flat_combo: flat})
+      });
+      const data = await res.json();
+      if (data.success) alert('PIN reset successfully. Member can now login with flat number as PIN.');
+      else alert('Error: ' + data.error);
+    } catch(e) { alert('Network error: ' + e.message); }
+  }
 </script>
 
 <!-- Reset Password Result Modal -->
