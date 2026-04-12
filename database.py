@@ -1,15 +1,42 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.pool import ThreadedConnectionPool
+import bcrypt
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_7nHiMWjXbue3@ep-quiet-term-a18iejjt-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-)
+# ── Fix 1: No hardcoded fallback — fail fast if not configured ─────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set. "
+        "Add it in your Render → Environment settings."
+    )
+
+# ── Fix 5: Connection pool (1–10 connections reused across requests) ───────────
+_pool = ThreadedConnectionPool(1, 10, DATABASE_URL, cursor_factory=RealDictCursor)
+
+class _PooledConn:
+    """Thin wrapper so existing conn.close() calls return the conn to the pool."""
+    def __init__(self, conn):
+        self._conn = conn
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+    def close(self):
+        _pool.putconn(self._conn)
 
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-    return conn
+    return _PooledConn(_pool.getconn())
+
+# ── Fix 2: Password hashing helpers ───────────────────────────────────────────
+def hash_password(plain: str) -> str:
+    """Return a bcrypt hash of the plain-text password."""
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+def check_password(plain: str, stored: str) -> bool:
+    """Verify a password. Handles bcrypt hashes AND legacy plain-text (for migration)."""
+    if stored.startswith("$2b$") or stored.startswith("$2a$"):
+        return bcrypt.checkpw(plain.encode(), stored.encode())
+    return plain == stored  # legacy plain-text — will be re-hashed on next login
 
 def init_db():
     conn = get_db()
@@ -104,13 +131,13 @@ def get_all_societies():
     cur.close(); conn.close()
     return [dict(r) for r in rows]
 
-def create_society(name, address, username, password, regd_no):
+def create_society(name, address, username, password, regd_no, default_pin_format='no_hyphen'):
     conn = get_db()
     cur  = conn.cursor()
     cur.execute("""
-        INSERT INTO societies (name, address, username, password, regd_no)
-        VALUES (%s, %s, %s, %s, %s) RETURNING id
-    """, (name, address, username, password, regd_no))
+        INSERT INTO societies (name, address, username, password, regd_no, default_pin_format)
+        VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+    """, (name, address, username, hash_password(password), regd_no, default_pin_format or 'no_hyphen'))
     sid = cur.fetchone()['id']
     conn.commit(); cur.close(); conn.close()
     return sid
@@ -263,7 +290,7 @@ def delete_all_members(society_id):
 # ── Password management ───────────────────────────────────────
 def change_society_password(society_id, new_password):
     conn = get_db(); cur = conn.cursor()
-    cur.execute("UPDATE societies SET password=%s WHERE id=%s", (new_password, society_id))
+    cur.execute("UPDATE societies SET password=%s WHERE id=%s", (hash_password(new_password), society_id))
     conn.commit(); cur.close(); conn.close()
 
 def change_admin_password(username, new_password):
@@ -273,7 +300,7 @@ def change_admin_password(username, new_password):
 
 def reset_society_password(society_id, new_password):
     conn = get_db(); cur = conn.cursor()
-    cur.execute("UPDATE societies SET password=%s WHERE id=%s", (new_password, society_id))
+    cur.execute("UPDATE societies SET password=%s WHERE id=%s", (hash_password(new_password), society_id))
     conn.commit(); cur.close(); conn.close()
 
 # ── Notice-type filtered stats ────────────────────────────────
@@ -451,6 +478,11 @@ def init_member_portal_table():
         ALTER TABLE societies
         ADD COLUMN IF NOT EXISTS portal_code TEXT UNIQUE;
     """)
+    # default_pin_format: 'no_hyphen' → B01310  |  'flat_combo' → B01-310
+    cur.execute("""
+        ALTER TABLE societies
+        ADD COLUMN IF NOT EXISTS default_pin_format TEXT DEFAULT 'no_hyphen';
+    """)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS member_logins (
             id           SERIAL PRIMARY KEY,
@@ -511,10 +543,18 @@ def touch_member_login(society_id, flat_combo):
                 (society_id, flat_combo))
     conn.commit(); cur.close(); conn.close()
 
-def reset_member_pin(society_id, flat_combo):
-    """Reset PIN back to flat_combo (default)."""
+def get_society_pin_format(society_id):
+    """Return the society's default_pin_format ('no_hyphen' or 'flat_combo')."""
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT default_pin_format FROM societies WHERE id=%s", (society_id,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return (row['default_pin_format'] if row else None) or 'no_hyphen'
+
+def reset_member_pin(society_id, flat_combo, default_pin=None):
+    """Reset a member's PIN to default. default_pin is the plain-text PIN computed by the caller."""
     import hashlib
-    pin_hash = hashlib.sha256(flat_combo.upper().encode()).hexdigest()
+    pin = (default_pin or flat_combo).upper()
+    pin_hash = hashlib.sha256(pin.encode()).hexdigest()
     upsert_member_login(society_id, flat_combo, pin_hash, must_change=True)
 
 def get_member_notices(society_id, flat_combo):

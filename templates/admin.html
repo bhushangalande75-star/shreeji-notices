@@ -100,6 +100,22 @@
           <input class="form-input" type="text" name="password" placeholder="Set a strong password" required/>
         </div>
         <div class="form-group full">
+          <label class="form-label">Default Member PIN Format
+            <span style="font-weight:400;color:var(--muted);text-transform:none;font-size:11px;margin-left:6px;">used on first portal login</span>
+          </label>
+          <select class="form-input" name="default_pin_format" style="cursor:pointer;">
+            <option value="no_hyphen" selected>Without hyphen — B01310 &nbsp;(recommended for B01-NNN style flats)</option>
+            <option value="flat_combo">As flat number — B01-310</option>
+          </select>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;">
+            Example: flat <strong>B01-310</strong> → default PIN is
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">B01310</code>
+            (without hyphen) or
+            <code style="background:rgba(192,0,0,0.08);color:var(--red);border-radius:3px;padding:1px 5px;">B01-310</code>
+            (as-is). Members must change this on first login.
+          </div>
+        </div>
+        <div class="form-group full">
           <label class="form-label">
             Member Directory Excel
             <span style="font-weight:400;color:var(--muted);text-transform:none;font-size:11px;margin-left:6px;">optional — can upload later</span>

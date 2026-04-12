@@ -23,12 +23,21 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       get_member_login, upsert_member_login, update_member_pin,
                       touch_member_login, reset_member_pin,
                       get_member_notices, get_member_announcements,
-                      create_announcement, delete_announcement)
+                      create_announcement, delete_announcement,
+                      check_password, hash_password,
+                      get_society_pin_format)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "shreeji-iconic-chs-2026")
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\" "
+        "and add it to your Render → Environment settings."
+    )
+app.secret_key = _secret
 
 # ── Session timeout: 10 minutes of inactivity ──────────────────────────────────
 INACTIVITY_TIMEOUT = timedelta(minutes=10)
@@ -125,7 +134,11 @@ def login():
 
         # Society login
         society = get_society_by_username(username)
-        if society and society["password"] == password:
+        if society and check_password(password, society["password"]):
+            # Auto-upgrade legacy plain-text passwords to bcrypt on first successful login
+            stored = society["password"]
+            if not (stored.startswith("$2b$") or stored.startswith("$2a$")):
+                change_society_password(society["id"], password)
             session["society_id"]   = society["id"]
             session["society_name"] = society["name"]
             session["is_admin"]     = False
@@ -165,7 +178,8 @@ def admin_create_society():
         request.form.get("address"),
         request.form.get("username"),
         request.form.get("password"),
-        request.form.get("regd_no")
+        request.form.get("regd_no"),
+        request.form.get("default_pin_format", "no_hyphen"),
     )
     # Optionally process member Excel if uploaded with the form
     member_file = request.files.get("member_excel")
@@ -835,13 +849,17 @@ def ai_generate_committee():
 @app.route("/ai-notices/download/<sess_id>/<filename>")
 @login_required
 def ai_download(sess_id, filename):
+    # Fix 4: sanitize filename — strips any path components (e.g. ../../etc/passwd)
+    safe_filename = os.path.basename(filename)
     sess_dir = os.path.join(TEMP_DIR, sess_id)
-    path = os.path.join(sess_dir, filename)
+    path = os.path.join(sess_dir, safe_filename)
     if not os.path.exists(path):
         return "File not found", 404
-    response = make_response(open(path, "rb").read())
+    with open(path, "rb") as f:
+        data = f.read()
+    response = make_response(data)
     response.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-Disposition"] = f"attachment; filename={safe_filename}"
     return response
 
 
@@ -1247,7 +1265,7 @@ def change_password():
                 conn = get_db(); cur = conn.cursor()
                 cur.execute("SELECT password FROM societies WHERE id=%s", (sid,))
                 row = cur.fetchone(); cur.close(); conn.close()
-                if not row or row["password"] != current:
+                if not row or not check_password(current, row["password"]):
                     error = "Current password is incorrect."
                 else:
                     change_society_password(sid, new_pw)
@@ -1660,6 +1678,15 @@ import hashlib as _hl
 
 def _pin_hash(pin): return _hl.sha256(pin.upper().encode()).hexdigest()
 
+def _default_pin(flat_combo: str, pin_format: str = 'no_hyphen') -> str:
+    """Return the plain-text default PIN for a flat based on the society's format setting.
+    'no_hyphen' → B01-310 becomes B01310  (recommended for Bxx-NNN style flats)
+    'flat_combo' → B01-310 stays  B01-310
+    """
+    if pin_format == 'no_hyphen':
+        return flat_combo.replace('-', '').upper()
+    return flat_combo.upper()
+
 def portal_required(f):
     from functools import wraps
     @wraps(f)
@@ -1693,13 +1720,18 @@ def portal_login():
             else:
                 ml = get_member_login(society["id"], flat_combo)
                 if not ml:
-                    # First ever login — create record with default PIN = flat_combo
+                    # First ever login — set default PIN based on society's configured format
+                    pin_fmt    = society.get("default_pin_format") or "no_hyphen"
+                    def_pin    = _default_pin(flat_combo, pin_fmt)
                     upsert_member_login(society["id"], flat_combo,
-                                        _pin_hash(flat_combo), must_change=True)
+                                        _pin_hash(def_pin), must_change=True)
                     ml = get_member_login(society["id"], flat_combo)
 
                 if ml["pin_hash"] != _pin_hash(pin):
-                    error = "Incorrect PIN. Default PIN is your flat number (e.g. B204)."
+                    pin_fmt  = society.get("default_pin_format") or "no_hyphen"
+                    eg_flat  = "B01-310"
+                    eg_pin   = _default_pin(eg_flat, pin_fmt)
+                    error = f"Incorrect PIN. Your default PIN is your flat number without hyphen (e.g. {eg_pin} for flat {eg_flat})."
                 else:
                     session["member_flat"]     = flat_combo
                     session["member_name"]     = member["name"]
@@ -1733,12 +1765,15 @@ def portal_set_pin():
             error = "PIN must be at least 4 characters."
         elif new_pin != confirm:
             error = "PINs do not match."
-        elif new_pin.upper() == session["member_flat"].upper():
-            error = "PIN cannot be the same as your flat number."
         else:
-            update_member_pin(session["member_society_id"],
-                              session["member_flat"], _pin_hash(new_pin))
-            return redirect(url_for("portal_dashboard"))
+            flat_up      = session["member_flat"].upper()
+            blocked_pins = {flat_up, flat_up.replace('-', '')}  # block both B01-310 and B01310
+            if new_pin.upper() in blocked_pins:
+                error = "PIN cannot be the same as your default flat number."
+            else:
+                update_member_pin(session["member_society_id"],
+                                  session["member_flat"], _pin_hash(new_pin))
+                return redirect(url_for("portal_dashboard"))
     return render_template("portal_set_pin.html", error=error,
                            society_name=session["member_society"],
                            member_name=session["member_name"])
@@ -1841,8 +1876,10 @@ def admin_reset_member_pin(society_id):
     flat = request.json.get("flat_combo","").strip().upper()
     if not flat:
         return jsonify({"success": False, "error": "Flat number required"}), 400
-    reset_member_pin(society_id, flat)
-    return jsonify({"success": True})
+    pin_fmt     = get_society_pin_format(society_id)
+    default_pin = _default_pin(flat, pin_fmt)
+    reset_member_pin(society_id, flat, default_pin)
+    return jsonify({"success": True, "default_pin": default_pin})
 
 
 @app.route("/portal/announcements/create", methods=["POST"])
