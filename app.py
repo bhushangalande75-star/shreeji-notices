@@ -975,25 +975,46 @@ def _process_member_excel(file_obj, society_id):
     members = []
     for _, row in df.iterrows():
         name  = str(row.get(name_col, "")).strip()
-        phone = str(row.get(phone_col, "")).strip().replace(" ", "").replace("-", "")
-        if not name or not phone or name.lower() == "nan":
+        # Clean phone — remove spaces and dots but NOT hyphens (needed for flat combos)
+        phone_raw = str(row.get(phone_col, "")).strip()
+        phone = phone_raw.replace(" ", "").replace(".", "").replace("+", "")
+        # Remove leading country code if 12 digits starting with 91
+        if len(phone) == 12 and phone.startswith("91"):
+            phone = phone[2:]
+        if not name or not phone or name.lower() == "nan" or phone.lower() == "nan":
             continue
         building = str(row.get(building_col, "")).strip() if building_col else ""
         flat     = str(row.get(flat_col,     "")).strip() if flat_col     else ""
         email    = str(row.get(email_col,    "")).strip() if email_col    else ""
-        email    = "" if email.lower() == "nan" else email
+        email    = "" if email.lower() in ("nan", "") else email
+
+        # Build flat_combo: prefer explicit combo col, else B01-310 style
         if combo_col:
             combo = str(row.get(combo_col, "")).strip()
         elif building and flat:
+            # e.g. building=B01, flat=310  →  B01-310
             combo = f"{building}-{flat}"
+        elif flat:
+            # flat already contains full combo like B01-310 or B01001
+            combo = flat
         else:
-            combo = flat or building
-        if not combo:
+            combo = building
+
+        # Normalise: strip whitespace, uppercase
+        combo = combo.strip().upper()
+        if not combo or combo == "NAN":
             continue
+
+        # If building not set but combo looks like B01-310, extract building from combo
+        if not building and "-" in combo:
+            parts = combo.split("-", 1)
+            building = parts[0]
+            flat     = parts[1] if not flat else flat
+
         members.append({
-            "building_no": building,
-            "flat_no"    : flat,
-            "flat_combo" : combo.upper(),
+            "building_no": building.upper() if building else "",
+            "flat_no"    : flat.upper() if flat else combo,
+            "flat_combo" : combo,
             "name"       : name,
             "phone"      : phone,
             "email"      : email,
@@ -1018,21 +1039,26 @@ def members_directory():
 
 
 @app.route("/members/upload", methods=["POST"])
-@admin_required
+@login_required
 def members_upload():
-    """Upload an Excel file with member directory. Upserts on flat_combo."""
+    """Upload an Excel file with member directory. Works for both society users and admin."""
     if "excel" not in request.files:
         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
-    file       = request.files["excel"]
-    # Admin uploads on behalf of a society — society_id comes from request
-    society_id = request.form.get("society_id") or request.args.get("society_id")
-    if not society_id:
-        return jsonify({"success": False, "error": "society_id required"}), 400
-    try:
-        society_id = int(society_id)
-    except (ValueError, TypeError):
-        return jsonify({"success": False, "error": "Invalid society_id"}), 400
+    file = request.files["excel"]
+
+    # Society user: use their own society_id from session
+    # Admin: society_id must be passed in form
+    if session.get("society_id"):
+        society_id = session["society_id"]
+    else:
+        sid = request.form.get("society_id") or request.args.get("society_id")
+        if not sid:
+            return jsonify({"success": False, "error": "society_id required for admin upload"}), 400
+        try:
+            society_id = int(sid)
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "error": "Invalid society_id"}), 400
 
     try:
         count = _process_member_excel(file, society_id)

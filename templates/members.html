@@ -97,7 +97,7 @@
           <div style="font-weight:600;color:var(--ink2);margin-bottom:8px;">📋 Required Excel Columns</div>
           <div><code>Building No</code> — e.g. B01, B02, A</div>
           <div><code>Flat No</code> — e.g. 001, 102, 204</div>
-          <div><code>Flat Combo</code> — e.g. <strong>B01-001</strong> (must match notice flat no)</div>
+          <div><code>Flat Combo</code> — e.g. <strong>B01-310</strong>, <strong>B02-1001</strong>, <strong>B03-901</strong></div>
           <div><code>Name</code> — Member / Owner name</div>
           <div><code>Phone</code> — 10-digit mobile number</div>
           <div><code>Email</code> — optional</div>
@@ -255,9 +255,9 @@
     // Build a minimal CSV sample for download
     const csv = [
       'Building No,Flat No,Flat Combo,Name,Phone,Email',
-      'B01,001,B01-001,Rajesh Sharma,9876543210,rajesh@email.com',
-      'B01,002,B01-002,Priya Patel,9876543211,priya@email.com',
-      'B02,101,B02-101,Suresh Kumar,9876543212,',
+      'B01,310,B01-310,Rajesh Sharma,9876543210,rajesh@email.com',
+      'B02,1001,B02-1001,Priya Patel,9876543211,priya@email.com',
+      'B03,901,B03-901,Suresh Kumar,9876543212,',
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a    = document.createElement('a');
