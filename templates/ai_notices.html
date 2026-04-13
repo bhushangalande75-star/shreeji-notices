@@ -160,6 +160,10 @@
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
     Committee Notice
   </button>
+  <button class="ai-tab" id="tab-noc-btn" onclick="switchTab('noc')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+    NOC Generator
+  </button>
 </div>
 
 
@@ -521,6 +525,146 @@
 </div>
 
 
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 4: NOC GENERATOR
+═══════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-noc">
+  <div class="ai-layout">
+
+    <!-- Left: Form -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:4px;">NOC Generator</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">
+          Generate official No Objection Certificates issued by the Managing Committee
+        </div>
+
+        <!-- Language selector -->
+        <div class="form-label" style="margin-bottom:8px;">Output Language</div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+          <button class="n-chip selected" id="noc-lang-en" onclick="selectNocLang('English')">🇬🇧 English</button>
+          <button class="n-chip" id="noc-lang-mr" onclick="selectNocLang('Marathi')">🇮🇳 Marathi</button>
+          <button class="n-chip" id="noc-lang-hi" onclick="selectNocLang('Hindi')">🏛️ Hindi</button>
+        </div>
+        <input type="hidden" id="nocLangInput" value="English"/>
+
+        <!-- NOC Type chips -->
+        <div class="form-label" style="margin-bottom:10px;">NOC Type</div>
+        <div class="notice-chips" id="nocChips">
+          <button class="n-chip selected" onclick="selectNocChip(this,'sale')">🏠 Sale / Transfer of Flat</button>
+          <button class="n-chip" onclick="selectNocChip(this,'mortgage')">🏦 Mortgage / Loan</button>
+          <button class="n-chip" onclick="selectNocChip(this,'rental')">🔑 Rental / Tenancy</button>
+          <button class="n-chip" onclick="selectNocChip(this,'renovation')">🏗️ Renovation / Alteration</button>
+          <button class="n-chip" onclick="selectNocChip(this,'vehicle')">🚗 Vehicle Parking</button>
+          <button class="n-chip" onclick="selectNocChip(this,'name_change')">📝 Name Change / Mutation</button>
+          <button class="n-chip" onclick="selectNocChip(this,'legal')">⚖️ Legal / Court Purpose</button>
+          <button class="n-chip" onclick="selectNocChip(this,'gas_pipeline')">🔥 Gas Pipeline / Piped Gas</button>
+          <button class="n-chip" onclick="selectNocChip(this,'telecom')">📡 Telecom / DTH Installation</button>
+          <button class="n-chip" onclick="selectNocChip(this,'address_proof')">📬 Address Proof</button>
+          <button class="n-chip" onclick="selectNocChip(this,'inheritance')">📜 Inheritance / Succession</button>
+          <button class="n-chip" id="nocCustomChip" onclick="selectNocCustomChip(this)">✏️ Custom</button>
+        </div>
+        <input type="hidden" id="nocTypeInput" value="sale"/>
+        <div id="nocCustomTypeWrap" style="display:none;margin-top:12px;">
+          <label class="form-label">Describe the NOC Purpose</label>
+          <input class="form-input" type="text" id="nocCustomTypeInput"
+            placeholder="e.g. Solar Panel Installation, EV Charging Point..."
+            oninput="document.getElementById('nocTypeInput').value = this.value || 'custom'"
+            style="margin-top:6px;"/>
+        </div>
+
+        <div class="form-grid" style="margin-top:18px;">
+          <div class="form-group">
+            <label class="form-label">Member / Owner Name</label>
+            <input class="form-input" type="text" id="noc_name" placeholder="Full name as per records"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Flat No</label>
+            <input class="form-input" type="text" id="noc_flat" placeholder="e.g. B01-201"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">NOC Date</label>
+            <input class="form-input" type="date" id="noc_date"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ref No</label>
+            <input class="form-input" type="text" id="noc_ref" placeholder="e.g. SIC/NOC/26/01"/>
+          </div>
+          <!-- Conditional fields shown based on NOC type -->
+          <div class="form-group full" id="noc_buyer_wrap" style="display:none;">
+            <label class="form-label" id="noc_buyer_label">Buyer / Transferee Name</label>
+            <input class="form-input" type="text" id="noc_buyer" placeholder="Name of buyer/transferee"/>
+          </div>
+          <div class="form-group full" id="noc_bank_wrap" style="display:none;">
+            <label class="form-label">Bank / Financial Institution</label>
+            <input class="form-input" type="text" id="noc_bank" placeholder="e.g. SBI Home Finance, HDFC Bank Ltd."/>
+          </div>
+          <div class="form-group full" id="noc_purpose_wrap">
+            <label class="form-label">Additional Details <span style="color:var(--teal3);font-weight:400;text-transform:none;">(optional but improves quality)</span></label>
+            <textarea class="form-input" id="noc_purpose" rows="3"
+              placeholder="e.g. Sale consideration amount, loan amount, name of tenant, renovation scope..."
+              style="resize:vertical;line-height:1.6;"></textarea>
+          </div>
+        </div>
+
+        <button onclick="generateNOC()" id="genNocBtn"
+          style="width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 4px 14px var(--teal-glow);transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px;">
+          <div class="spinner" id="nocSpinner"></div>
+          <span id="nocBtnText">✨ Generate NOC with AI</span>
+        </button>
+        <div class="error-banner" id="nocError"></div>
+      </div>
+    </div>
+
+    <!-- Right: Preview -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="card-title">NOC Preview</div>
+            <span style="font-size:11px;color:var(--muted);">AI-drafted · official</span>
+          </div>
+          <div class="preview-box" id="nocPreview">
+            <div class="preview-placeholder">
+              <div style="font-size:36px;">✅</div>
+              <div style="font-size:13px;">NOC certificate will appear here</div>
+              <div style="font-size:11px;color:var(--faint);">Select type, fill details and click Generate</div>
+            </div>
+          </div>
+          <a href="#" class="dl-notice-btn" id="nocDlBtn" style="display:none;" download>
+            📥 Download NOC (.docx)
+          </a>
+          {% if not session.get('is_admin') %}
+          <button id="nocWaBtn" onclick="openWaModal('noc')"
+            style="display:none;margin-top:8px;width:100%;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;box-shadow:0 4px 14px rgba(37,211,102,0.35);align-items:center;justify-content:center;gap:8px;">
+            📲 Send via WhatsApp
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- NOC types info card -->
+      <div class="card">
+        <div class="card-body">
+          <div style="font-size:12px;font-weight:600;color:var(--teal3);margin-bottom:12px;">📋 About Society NOCs</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--ink3);line-height:1.7;">
+            <div>🏠 <strong>Sale NOC</strong> — Required by Sub-Registrar for flat registration</div>
+            <div>🏦 <strong>Mortgage NOC</strong> — Banks require before disbursing home loans</div>
+            <div>🔑 <strong>Rental NOC</strong> — Tenant permission as per bye-laws</div>
+            <div>🏗️ <strong>Renovation NOC</strong> — Before any structural or interior work</div>
+            <div>📝 <strong>Name Change NOC</strong> — After inheritance or gifting of flat</div>
+            <div style="margin-top:6px;padding:8px 12px;background:rgba(10,191,163,0.06);border-radius:8px;border:1px solid rgba(10,191,163,0.15);">
+              ℹ️ All NOCs are issued under the Maharashtra Co-operative Societies Act 1960 and Society Bye-Laws
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
 <script>
   // Set default dates
   document.getElementById('n_date').value = new Date().toISOString().split('T')[0];
@@ -751,6 +895,10 @@
     } else if (type === 'mom') {
       if (!window._waMom) { alert('Generate the MOM first.'); return; }
       sessId = window._waMom.sessId; filename = window._waMom.filename;
+    } else if (type === 'noc') {
+      if (!window._waNoc) { alert('Generate the NOC first.'); return; }
+      sessId = window._waNoc.sessId; filename = window._waNoc.filename;
+      flatNo = (document.getElementById('noc_flat')?.value || '').trim().toUpperCase();
     } else {
       if (!window._waCm) { alert('Generate the committee notice first.'); return; }
       sessId = window._waCm.sessId; filename = window._waCm.filename;
@@ -843,6 +991,115 @@
     } catch(e) {
       document.getElementById('waSendStatus').textContent = '❌ Network error';
       btn.disabled = false; btn.textContent = '📲 Confirm & Send';
+    }
+  }
+
+  // ── NOC tab setup ─────────────────────────────────────────
+  document.getElementById('noc_date').value = new Date().toISOString().split('T')[0];
+
+  // Which extra fields to show per NOC type
+  const NOC_FIELDS = {
+    sale        : { buyer: 'Buyer / Transferee Name', bank: false },
+    mortgage    : { buyer: false, bank: true  },
+    rental      : { buyer: 'Tenant / Lessee Name',   bank: false },
+    name_change : { buyer: 'New Owner Name',          bank: false },
+    inheritance : { buyer: "Legal Heir's Name",       bank: false },
+    renovation  : { buyer: false, bank: false },
+    vehicle     : { buyer: false, bank: false },
+    legal       : { buyer: false, bank: false },
+    gas_pipeline: { buyer: false, bank: false },
+    telecom     : { buyer: false, bank: false },
+    address_proof:{ buyer: false, bank: false },
+    custom      : { buyer: false, bank: false },
+  };
+
+  function selectNocChip(el, type) {
+    document.querySelectorAll('#nocChips .n-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('nocTypeInput').value = type;
+    document.getElementById('nocCustomTypeWrap').style.display = 'none';
+    document.getElementById('nocCustomTypeInput').value = '';
+    _updateNocFields(type);
+  }
+
+  function selectNocCustomChip(el) {
+    document.querySelectorAll('#nocChips .n-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('nocTypeInput').value = 'custom';
+    document.getElementById('nocCustomTypeWrap').style.display = 'block';
+    document.getElementById('nocCustomTypeInput').focus();
+    _updateNocFields('custom');
+  }
+
+  function _updateNocFields(type) {
+    const cfg = NOC_FIELDS[type] || NOC_FIELDS.custom;
+    const buyerWrap = document.getElementById('noc_buyer_wrap');
+    const bankWrap  = document.getElementById('noc_bank_wrap');
+    if (cfg.buyer) {
+      buyerWrap.style.display = 'block';
+      document.getElementById('noc_buyer_label').textContent = cfg.buyer;
+    } else {
+      buyerWrap.style.display = 'none';
+    }
+    bankWrap.style.display = cfg.bank ? 'block' : 'none';
+  }
+
+  function selectNocLang(lang) {
+    ['en','mr','hi'].forEach(l => document.getElementById('noc-lang-'+l).classList.remove('selected'));
+    const map = { English:'en', Marathi:'mr', Hindi:'hi' };
+    document.getElementById('noc-lang-' + map[lang]).classList.add('selected');
+    document.getElementById('nocLangInput').value = lang;
+  }
+
+  async function generateNOC() {
+    const btn     = document.getElementById('genNocBtn');
+    const spinner = document.getElementById('nocSpinner');
+    const btnText = document.getElementById('nocBtnText');
+    const errDiv  = document.getElementById('nocError');
+    const preview = document.getElementById('nocPreview');
+    const dlBtn   = document.getElementById('nocDlBtn');
+    const waBtn   = document.getElementById('nocWaBtn');
+
+    errDiv.style.display  = 'none';
+    spinner.style.display = 'block';
+    btnText.textContent   = 'Generating...';
+    btn.disabled          = true;
+    preview.innerHTML     = '<div class="preview-placeholder"><div style="font-size:28px;">⚡</div><div style="font-size:13px;">AI is drafting the NOC...</div></div>';
+    dlBtn.style.display   = 'none';
+    if (waBtn) waBtn.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('noc_type',    document.getElementById('nocTypeInput').value);
+    fd.append('custom_type', document.getElementById('nocCustomTypeInput').value);
+    fd.append('name',        document.getElementById('noc_name').value);
+    fd.append('flat_no',     document.getElementById('noc_flat').value);
+    fd.append('noc_date',    document.getElementById('noc_date').value);
+    fd.append('ref_no',      document.getElementById('noc_ref').value);
+    fd.append('buyer',       document.getElementById('noc_buyer').value);
+    fd.append('bank',        document.getElementById('noc_bank').value);
+    fd.append('details',     document.getElementById('noc_purpose').value);
+    fd.append('language',    document.getElementById('nocLangInput').value);
+
+    try {
+      const res  = await fetch('/ai-notices/generate-noc', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        preview.textContent = data.preview;
+        dlBtn.href          = `/ai-notices/download/${data.sess_id}/${data.filename}`;
+        dlBtn.style.display = 'block';
+        window._waNoc = { sessId: data.sess_id, filename: data.filename };
+        if (waBtn) { waBtn.style.display = 'flex'; }
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch(e) {
+      errDiv.textContent    = '❌ ' + e.message;
+      errDiv.style.display  = 'block';
+      preview.innerHTML     = '<div class="preview-placeholder"><div style="font-size:28px;">❌</div><div>Generation failed</div></div>';
+    } finally {
+      spinner.style.display = 'none';
+      btnText.textContent   = '✨ Generate NOC with AI';
+      btn.disabled          = false;
     }
   }
 

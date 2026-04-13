@@ -363,6 +363,9 @@
     <a class="nav-item {% if request.endpoint == 'knowledge_page' %}active{% endif %}" href="/knowledge">
       <span class="nav-icon">🧠</span> AI Knowledge Base
     </a>
+    <a class="nav-item {% if request.endpoint in ['society_tickets','society_update_ticket'] %}active{% endif %}" href="/tickets">
+      <span class="nav-icon">🎟️</span> Member Tickets
+    </a>
     <a class="nav-item {% if request.endpoint == 'manage_announcements' %}active{% endif %}" href="/portal/announcements">
       <span class="nav-icon">📢</span> Announcements
     </a>

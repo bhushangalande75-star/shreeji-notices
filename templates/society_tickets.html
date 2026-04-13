@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Member Tickets — SocietyNotice Pro{% endblock %}
+{% block page_title %}Member Tickets{% endblock %}
+{% block page_sub %}View and respond to complaints raised by members{% endblock %}
+
+{% block extra_head %}
+<style>
+  .filter-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .ftab{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:600;color:var(--ink3);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .ftab:hover{border-color:var(--teal);color:var(--teal)}
+  .ftab.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  .ftab .cnt{background:rgba(255,255,255,0.3);padding:1px 6px;border-radius:10px;font-size:10px}
+  .ftab:not(.on) .cnt{background:rgba(192,0,0,0.1);color:var(--red)}
+  .tkt-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:12px}
+  .tkt-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+  .tkt-subj{font-size:14px;font-weight:700;color:var(--ink)}
+  .tkt-flat{font-size:12px;color:var(--muted);margin-top:1px;font-family:monospace}
+  .tkt-id{font-size:11px;color:var(--muted)}
+  .tkt-status{padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600;white-space:nowrap}
+  .s-open{background:#FEE2E2;color:#991B1B}
+  .s-prog{background:#FEF3C7;color:#92400E}
+  .s-done{background:#D1FAE5;color:#065F46}
+  .tkt-desc{font-size:12px;color:var(--ink3);line-height:1.65;margin-bottom:10px}
+  .tkt-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:12px}
+  .meta-pill{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 9px;font-size:10px;font-weight:600;color:var(--ink3)}
+  .respond-area{border-top:1px solid var(--border);padding-top:14px;display:flex;gap:10px;align-items:flex-end}
+  .respond-area select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--ink2);font-size:12px;font-family:var(--font);outline:none}
+  .respond-area select:focus{border-color:var(--teal)}
+  .note-inp{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--ink2);font-size:12px;font-family:var(--font);outline:none}
+  .note-inp:focus{border-color:var(--teal)}
+  .btn-update{padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;white-space:nowrap}
+  .btn-update:hover{background:var(--teal2)}
+  .tkt-committee-note{background:rgba(10,191,163,0.07);border:1px solid rgba(10,191,163,0.2);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--ink2);margin-bottom:12px;line-height:1.6}
+  .tkt-committee-note-lbl{font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .saved-toast{position:fixed;bottom:20px;right:20px;background:var(--teal);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="filter-tabs">
+  <a href="/tickets" class="ftab {% if not selected_status %}on{% endif %}">All <span class="cnt">{{ counts.all }}</span></a>
+  <a href="/tickets?status=Open" class="ftab {% if selected_status=='Open' %}on{% endif %}">Open <span class="cnt">{{ counts.open }}</span></a>
+  <a href="/tickets?status=In Progress" class="ftab {% if selected_status=='In Progress' %}on{% endif %}">In Progress <span class="cnt">{{ counts.inprogress }}</span></a>
+  <a href="/tickets?status=Resolved" class="ftab {% if selected_status=='Resolved' %}on{% endif %}">Resolved <span class="cnt">{{ counts.resolved }}</span></a>
+</div>
+
+{% if tickets %}
+  {% for t in tickets %}
+  <div class="tkt-card" id="tkt-{{ t.id }}">
+    <div class="tkt-top">
+      <div>
+        <div class="tkt-subj">{{ t.subject }}</div>
+        <div class="tkt-flat">{{ t.flat_combo }} · {{ t.member_name }}</div>
+        <div class="tkt-id">#{{ t.id }} · {{ t.created_at.strftime('%d %b %Y, %I:%M %p') if t.created_at else '' }}</div>
+      </div>
+      <span class="tkt-status {{ 's-open' if t.status=='Open' else 's-prog' if t.status=='In Progress' else 's-done' }}" id="status-badge-{{ t.id }}">{{ t.status }}</span>
+    </div>
+    <div class="tkt-desc">{{ t.description }}</div>
+    <div class="tkt-meta">
+      <span class="meta-pill">{{ t.category }}</span>
+      <span class="meta-pill" style="{% if t.priority=='Urgent' %}background:#FEE2E2;color:#991B1B;{% elif t.priority=='Low' %}background:#D1FAE5;color:#065F46;{% endif %}">{{ t.priority }}</span>
+      <span>Raised: {{ t.created_at.strftime('%d %b %Y') if t.created_at else '—' }}</span>
+      {% if t.updated_at %}<span>· Updated: {{ t.updated_at.strftime('%d %b %Y') }}</span>{% endif %}
+    </div>
+
+    {% if t.committee_note %}
+    <div class="tkt-committee-note">
+      <div class="tkt-committee-note-lbl">Your Response</div>
+      <span id="note-display-{{ t.id }}">{{ t.committee_note }}</span>
+    </div>
+    {% endif %}
+
+    <div class="respond-area">
+      <select id="sel-{{ t.id }}">
+        <option {% if t.status=='Open' %}selected{% endif %}>Open</option>
+        <option {% if t.status=='In Progress' %}selected{% endif %}>In Progress</option>
+        <option {% if t.status=='Resolved' %}selected{% endif %}>Resolved</option>
+      </select>
+      <input class="note-inp" id="note-{{ t.id }}" placeholder="Add committee note / response for the member..." value="{{ t.committee_note or '' }}"/>
+      <button class="btn-update" onclick="updateTicket({{ t.id }})">Update</button>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <p style="font-size:48px;margin-bottom:12px;">🎟️</p>
+    <p style="font-size:16px;font-weight:700;color:var(--ink2);margin-bottom:6px;">No tickets found</p>
+    <p>No {{ selected_status or '' }} tickets at the moment.</p>
+  </div>
+{% endif %}
+
+<div class="saved-toast" id="savedToast">✓ Ticket updated</div>
+
+<script>
+async function updateTicket(id) {
+  const status = document.getElementById('sel-'+id).value;
+  const note   = document.getElementById('note-'+id).value.trim();
+  const res    = await fetch('/tickets/update/'+id, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status, committee_note: note})
+  });
+  const data = await res.json();
+  if (data.success) {
+    const badge = document.getElementById('status-badge-'+id);
+    badge.textContent = status;
+    badge.className   = 'tkt-status ' + (status==='Open'?'s-open':status==='In Progress'?'s-prog':'s-done');
+    const toast = document.getElementById('savedToast');
+    toast.style.opacity='1'; setTimeout(()=>toast.style.opacity='0', 2500);
+  }
+}
+</script>
+{% endblock %}

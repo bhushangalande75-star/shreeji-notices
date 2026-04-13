@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Tickets — Member Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--teal:#0ABFA3;--teal2:#08A891;--teal-glow:rgba(10,191,163,0.3);--bg:#C8F0EA;--surface:#FFFFFF;--surface2:#F4FDFB;--border:#C2EDE6;--border2:#D4F2EE;--ink:#063D36;--ink2:#0A4F48;--ink3:#4A8A84;--muted:#7ABFB8;--font:'Plus Jakarta Sans',sans-serif}
+    body{font-family:var(--font);background:var(--bg);min-height:100vh;color:var(--ink)}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 5% 20%,rgba(10,191,163,0.15) 0%,transparent 50%);pointer-events:none;z-index:0}
+    .nav{background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100}
+    .nav-logo{display:flex;align-items:center;gap:9px}
+    .nav-gem{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--teal),var(--teal2));display:flex;align-items:center;justify-content:center}
+    .nav-brand{font-size:13px;font-weight:700;color:var(--ink)}
+    .nav-right{display:flex;align-items:center;gap:7px}
+    .btn-nav{padding:6px 11px;background:transparent;border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--ink3);cursor:pointer;font-family:var(--font);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+    .btn-nav:hover{border-color:var(--teal);color:var(--teal)}
+    .btn-logout{padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--ink3);cursor:pointer;font-family:var(--font);font-weight:500}
+    .btn-logout:hover{border-color:#EF4444;color:#DC2626}
+    .wrap{max-width:820px;margin:0 auto;padding:28px 20px;position:relative;z-index:1}
+    .page-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+    .page-title{font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-.4px}
+    .page-sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .btn-raise{padding:9px 18px;background:var(--teal);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;box-shadow:0 3px 12px var(--teal-glow)}
+    .btn-raise:hover{background:var(--teal2)}
+    .tkt-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:12px;box-shadow:0 2px 10px rgba(10,191,163,0.05)}
+    .tkt-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+    .tkt-subj{font-size:14px;font-weight:700;color:var(--ink)}
+    .tkt-id{font-size:11px;color:var(--muted);font-family:monospace}
+    .tkt-status{padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600;white-space:nowrap}
+    .s-open{background:#FEE2E2;color:#991B1B}
+    .s-prog{background:#FEF3C7;color:#92400E}
+    .s-done{background:#D1FAE5;color:#065F46}
+    .tkt-desc{font-size:12px;color:var(--ink3);line-height:1.65;margin-bottom:10px}
+    .tkt-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+    .meta-pill{background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:2px 9px;font-size:10px;font-weight:600;color:var(--ink3)}
+    .tkt-note{background:rgba(10,191,163,0.07);border:1px solid rgba(10,191,163,0.2);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--ink2);margin-top:10px;line-height:1.6}
+    .tkt-note-lbl{font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+    .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+    .empty-icon{font-size:48px;margin-bottom:16px}
+    .empty-state h3{font-size:16px;font-weight:700;color:var(--ink2);margin-bottom:6px}
+    /* Modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;display:none;align-items:center;justify-content:center}
+    .modal-bg.open{display:flex}
+    .modal{background:#fff;border-radius:18px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+    .modal h3{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px}
+    .modal .sub{font-size:12px;color:var(--muted);margin-bottom:20px}
+    .fgrp{margin-bottom:14px}
+    .fgrp label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+    .fgrp select,.fgrp input,.fgrp textarea{width:100%;padding:10px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--ink2);font-size:13px;font-family:var(--font);outline:none}
+    .fgrp select:focus,.fgrp input:focus,.fgrp textarea:focus{border-color:var(--teal)}
+    .fgrp textarea{resize:vertical;min-height:90px}
+    .modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+    .btn-cancel{padding:9px 18px;background:transparent;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--ink3);cursor:pointer;font-family:var(--font)}
+    .btn-submit{padding:9px 22px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer}
+    .priority-row{display:flex;gap:8px}
+    .prio-opt{flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;font-size:11px;font-weight:600;color:var(--ink3)}
+    .prio-opt.sel-low{border-color:#10B981;background:#D1FAE5;color:#065F46}
+    .prio-opt.sel-normal{border-color:#F59E0B;background:#FEF3C7;color:#92400E}
+    .prio-opt.sel-urgent{border-color:#EF4444;background:#FEE2E2;color:#991B1B}
+  </style>
+</head>
+<body>
+<div class="nav">
+  <div class="nav-logo">
+    <div class="nav-gem"><svg viewBox="0 0 20 20" fill="none" width="16" height="16"><polygon points="10,2 17,6 17,14 10,18 3,14 3,6" stroke="white" stroke-width="1.5"/><circle cx="10" cy="10" r="2" fill="white" opacity=".9"/></svg></div>
+    <div><div class="nav-brand">{{ society_name[:22] }}</div></div>
+  </div>
+  <div class="nav-right">
+    <a href="/portal/dashboard" class="btn-nav">← Dashboard</a>
+    <button class="btn-logout" onclick="window.location='/portal/logout'">Sign Out</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="page-hd">
+    <div>
+      <div class="page-title">My Tickets</div>
+      <div class="page-sub">Flat {{ flat }} · {{ member_name }} · {{ tickets|length }} total</div>
+    </div>
+    <button class="btn-raise" onclick="document.getElementById('ticketModal').classList.add('open')">+ Raise New Ticket</button>
+  </div>
+
+  {% if tickets %}
+    {% for t in tickets %}
+    <div class="tkt-card">
+      <div class="tkt-top">
+        <div>
+          <div class="tkt-subj">{{ t.subject }}</div>
+          <div class="tkt-id">#{{ t.id }} · {{ t.created_at.strftime('%d %b %Y, %I:%M %p') if t.created_at else '' }}</div>
+        </div>
+        <span class="tkt-status {{ 's-open' if t.status=='Open' else 's-prog' if t.status=='In Progress' else 's-done' }}">{{ t.status }}</span>
+      </div>
+      <div class="tkt-desc">{{ t.description }}</div>
+      <div class="tkt-meta">
+        <span class="meta-pill">{{ t.category }}</span>
+        <span class="meta-pill" style="{% if t.priority=='Urgent' %}background:#FEE2E2;color:#991B1B;border-color:#FECACA;{% elif t.priority=='Low' %}background:#D1FAE5;color:#065F46;border-color:#A7F3D0;{% endif %}">{{ t.priority }}</span>
+        <span>Updated: {{ t.updated_at.strftime('%d %b %Y') if t.updated_at else '—' }}</span>
+        {% if t.status=='Resolved' and t.resolved_at %}<span>· Resolved: {{ t.resolved_at.strftime('%d %b %Y') }}</span>{% endif %}
+      </div>
+      {% if t.committee_note %}
+      <div class="tkt-note">
+        <div class="tkt-note-lbl">Committee Response</div>
+        {{ t.committee_note }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">🎟️</div>
+      <h3>No tickets yet</h3>
+      <p>Use the button above to raise your first complaint or request.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- RAISE TICKET MODAL -->
+<div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>Raise a Complaint / Ticket</h3>
+    <p class="sub">Flat {{ flat }} · {{ member_name }}</p>
+    <div class="fgrp">
+      <label>Category</label>
+      <select id="tktCategory">
+        {% for c in categories %}<option>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fgrp">
+      <label>Priority</label>
+      <div class="priority-row">
+        <div class="prio-opt" id="prio-Low" onclick="setPrio('Low')">Low</div>
+        <div class="prio-opt sel-normal" id="prio-Normal" onclick="setPrio('Normal')">Normal</div>
+        <div class="prio-opt" id="prio-Urgent" onclick="setPrio('Urgent')">Urgent</div>
+      </div>
+    </div>
+    <div class="fgrp">
+      <label>Subject</label>
+      <input type="text" id="tktSubject" placeholder="Brief summary" maxlength="120"/>
+    </div>
+    <div class="fgrp">
+      <label>Description</label>
+      <textarea id="tktDesc" placeholder="Describe the issue in detail..."></textarea>
+    </div>
+    <div id="tktError" style="color:#B91C1C;font-size:12px;margin-top:4px;display:none;"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitTicket()">Submit Ticket</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let selPrio = 'Normal';
+function setPrio(p) {
+  selPrio = p;
+  ['Low','Normal','Urgent'].forEach(x => {
+    document.getElementById('prio-'+x).className = 'prio-opt' + (x===p ? ' sel-'+x.toLowerCase() : '');
+  });
+}
+function closeModal() {
+  document.getElementById('ticketModal').classList.remove('open');
+  document.getElementById('tktError').style.display='none';
+  document.getElementById('tktSubject').value='';
+  document.getElementById('tktDesc').value='';
+  setPrio('Normal');
+}
+async function submitTicket() {
+  const subject = document.getElementById('tktSubject').value.trim();
+  const desc    = document.getElementById('tktDesc').value.trim();
+  const errEl   = document.getElementById('tktError');
+  if (!subject) { errEl.textContent='Please enter a subject.'; errEl.style.display='block'; return; }
+  if (!desc)    { errEl.textContent='Please describe the issue.'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  const res  = await fetch('/portal/tickets/create', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ category: document.getElementById('tktCategory').value, subject, description: desc, priority: selPrio })
+  });
+  const data = await res.json();
+  if (data.success) { location.reload(); }
+  else { errEl.textContent = data.error || 'Failed.'; errEl.style.display='block'; }
+}
+</script>
+</body>
+</html>

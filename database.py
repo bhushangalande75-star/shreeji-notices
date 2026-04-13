@@ -656,3 +656,82 @@ def get_member_outstanding(society_id, flat_combo):
         if flat_up in line.upper():
             return line.strip()
     return None
+
+
+# ── Member Tickets / Complaints ────────────────────────────────────────────────
+
+def init_tickets_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS member_tickets (
+            id              SERIAL PRIMARY KEY,
+            society_id      INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            flat_combo      TEXT NOT NULL,
+            member_name     TEXT NOT NULL,
+            category        TEXT NOT NULL DEFAULT 'General',
+            subject         TEXT NOT NULL,
+            description     TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'Open',
+            priority        TEXT NOT NULL DEFAULT 'Normal',
+            committee_note  TEXT,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at     TIMESTAMP
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+init_tickets_table()
+
+def create_ticket(society_id, flat_combo, member_name, category, subject, description, priority='Normal'):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO member_tickets (society_id, flat_combo, member_name, category, subject, description, priority)
+        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+    """, (society_id, flat_combo, member_name, category, subject, description, priority))
+    tid = cur.fetchone()['id']
+    conn.commit(); cur.close(); conn.close()
+    return tid
+
+def get_member_tickets(society_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM member_tickets
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+        ORDER BY created_at DESC
+    """, (society_id, flat_combo))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def get_all_tickets(society_id, status=None):
+    conn = get_db(); cur = conn.cursor()
+    if status:
+        cur.execute("SELECT * FROM member_tickets WHERE society_id=%s AND status=%s ORDER BY created_at DESC",
+                    (society_id, status))
+    else:
+        cur.execute("SELECT * FROM member_tickets WHERE society_id=%s ORDER BY created_at DESC",
+                    (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def update_ticket_status(ticket_id, status, committee_note=''):
+    conn = get_db(); cur = conn.cursor()
+    if status == 'Resolved':
+        cur.execute("""
+            UPDATE member_tickets
+            SET status=%s, committee_note=%s, updated_at=NOW(), resolved_at=NOW()
+            WHERE id=%s
+        """, (status, committee_note, ticket_id))
+    else:
+        cur.execute("""
+            UPDATE member_tickets
+            SET status=%s, committee_note=%s, updated_at=NOW(), resolved_at=NULL
+            WHERE id=%s
+        """, (status, committee_note, ticket_id))
+    conn.commit(); cur.close(); conn.close()
+
+def get_ticket_by_id(ticket_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT * FROM member_tickets WHERE id=%s", (ticket_id,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return dict(row) if row else None

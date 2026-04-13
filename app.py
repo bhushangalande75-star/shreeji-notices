@@ -26,7 +26,9 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       create_announcement, delete_announcement,
                       check_password, hash_password,
                       get_society_pin_format,
-                      upsert_knowledge, get_knowledge, get_member_outstanding)
+                      upsert_knowledge, get_knowledge, get_member_outstanding,
+                      create_ticket, get_member_tickets, get_all_tickets,
+                      update_ticket_status, get_ticket_by_id)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -840,6 +842,177 @@ def ai_generate_committee():
         fname = f"Committee_Notice_{safe_type}_{meeting_date.replace('-','')}.docx"
         with open(os.path.join(sess_dir, fname), "wb") as f:
             f.write(docx_bytes)
+
+        return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/ai-notices/generate-noc", methods=["POST"])
+@login_required
+def ai_generate_noc():
+    """
+    Generate a No Objection Certificate (NOC) using Groq AI.
+    Supports 11 NOC types + custom, in English / Marathi / Hindi.
+    """
+    try:
+        noc_type    = request.form.get("noc_type", "sale").strip()
+        custom_type = request.form.get("custom_type", "").strip()
+        name        = request.form.get("name", "").strip()
+        flat_no     = request.form.get("flat_no", "").strip()
+        noc_date    = request.form.get("noc_date", date.today().strftime("%d-%m-%Y"))
+        ref_no      = request.form.get("ref_no", "").strip()
+        buyer       = request.form.get("buyer", "").strip()
+        bank        = request.form.get("bank", "").strip()
+        details     = request.form.get("details", "").strip()
+        language    = request.form.get("language", "English").strip()
+        society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
+
+        try:
+            noc_date = datetime.strptime(noc_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+            pass
+
+        # ── NOC type labels and context ───────────────────────────────────────
+        NOC_LABELS = {
+            "sale"         : "Sale / Transfer of Flat",
+            "mortgage"     : "Mortgage / Bank Loan",
+            "rental"       : "Rental / Tenancy",
+            "renovation"   : "Renovation / Interior Alteration",
+            "vehicle"      : "Vehicle Parking Allotment",
+            "name_change"  : "Name Change / Mutation of Share Certificate",
+            "legal"        : "Legal / Court / Affidavit Purpose",
+            "gas_pipeline" : "Piped Natural Gas (PNG) / Gas Pipeline Installation",
+            "telecom"      : "Telecom / DTH / Internet Antenna Installation",
+            "address_proof": "Address Proof / Residence Certificate",
+            "inheritance"  : "Inheritance / Succession of Flat",
+            "custom"       : custom_type or "General Purpose",
+        }
+        noc_label = NOC_LABELS.get(noc_type, NOC_LABELS["custom"])
+
+        # ── Contextual extras per type ────────────────────────────────────────
+        extra_context = ""
+        if buyer:
+            extra_context += f"\nBuyer / Transferee / New Party: {buyer}"
+        if bank:
+            extra_context += f"\nBank / Financial Institution: {bank}"
+        if details:
+            extra_context += f"\nAdditional Details: {details}"
+
+        # ── Language-specific prompt configs ─────────────────────────────────
+        lang_cfg = {
+            "English": {
+                "system": (
+                    "You are the official Secretary of a Co-operative Housing Society in Maharashtra, India. "
+                    "You issue formal No Objection Certificates (NOCs) on behalf of the Managing Committee. "
+                    "Write the NOC body only — no letterhead, no subject line, no signature block. "
+                    "Use formal, legally precise English. Reference the Maharashtra Co-operative Societies Act 1960 "
+                    "and Society bye-laws where relevant. Number any conditions clearly."
+                ),
+                "user": (
+                    f"Issue a formal NOC for the following:\n\n"
+                    f"NOC Type: {noc_label}\n"
+                    f"Member / Owner Name: {name}\n"
+                    f"Flat No: {flat_no}\n"
+                    f"Society: {society_name}\n"
+                    f"Date: {noc_date}{extra_context}\n\n"
+                    "Write the complete NOC body paragraphs. Include: "
+                    "(1) a formal opening stating the Managing Committee has no objection, "
+                    "(2) specific details relevant to this NOC type (e.g. sale consideration, tenant name, "
+                    "loan amount, renovation scope — based on the details provided), "
+                    "(3) any standard conditions applicable under MCS Act 1960 for this type, "
+                    "(4) a validity clause (typically 3–6 months for sale NOC, 1 year for others). "
+                    "Do NOT write the letterhead, 'Sub:', or 'To:' section."
+                ),
+                "subject_system": "You are the Secretary of a Co-operative Housing Society.",
+                "subject_user": (
+                    f"Write a short one-line subject for a '{noc_label}' NOC issued to a society member. "
+                    "Output ONLY the subject text — no 'Sub:' prefix. "
+                    "Example: No Objection for Sale of Flat No. B01-201"
+                ),
+                "sub_label": "Sub:",
+            },
+            "Marathi": {
+                "system": (
+                    "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत सचिव आहात. "
+                    "व्यवस्थापन समितीच्या वतीने अधिकृत ना-हरकत प्रमाणपत्र (NOC) जारी करा. "
+                    "फक्त NOC चा मुख्य भाग लिहा — लेटरहेड, विषय ओळ किंवा स्वाक्षरी नको. "
+                    "औपचारिक, कायदेशीरदृष्ट्या अचूक मराठी वापरा. "
+                    "महाराष्ट्र सहकारी संस्था अधिनियम १९६० आणि संस्थेच्या उपविधींचा संदर्भ द्या."
+                ),
+                "user": (
+                    f"खालील माहितीसाठी अधिकृत ना-हरकत प्रमाणपत्र (NOC) जारी करा:\n\n"
+                    f"NOC प्रकार: {noc_label}\n"
+                    f"सदस्याचे नाव: {name}\n"
+                    f"फ्लॅट क्र.: {flat_no}\n"
+                    f"संस्था: {society_name}\n"
+                    f"तारीख: {noc_date}{extra_context}\n\n"
+                    "संपूर्ण NOC मजकूर लिहा. समाविष्ट करा: "
+                    "(१) व्यवस्थापन समितीला कोणतीही हरकत नाही असे औपचारिक उद्घाटन, "
+                    "(२) या NOC प्रकाराशी संबंधित विशिष्ट तपशील, "
+                    "(३) MCS अधिनियम १९६० अंतर्गत लागू असलेल्या अटी, "
+                    "(४) वैधता कलम. "
+                    "लेटरहेड, 'विषय:' किंवा 'प्रति:' विभाग लिहू नका."
+                ),
+                "subject_system": "तुम्ही एका सहकारी गृहनिर्माण संस्थेचे सचिव आहात.",
+                "subject_user": (
+                    f"'{noc_label}' NOC साठी एक ओळीचा मराठी विषय लिहा. "
+                    "फक्त विषय ओळ — 'विषय:' उपसर्ग न लिहिता."
+                ),
+                "sub_label": "विषय:",
+            },
+            "Hindi": {
+                "system": (
+                    "आप महाराष्ट्र की एक सहकारी आवास संस्था के आधिकारिक सचिव हैं. "
+                    "प्रबंध समिति की ओर से आधिकारिक अनापत्ति प्रमाण पत्र (NOC) जारी करें. "
+                    "केवल NOC का मुख्य भाग लिखें — लेटरहेड, विषय पंक्ति या हस्ताक्षर नहीं. "
+                    "औपचारिक, कानूनी रूप से सटीक हिंदी का प्रयोग करें. "
+                    "महाराष्ट्र सहकारी संस्था अधिनियम 1960 और संस्था के उपनियमों का संदर्भ दें."
+                ),
+                "user": (
+                    f"निम्नलिखित के लिए आधिकारिक अनापत्ति प्रमाण पत्र जारी करें:\n\n"
+                    f"NOC प्रकार: {noc_label}\n"
+                    f"सदस्य / स्वामी का नाम: {name}\n"
+                    f"फ्लैट नं.: {flat_no}\n"
+                    f"संस्था: {society_name}\n"
+                    f"तारीख: {noc_date}{extra_context}\n\n"
+                    "पूर्ण NOC मुख्य भाग लिखें. शामिल करें: "
+                    "(1) प्रबंध समिति को कोई आपत्ति नहीं है, औपचारिक उद्घाटन, "
+                    "(2) इस NOC प्रकार से संबंधित विशिष्ट विवरण, "
+                    "(3) MCS अधिनियम 1960 के तहत लागू शर्तें, "
+                    "(4) वैधता खंड. "
+                    "लेटरहेड, 'विषय:' या 'सेवा में:' अनुभाग न लिखें."
+                ),
+                "subject_system": "आप एक सहकारी आवास संस्था के सचिव हैं.",
+                "subject_user": (
+                    f"'{noc_label}' NOC के लिए एक पंक्ति का हिंदी विषय लिखें. "
+                    "केवल विषय पंक्ति — 'विषय:' उपसर्ग के बिना."
+                ),
+                "sub_label": "विषय:",
+            },
+        }
+
+        cfg = lang_cfg.get(language, lang_cfg["English"])
+        print(f"[NOC] type={noc_type!r} lang={language!r}")
+
+        ai_text     = call_groq(cfg["system"], cfg["user"])
+        raw_subject = call_groq(cfg["subject_system"], cfg["subject_user"]).strip().strip('"').strip("'").strip()
+        for prefix in ("Sub:", "Subject:", "विषय:", "विषय :", "Vishay:"):
+            if raw_subject.lower().startswith(prefix.lower()):
+                raw_subject = raw_subject[len(prefix):].strip()
+                break
+        subject = f"{cfg['sub_label']} {raw_subject}"
+
+        docx_bytes = build_ai_notice_docx(ref_no, flat_no, name, noc_date, subject, ai_text)
+
+        sess_id  = str(uuid.uuid4())
+        sess_dir = os.path.join(TEMP_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        safe_type = noc_label.replace(" ", "_").replace("/", "-")[:40]
+        fname = f"NOC_{safe_type}_{flat_no or 'General'}.docx"
+        with open(os.path.join(sess_dir, fname), "wb") as fh:
+            fh.write(docx_bytes)
 
         return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
 
@@ -1806,11 +1979,15 @@ def portal_dashboard():
     anns    = get_member_announcements(sid)
     society = get_all_societies()
     soc     = next((s for s in society if s["id"] == sid), {})
+    my_tickets = get_member_tickets(sid, flat)
+    open_tickets = len([t for t in my_tickets if t["status"] != "Resolved"])
     return render_template("portal_dashboard.html",
                            member=member, notices=notices,
                            announcements=anns, society=soc,
                            society_name=session["member_society"],
-                           flat=flat, member_name=session["member_name"])
+                           flat=flat, member_name=session["member_name"],
+                           my_tickets=my_tickets[:3],
+                           open_tickets=open_tickets)
 
 
 @app.route("/portal/chat", methods=["POST"])
@@ -2071,6 +2248,78 @@ def society_reset_member_pin():
     default_pin = _default_pin(flat, pin_fmt)
     reset_member_pin(sid, flat, default_pin)
     return jsonify({"success": True, "default_pin": default_pin, "flat": flat})
+
+
+# ══════════════════════════════════════════════════════════════
+#  MEMBER TICKETS / COMPLAINTS
+# ══════════════════════════════════════════════════════════════
+
+TICKET_CATEGORIES = [
+    "Maintenance", "Water / Plumbing", "Electricity", "Lift / Elevator",
+    "Parking", "Security", "Cleanliness / Housekeeping", "Noise Complaint",
+    "Neighbour Dispute", "Common Area", "Administrative", "Other"
+]
+
+@app.route("/portal/tickets")
+@portal_required
+def portal_tickets():
+    sid    = session["member_society_id"]
+    flat   = session["member_flat"]
+    tickets = get_member_tickets(sid, flat)
+    return render_template("portal_tickets.html",
+                           tickets=tickets,
+                           categories=TICKET_CATEGORIES,
+                           society_name=session["member_society"],
+                           member_name=session["member_name"],
+                           flat=flat)
+
+
+@app.route("/portal/tickets/create", methods=["POST"])
+@portal_required
+def portal_create_ticket():
+    sid  = session["member_society_id"]
+    flat = session["member_flat"]
+    name = session["member_name"]
+    data = request.json or {}
+    category    = data.get("category", "General").strip()
+    subject     = data.get("subject", "").strip()
+    description = data.get("description", "").strip()
+    priority    = data.get("priority", "Normal").strip()
+    if not subject or not description:
+        return jsonify({"success": False, "error": "Subject and description are required"}), 400
+    tid = create_ticket(sid, flat, name, category, subject, description, priority)
+    return jsonify({"success": True, "ticket_id": tid})
+
+
+# ── Society (committee) ticket management ──────────────────────
+
+@app.route("/tickets")
+@society_required
+def society_tickets():
+    sid    = session["society_id"]
+    status = request.args.get("status", "")
+    tickets = get_all_tickets(sid, status or None)
+    counts = {
+        "all":        len(get_all_tickets(sid)),
+        "open":       len(get_all_tickets(sid, "Open")),
+        "inprogress": len(get_all_tickets(sid, "In Progress")),
+        "resolved":   len(get_all_tickets(sid, "Resolved")),
+    }
+    return render_template("society_tickets.html",
+                           tickets=tickets, counts=counts,
+                           selected_status=status,
+                           society_name=session["society_name"])
+
+
+@app.route("/tickets/update/<int:ticket_id>", methods=["POST"])
+@society_required
+def society_update_ticket(ticket_id):
+    data   = request.json or {}
+    status = data.get("status", "Open")
+    note   = data.get("committee_note", "").strip()
+    update_ticket_status(ticket_id, status, note)
+    return jsonify({"success": True})
+
 
 if __name__ == "__main__":
     lo = get_libreoffice_path()

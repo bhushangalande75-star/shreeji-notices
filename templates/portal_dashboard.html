@@ -7,104 +7,169 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{--teal:#0ABFA3;--teal2:#08A891;--teal-glow:rgba(10,191,163,0.3);--bg:#C8F0EA;--surface:#FFFFFF;--surface2:#F4FDFB;--border:#C2EDE6;--border2:#D4F2EE;--ink:#063D36;--ink2:#0A4F48;--ink3:#4A8A84;--muted:#7ABFB8;--font:'Plus Jakarta Sans',sans-serif}
+    :root{--teal:#0ABFA3;--teal2:#08A891;--teal-glow:rgba(10,191,163,0.3);--bg:#C8F0EA;--surface:#FFFFFF;--surface2:#F4FDFB;--border:#C2EDE6;--border2:#D4F2EE;--ink:#063D36;--ink2:#0A4F48;--ink3:#4A8A84;--muted:#7ABFB8;--red:#C00000;--font:'Plus Jakarta Sans',sans-serif}
     body{font-family:var(--font);background:var(--bg);min-height:100vh;color:var(--ink)}
     body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 5% 20%,rgba(10,191,163,0.15) 0%,transparent 50%),radial-gradient(ellipse at 95% 80%,rgba(10,191,163,0.08) 0%,transparent 45%);pointer-events:none;z-index:0}
-    .nav{background:rgba(255,255,255,0.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:62px;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(10,191,163,0.08)}
-    .nav-logo{display:flex;align-items:center;gap:10px}
-    .nav-gem{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--teal),var(--teal2));display:flex;align-items:center;justify-content:center}
-    .nav-brand{font-size:14px;font-weight:700;color:var(--ink)}
-    .nav-center{display:flex;gap:20px}
-    .nav-center a{font-size:13px;color:var(--ink3);text-decoration:none;font-weight:500;padding:4px 0;border-bottom:2px solid transparent;transition:all .15s}
-    .nav-center a:hover,.nav-center a.on{color:var(--teal);border-color:var(--teal)}
-    .nav-right{display:flex;align-items:center;gap:8px}
-    .nav-member{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px}
-    .nav-avatar{width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
-    .nav-mname{font-size:12px;font-weight:600;color:var(--ink2)}
+
+    /* NAV */
+    .nav{background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(10,191,163,0.07)}
+    .nav-logo{display:flex;align-items:center;gap:9px}
+    .nav-gem{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--teal),var(--teal2));display:flex;align-items:center;justify-content:center}
+    .nav-brand{font-size:13px;font-weight:700;color:var(--ink)}
+    .nav-links{display:flex;gap:6px}
+    .nav-link{font-size:12px;color:var(--ink3);text-decoration:none;font-weight:500;padding:5px 10px;border-radius:7px;transition:all .15s;display:flex;align-items:center;gap:5px}
+    .nav-link:hover{background:var(--surface2);color:var(--teal)}
+    .nav-link.on{background:rgba(10,191,163,0.1);color:var(--teal)}
+    .nav-link .badge{background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center}
+    .nav-right{display:flex;align-items:center;gap:7px}
+    .nav-member{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:5px 12px}
+    .nav-avatar{width:26px;height:26px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+    .nav-mname{font-size:11px;font-weight:600;color:var(--ink2)}
     .nav-mflat{font-size:10px;color:var(--muted)}
-    .btn-nav{padding:7px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--ink3);cursor:pointer;font-family:var(--font);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s}
+    .btn-nav{padding:6px 11px;background:transparent;border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--ink3);cursor:pointer;font-family:var(--font);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:4px;transition:all .15s}
     .btn-nav:hover{border-color:var(--teal);color:var(--teal)}
-    .btn-logout{padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--ink3);cursor:pointer;font-family:var(--font);font-weight:500}
+    .btn-logout{padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--ink3);cursor:pointer;font-family:var(--font);font-weight:500}
     .btn-logout:hover{border-color:#EF4444;color:#DC2626}
-    .main{max-width:1140px;margin:0 auto;padding:28px 24px;position:relative;z-index:1;display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
-    .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 4px 20px rgba(10,191,163,0.07)}
-    .card-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
-    .hero-strip{background:linear-gradient(135deg,var(--teal),var(--teal2));border-radius:18px;padding:24px 28px;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 8px 32px var(--teal-glow)}
-    .hero-strip::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,0.07)}
-    .hero-hs{font-size:11px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-    .hero-name{font-size:22px;font-weight:800;color:#fff;letter-spacing:-.5px;margin-bottom:2px}
-    .hero-flat{font-size:13px;color:rgba(255,255,255,0.8);display:flex;align-items:center;gap:8px}
-    .hero-flat-badge{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:2px 12px;font-size:11px;font-weight:600;color:#fff}
-    .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
-    .scard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
-    .scard-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:6px}
-    .scard-val{font-size:24px;font-weight:700;color:var(--ink);letter-spacing:-.5px}
-    .scard-note{font-size:11px;color:var(--muted);margin-top:4px}
-    .trend-p{display:inline-block;background:#D1FAE5;color:#065F46;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600}
-    .trend-d{display:inline-block;background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600}
-    .notice-item{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid var(--border2)}
+
+    /* LAYOUT */
+    .main{max-width:1160px;margin:0 auto;padding:24px 20px;position:relative;z-index:1;display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
+
+    /* CARDS */
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 3px 16px rgba(10,191,163,0.06)}
+    .card-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+
+    /* HERO */
+    .hero-strip{background:linear-gradient(135deg,var(--teal),var(--teal2));border-radius:16px;padding:22px 26px;margin-bottom:16px;position:relative;overflow:hidden;box-shadow:0 6px 28px var(--teal-glow)}
+    .hero-strip::before{content:'';position:absolute;top:-40px;right:-40px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,0.07)}
+    .hero-hs{font-size:10px;color:rgba(255,255,255,0.65);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+    .hero-name{font-size:21px;font-weight:800;color:#fff;letter-spacing:-.4px;margin-bottom:2px}
+    .hero-flat{font-size:12px;color:rgba(255,255,255,0.8);display:flex;align-items:center;gap:8px}
+    .hero-flat-badge{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:2px 11px;font-size:10px;font-weight:600;color:#fff}
+
+    /* STATS */
+    .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+    .scard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+    .scard-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:5px}
+    .scard-val{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.4px}
+    .scard-note{font-size:10px;color:var(--muted);margin-top:3px}
+    .pill-g{display:inline-block;background:#D1FAE5;color:#065F46;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600}
+    .pill-a{display:inline-block;background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600}
+    .pill-r{display:inline-block;background:#FEE2E2;color:#991B1B;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600}
+
+    /* NOTICES */
+    .notice-item{display:flex;align-items:flex-start;gap:11px;padding:12px 0;border-bottom:1px solid var(--border2)}
     .notice-item:last-child{border-bottom:none}
-    .notice-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
-    .notice-ref{font-family:monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:5px;color:var(--ink3);font-weight:600;display:inline-block;margin-bottom:4px}
-    .notice-title{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
-    .notice-meta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .bdg{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600}
+    .notice-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+    .notice-ref{font-family:monospace;font-size:10px;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:4px;color:var(--ink3);font-weight:600;display:inline-block;margin-bottom:3px}
+    .notice-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:2px}
+    .notice-meta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .bdg{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
     .bdg-p{background:#D1FAE5;color:#065F46}.bdg-d{background:#FEF3C7;color:#92400E}
-    .bdg-dot{width:5px;height:5px;border-radius:50%}
+    .bdg-dot{width:4px;height:4px;border-radius:50%}
     .bdg-p .bdg-dot{background:#10B981}.bdg-d .bdg-dot{background:#F59E0B}
-    .empty-msg{text-align:center;padding:28px;color:var(--muted);font-size:13px}
-    /* RIGHT */
-    .right-col{display:flex;flex-direction:column;gap:16px;position:sticky;top:82px}
-    .chat-panel{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 8px 32px rgba(10,191,163,0.12)}
-    .chat-head{background:linear-gradient(135deg,var(--teal),var(--teal2));padding:15px 18px;display:flex;align-items:center;gap:10px}
-    .chat-av{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .chat-hname{font-size:13px;font-weight:700;color:#fff}
-    .chat-hsub{font-size:10px;color:rgba(255,255,255,0.75);margin-top:2px;display:flex;align-items:center;gap:4px}
-    .chat-online{width:6px;height:6px;border-radius:50%;background:#A7F3D0}
-    .chat-body{height:280px;overflow-y:auto;padding:14px;background:#F8FDFC;display:flex;flex-direction:column;gap:10px}
+    .empty-msg{text-align:center;padding:24px;color:var(--muted);font-size:12px}
+
+    /* RIGHT COLUMN */
+    .right-col{display:flex;flex-direction:column;gap:14px;position:sticky;top:74px}
+
+    /* CHATBOT */
+    .chat-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 6px 28px rgba(10,191,163,0.1)}
+    .chat-head{background:linear-gradient(135deg,var(--teal),var(--teal2));padding:14px 16px;display:flex;align-items:center;gap:9px}
+    .chat-av{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .chat-hname{font-size:12px;font-weight:700;color:#fff}
+    .chat-hsub{font-size:10px;color:rgba(255,255,255,0.75);margin-top:1px;display:flex;align-items:center;gap:4px}
+    .chat-online{width:5px;height:5px;border-radius:50%;background:#A7F3D0}
+    .chat-body{height:260px;overflow-y:auto;padding:12px;background:#F8FDFC;display:flex;flex-direction:column;gap:8px}
     .msg{display:flex;flex-direction:column;max-width:92%}
     .msg.bot{align-self:flex-start}.msg.user{align-self:flex-end}
-    .msg-bub{padding:10px 13px;border-radius:14px;font-size:12px;line-height:1.6}
-    .msg.bot .msg-bub{background:#fff;border:1px solid #D4F2EE;color:var(--ink);border-radius:4px 14px 14px 14px}
-    .msg.user .msg-bub{background:var(--teal);color:#fff;border-radius:14px 14px 4px 14px}
-    .msg-time{font-size:10px;color:var(--muted);margin-top:3px}
+    .msg-bub{padding:9px 12px;border-radius:12px;font-size:12px;line-height:1.6}
+    .msg.bot .msg-bub{background:#fff;border:1px solid #D4F2EE;color:var(--ink);border-radius:3px 12px 12px 12px}
+    .msg.user .msg-bub{background:var(--teal);color:#fff;border-radius:12px 12px 3px 12px}
+    .msg-time{font-size:10px;color:var(--muted);margin-top:2px}
     .msg.user .msg-time{text-align:right}
-    .typing-dots{display:flex;gap:4px;padding:10px 13px;background:#fff;border:1px solid #D4F2EE;border-radius:4px 14px 14px 14px;width:fit-content}
-    .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:blink 1.4s infinite}
+    .typing-dots{display:flex;gap:4px;padding:9px 12px;background:#fff;border:1px solid #D4F2EE;border-radius:3px 12px 12px 12px;width:fit-content}
+    .dot{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:blink 1.4s infinite}
     .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
     @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
-    .chat-sugg{padding:7px 12px;display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid var(--border2);background:#FAFDFB}
-    .sugg{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:#fff;font-size:11px;color:var(--ink2);cursor:pointer;font-weight:500}
+    .chat-sugg{padding:6px 10px;display:flex;flex-wrap:wrap;gap:4px;border-top:1px solid var(--border2);background:#FAFDFB}
+    .sugg{padding:4px 9px;border-radius:18px;border:1px solid var(--border);background:#fff;font-size:10px;color:var(--ink2);cursor:pointer;font-weight:500}
     .sugg:hover{background:var(--surface2);border-color:var(--teal);color:var(--teal)}
-    .chat-input-row{padding:10px 12px;border-top:1px solid var(--border2);display:flex;gap:8px;align-items:center;background:#fff}
-    .chat-inp{flex:1;border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12px;color:var(--ink);outline:none;background:var(--surface2);font-family:var(--font)}
+    .chat-input-row{padding:8px 10px;border-top:1px solid var(--border2);display:flex;gap:7px;align-items:center;background:#fff}
+    .chat-inp{flex:1;border:1px solid var(--border);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--ink);outline:none;background:var(--surface2);font-family:var(--font)}
     .chat-inp:focus{border-color:var(--teal)}
     .chat-inp::placeholder{color:var(--muted)}
-    .chat-send{width:32px;height:32px;border-radius:9px;background:var(--teal);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+    .chat-send{width:30px;height:30px;border-radius:8px;background:var(--teal);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
     .chat-send:disabled{opacity:.5;cursor:not-allowed}
+
+    /* TICKET PANEL */
+    .ticket-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 3px 16px rgba(10,191,163,0.06)}
+    .ticket-head{padding:14px 16px;border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between}
+    .ticket-head-title{font-size:12px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px}
+    .btn-raise{padding:5px 12px;background:var(--teal);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer}
+    .btn-raise:hover{background:var(--teal2)}
+    .ticket-list{padding:4px 14px 10px}
+    .ticket-row{display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:1px solid var(--border2)}
+    .ticket-row:last-child{border-bottom:none}
+    .tkt-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+    .tkt-subj{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:2px}
+    .tkt-meta{font-size:10px;color:var(--muted)}
+    .tkt-status{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600}
+    .tkt-open{background:#FEE2E2;color:#991B1B}
+    .tkt-prog{background:#FEF3C7;color:#92400E}
+    .tkt-done{background:#D1FAE5;color:#065F46}
+
     /* ANN SIDEBAR */
-    .ann-panel{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 4px 20px rgba(10,191,163,0.07)}
-    .ann-head{background:linear-gradient(135deg,rgba(10,191,163,0.12),rgba(10,191,163,0.04));padding:14px 18px;border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:8px}
-    .ann-head-title{font-size:13px;font-weight:700;color:var(--ink)}
-    .ann-list{padding:4px 18px 12px}
-    .ann-item{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--border2)}
+    .ann-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 3px 16px rgba(10,191,163,0.06)}
+    .ann-head{background:linear-gradient(135deg,rgba(10,191,163,0.1),rgba(10,191,163,0.03));padding:12px 16px;border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:7px}
+    .ann-head-title{font-size:12px;font-weight:700;color:var(--ink)}
+    .ann-list{padding:2px 14px 10px}
+    .ann-item{display:flex;gap:9px;padding:10px 0;border-bottom:1px solid var(--border2)}
     .ann-item:last-child{border-bottom:none}
-    .ann-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+    .ann-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
     .ann-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:2px}
-    .ann-body{font-size:11px;color:var(--ink3);line-height:1.6}
-    .ann-date{font-size:10px;color:var(--muted);margin-top:3px}
+    .ann-body{font-size:11px;color:var(--ink3);line-height:1.55}
+    .ann-date{font-size:10px;color:var(--muted);margin-top:2px}
+
+    /* TICKET MODAL */
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;display:none;align-items:center;justify-content:center}
+    .modal-bg.open{display:flex}
+    .modal{background:#fff;border-radius:18px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+    .modal h3{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px}
+    .modal .sub{font-size:12px;color:var(--muted);margin-bottom:20px}
+    .fgrp{margin-bottom:14px}
+    .fgrp label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+    .fgrp select,.fgrp input,.fgrp textarea{width:100%;padding:10px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--ink2);font-size:13px;font-family:var(--font);outline:none}
+    .fgrp select:focus,.fgrp input:focus,.fgrp textarea:focus{border-color:var(--teal)}
+    .fgrp textarea{resize:vertical;min-height:90px}
+    .modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+    .btn-cancel{padding:9px 18px;background:transparent;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--ink3);cursor:pointer;font-family:var(--font)}
+    .btn-submit{padding:9px 22px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer}
+    .btn-submit:hover{background:var(--teal2)}
+    .priority-row{display:flex;gap:8px}
+    .prio-opt{flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;font-size:11px;font-weight:600;color:var(--ink3);transition:all .15s}
+    .prio-opt.sel-low{border-color:#10B981;background:#D1FAE5;color:#065F46}
+    .prio-opt.sel-normal{border-color:#F59E0B;background:#FEF3C7;color:#92400E}
+    .prio-opt.sel-urgent{border-color:#EF4444;background:#FEE2E2;color:#991B1B}
   </style>
 </head>
 <body>
 
+<!-- NAV -->
 <div class="nav">
   <div class="nav-logo">
-    <div class="nav-gem"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><polygon points="10,2 17,6 17,14 10,18 3,14 3,6" stroke="white" stroke-width="1.5"/><circle cx="10" cy="10" r="2" fill="white" opacity=".9"/></svg></div>
+    <div class="nav-gem"><svg viewBox="0 0 20 20" fill="none" width="16" height="16"><polygon points="10,2 17,6 17,14 10,18 3,14 3,6" stroke="white" stroke-width="1.5"/><circle cx="10" cy="10" r="2" fill="white" opacity=".9"/></svg></div>
     <div><div class="nav-brand">{{ society_name[:22] }}</div></div>
   </div>
-  <div class="nav-center">
-    <a href="/portal/dashboard" class="on">My Dashboard</a>
-    <a href="#notices">My Notices</a>
+  <div class="nav-links">
+    <a href="/portal/dashboard" class="nav-link on">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a href="/portal/tickets" class="nav-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+      My Tickets
+      {% if open_tickets > 0 %}<span class="badge">{{ open_tickets }}</span>{% endif %}
+    </a>
   </div>
   <div class="nav-right">
     <div class="nav-member">
@@ -115,22 +180,24 @@
       </div>
     </div>
     <a href="/portal/change-pin" class="btn-nav">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
       Change PIN
     </a>
     <button class="btn-logout" onclick="window.location='/portal/logout'">Sign Out</button>
   </div>
 </div>
 
+<!-- MAIN GRID -->
 <div class="main">
-  <!-- LEFT -->
+
+  <!-- LEFT COLUMN -->
   <div>
     <div class="hero-strip">
       <div class="hero-hs">{{ society_name }}</div>
       <div class="hero-name">{{ member_name }}</div>
       <div class="hero-flat">
         <span class="hero-flat-badge">{{ flat }}</span>
-        {% if member %}<span style="color:rgba(255,255,255,0.75);font-size:12px;">{{ member.phone }}</span>{% endif %}
+        {% if member %}<span style="color:rgba(255,255,255,0.75);font-size:11px;">{{ member.phone }}</span>{% endif %}
       </div>
     </div>
 
@@ -146,16 +213,17 @@
       <div class="scard">
         <div class="scard-lbl">Paid</div>
         <div class="scard-val" style="color:#059669;">{{ paid_notices }}</div>
-        <div class="scard-note"><span class="trend-p">Cleared</span></div>
+        <div class="scard-note"><span class="pill-g">Cleared</span></div>
       </div>
       <div class="scard">
         <div class="scard-lbl">Pending</div>
         <div class="scard-val" style="color:#D97706;">{{ pending_notices }}</div>
-        <div class="scard-note"><span class="trend-d">Outstanding</span></div>
+        <div class="scard-note"><span class="pill-a">Outstanding</span></div>
       </div>
     </div>
 
-    <div id="notices" class="card">
+    <!-- Notices -->
+    <div class="card">
       <div class="card-title">
         Notices issued to Flat {{ flat }}
         {% if pending_notices > 0 %}<span class="bdg bdg-d"><span class="bdg-dot"></span>{{ pending_notices }} pending</span>{% endif %}
@@ -184,45 +252,84 @@
     </div>
   </div>
 
-  <!-- RIGHT -->
+  <!-- RIGHT COLUMN -->
   <div class="right-col">
 
-    <!-- Chatbot -->
+    <!-- AI Chatbot -->
     <div class="chat-panel">
       <div class="chat-head">
         <div class="chat-av">
-          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" width="17" height="17"><path d="M12 2a4 4 0 014 4v1h1a3 3 0 013 3v4a3 3 0 01-3 3h-1v1a4 4 0 01-8 0v-1H7a3 3 0 01-3-3v-4a3 3 0 013-3h1V6a4 4 0 014-4z"/><circle cx="9" cy="11" r="1" fill="white"/><circle cx="15" cy="11" r="1" fill="white"/><path d="M9 16s1 1.5 3 1.5 3-1.5 3-1.5" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" width="16" height="16"><path d="M12 2a4 4 0 014 4v1h1a3 3 0 013 3v4a3 3 0 01-3 3h-1v1a4 4 0 01-8 0v-1H7a3 3 0 01-3-3v-4a3 3 0 013-3h1V6a4 4 0 014-4z"/><circle cx="9" cy="11" r="1" fill="white"/><circle cx="15" cy="11" r="1" fill="white"/><path d="M9 16s1 1.5 3 1.5 3-1.5 3-1.5" stroke-linecap="round"/></svg>
         </div>
         <div>
           <div class="chat-hname">Society AI Assistant</div>
-          <div class="chat-hsub"><span class="chat-online"></span> Knows your account · {{ member_name }}</div>
+          <div class="chat-hsub"><span class="chat-online"></span> Online · {{ member_name.split()[0] }}</div>
         </div>
       </div>
       <div class="chat-body" id="chatBody">
         <div class="msg bot">
-          <div class="msg-bub">Namaste {{ member_name.split()[0] }}! 🙏 I'm your society assistant for <strong>{{ society_name }}</strong>.<br><br>I have access to your notices for Flat <strong>{{ flat }}</strong>. How can I help?</div>
+          <div class="msg-bub">Namaste <strong>{{ member_name.split()[0] }}</strong>! 🙏<br><br>I'm your dedicated assistant for <strong>{{ society_name }}</strong>. I can help you with:<br>
+          • Your notices &amp; outstanding dues<br>
+          • Society rules, bye-laws &amp; policies<br>
+          • Facility info, office contacts &amp; timings<br>
+          • General society-related queries<br><br>
+          What would you like to know?</div>
           <div class="msg-time">Just now</div>
         </div>
       </div>
       <div class="chat-sugg" id="chatSugg">
         <div class="sugg" onclick="sendSugg(this)">My outstanding amount</div>
-        <div class="sugg" onclick="sendSugg(this)">Active notices</div>
         <div class="sugg" onclick="sendSugg(this)">Society rules</div>
-        <div class="sugg" onclick="sendSugg(this)">Contact office</div>
+        <div class="sugg" onclick="sendSugg(this)">Office timings</div>
+        <div class="sugg" onclick="sendSugg(this)">Contact committee</div>
       </div>
       <div class="chat-input-row">
-        <input class="chat-inp" id="chatInput" placeholder="Ask about your account..." onkeydown="if(event.key==='Enter')sendChat()"/>
+        <input class="chat-inp" id="chatInput" placeholder="Ask about society, dues, rules..." onkeydown="if(event.key==='Enter')sendChat()"/>
         <button class="chat-send" id="chatSendBtn" onclick="sendChat()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
         </button>
       </div>
     </div>
 
-    <!-- Announcements sidebar -->
+    <!-- My Tickets (quick view) -->
+    <div class="ticket-panel">
+      <div class="ticket-head">
+        <div class="ticket-head-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="color:var(--teal)"><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+          Complaints &amp; Tickets
+        </div>
+        <button class="btn-raise" onclick="document.getElementById('ticketModal').classList.add('open')">+ Raise Ticket</button>
+      </div>
+      <div class="ticket-list">
+        {% if my_tickets %}
+          {% for t in my_tickets %}
+          <div class="ticket-row">
+            <div class="tkt-dot" style="background:{{ '#EF4444' if t.status=='Open' else '#F59E0B' if t.status=='In Progress' else '#10B981' }};"></div>
+            <div style="flex:1;">
+              <div class="tkt-subj">{{ t.subject[:42] }}{% if t.subject|length > 42 %}…{% endif %}</div>
+              <div class="tkt-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+                <span>{{ t.category }}</span>
+                <span>·</span>
+                <span class="tkt-status {{ 'tkt-open' if t.status=='Open' else 'tkt-prog' if t.status=='In Progress' else 'tkt-done' }}">{{ t.status }}</span>
+                <span>· #{{ t.id }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+          <div style="padding:8px 0 2px;">
+            <a href="/portal/tickets" style="font-size:11px;color:var(--teal);font-weight:600;text-decoration:none;">View all tickets →</a>
+          </div>
+        {% else %}
+          <div class="empty-msg" style="padding:18px 0 10px;font-size:11px;">No tickets raised yet.<br><span style="color:var(--ink3);">Use "+ Raise Ticket" for any society issue.</span></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Announcements -->
     <div class="ann-panel">
       <div class="ann-head">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" width="15" height="15"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <div class="ann-head-title">Society Announcements</div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" width="14" height="14"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <div class="ann-head-title">Announcements</div>
       </div>
       <div class="ann-list">
         {% if announcements %}
@@ -238,7 +345,7 @@
           </div>
           {% endfor %}
         {% else %}
-          <div class="empty-msg" style="padding:20px 0;font-size:12px;">No announcements yet.</div>
+          <div class="empty-msg" style="padding:16px 0;font-size:11px;">No announcements yet.</div>
         {% endif %}
       </div>
     </div>
@@ -246,7 +353,60 @@
   </div>
 </div>
 
+<!-- RAISE TICKET MODAL -->
+<div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>Raise a Complaint / Ticket</h3>
+    <p class="sub">Flat {{ flat }} · {{ member_name }}</p>
+
+    <div class="fgrp">
+      <label>Category</label>
+      <select id="tktCategory">
+        <option>Maintenance</option>
+        <option>Water / Plumbing</option>
+        <option>Electricity</option>
+        <option>Lift / Elevator</option>
+        <option>Parking</option>
+        <option>Security</option>
+        <option>Cleanliness / Housekeeping</option>
+        <option>Noise Complaint</option>
+        <option>Neighbour Dispute</option>
+        <option>Common Area</option>
+        <option>Administrative</option>
+        <option>Other</option>
+      </select>
+    </div>
+
+    <div class="fgrp">
+      <label>Priority</label>
+      <div class="priority-row">
+        <div class="prio-opt" id="prio-Low" onclick="setPrio('Low')">Low</div>
+        <div class="prio-opt sel-normal" id="prio-Normal" onclick="setPrio('Normal')">Normal</div>
+        <div class="prio-opt" id="prio-Urgent" onclick="setPrio('Urgent')">Urgent</div>
+      </div>
+    </div>
+
+    <div class="fgrp">
+      <label>Subject</label>
+      <input type="text" id="tktSubject" placeholder="Brief summary of the issue" maxlength="120"/>
+    </div>
+
+    <div class="fgrp">
+      <label>Description</label>
+      <textarea id="tktDesc" placeholder="Describe the issue in detail — location, since when, any previous complaints raised..."></textarea>
+    </div>
+
+    <div id="tktError" style="color:#B91C1C;font-size:12px;margin-top:4px;display:none;"></div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitTicket()">Submit Ticket</button>
+    </div>
+  </div>
+</div>
+
 <script>
+/* ── Chat ── */
 function addMsg(text, who) {
   const body = document.getElementById('chatBody');
   const d = document.createElement('div'); d.className = 'msg ' + who;
@@ -261,7 +421,11 @@ function showTyping() {
   body.appendChild(d); body.scrollTop = body.scrollHeight;
 }
 function removeTyping(){const t=document.getElementById('typing');if(t)t.remove();}
-function sendSugg(el){document.getElementById('chatInput').value=el.textContent;document.getElementById('chatSugg').style.display='none';sendChat();}
+function sendSugg(el){
+  document.getElementById('chatInput').value=el.textContent;
+  document.getElementById('chatSugg').style.display='none';
+  sendChat();
+}
 async function sendChat(){
   const inp=document.getElementById('chatInput'); const msg=inp.value.trim(); if(!msg)return;
   inp.value=''; document.getElementById('chatSendBtn').disabled=true;
@@ -271,6 +435,50 @@ async function sendChat(){
     const data=await res.json(); removeTyping(); addMsg(data.reply||'Sorry, no response.','bot');
   }catch(e){removeTyping();addMsg('Connection error. Please try again.','bot');}
   document.getElementById('chatSendBtn').disabled=false; inp.focus();
+}
+
+/* ── Ticket modal ── */
+let selPrio = 'Normal';
+function setPrio(p) {
+  selPrio = p;
+  ['Low','Normal','Urgent'].forEach(x => {
+    const el = document.getElementById('prio-'+x);
+    el.className = 'prio-opt' + (x===p ? ' sel-'+x.toLowerCase() : '');
+  });
+}
+function closeModal() {
+  document.getElementById('ticketModal').classList.remove('open');
+  document.getElementById('tktError').style.display='none';
+  document.getElementById('tktSubject').value='';
+  document.getElementById('tktDesc').value='';
+  setPrio('Normal');
+}
+async function submitTicket() {
+  const subject = document.getElementById('tktSubject').value.trim();
+  const desc    = document.getElementById('tktDesc').value.trim();
+  const errEl   = document.getElementById('tktError');
+  if (!subject) { errEl.textContent='Please enter a subject.'; errEl.style.display='block'; return; }
+  if (!desc)    { errEl.textContent='Please describe the issue.'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  const res  = await fetch('/portal/tickets/create', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      category: document.getElementById('tktCategory').value,
+      subject, description: desc, priority: selPrio
+    })
+  });
+  const data = await res.json();
+  if (data.success) {
+    closeModal();
+    // Show confirmation in chat
+    document.getElementById('chatSugg').style.display='none';
+    addMsg(`✓ Ticket #${data.ticket_id} raised successfully! The committee will review your complaint and update you on the status. You can track it under "My Tickets".`, 'bot');
+    // Update open tickets badge
+    setTimeout(() => location.reload(), 3000);
+  } else {
+    errEl.textContent = data.error || 'Failed to submit. Please try again.';
+    errEl.style.display = 'block';
+  }
 }
 </script>
 </body>
