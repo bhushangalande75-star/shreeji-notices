@@ -1,4 +1,6 @@
 flask
+flask-wtf
+flask-limiter
 pandas
 openpyxl
 python-docx
@@ -8,3 +10,6 @@ psycopg2-binary
 requests
 reportlab
 bcrypt
+razorpay
+sendgrid
+openai

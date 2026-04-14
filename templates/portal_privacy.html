@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Privacy Notice — Member Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--teal:#0ABFA3;--teal2:#08A891;--bg:#C8F0EA;--surface:#FFFFFF;--border:#C2EDE6;--ink:#063D36;--ink2:#0A4F48;--ink3:#4A8A84;--muted:#7ABFB8;--font:'Plus Jakarta Sans',sans-serif}
+    body{font-family:var(--font);background:var(--bg);min-height:100vh;color:var(--ink)}
+    .wrap{max-width:760px;margin:0 auto;padding:40px 24px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:36px;margin-bottom:20px}
+    h1{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:6px}
+    h2{font-size:15px;font-weight:700;color:var(--ink2);margin:24px 0 8px;padding-top:16px;border-top:1px solid var(--border)}
+    h2:first-of-type{border-top:none;padding-top:0}
+    p{font-size:13px;color:var(--ink3);line-height:1.8;margin-bottom:10px}
+    ul{font-size:13px;color:var(--ink3);line-height:1.8;margin:6px 0 10px 18px}
+    .badge{display:inline-block;background:rgba(10,191,163,0.1);color:var(--teal);border:1px solid rgba(10,191,163,0.3);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600}
+    .rights-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .right-card{background:rgba(10,191,163,0.05);border:1px solid rgba(10,191,163,0.2);border-radius:10px;padding:14px}
+    .right-card h3{font-size:12px;font-weight:700;color:var(--teal);margin-bottom:4px}
+    .right-card p{font-size:11px;margin:0}
+    .btn-danger{padding:10px 20px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#B91C1C;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)}
+    .btn-danger:hover{background:rgba(239,68,68,0.15)}
+    .btn-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--muted);font-size:12px;margin-bottom:20px;font-weight:500}
+    .btn-back:hover{color:var(--teal)}
+    .updated{font-size:11px;color:var(--muted);margin-top:4px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <a href="/portal/dashboard" class="btn-back">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="15,18 9,12 15,6"/></svg>
+    Back to Dashboard
+  </a>
+
+  <div class="card">
+    <h1>Privacy Notice</h1>
+    <p>{{ society_name }} — Member Portal</p>
+    <div class="updated">Last updated: April 2026 · Compliant with the Digital Personal Data Protection Act 2023 (DPDPA)</div>
+
+    <h2>What data we collect</h2>
+    <p>The following personal data is collected and stored when you use the Member Portal:</p>
+    <ul>
+      <li><strong>Identity data:</strong> Your name, flat number, building number</li>
+      <li><strong>Contact data:</strong> Mobile number, email address (if provided)</li>
+      <li><strong>Financial data:</strong> Maintenance notice amounts, payment status, and payment history</li>
+      <li><strong>Usage data:</strong> Login timestamps, IP address, chatbot interactions</li>
+      <li><strong>Complaint data:</strong> Tickets and complaints raised through the portal</li>
+    </ul>
+
+    <h2>Why we collect it</h2>
+    <p>Your data is used exclusively for the following purposes:</p>
+    <ul>
+      <li>To manage your society membership and maintenance notices</li>
+      <li>To process payments and send receipts</li>
+      <li>To communicate society announcements and decisions</li>
+      <li>To resolve complaints and service requests</li>
+      <li>To comply with Maharashtra Co-operative Societies Act 1960 requirements</li>
+    </ul>
+
+    <h2>Who has access</h2>
+    <p>Your personal data is accessible only to:</p>
+    <ul>
+      <li><strong>Society committee members</strong> who are registered on the platform</li>
+      <li><strong>Platform administrators</strong> for support and maintenance purposes</li>
+    </ul>
+    <p>Your data is <strong>never sold, rented, or shared</strong> with third parties for marketing purposes.</p>
+
+    <h2>Data storage and security</h2>
+    <p>All data is stored on encrypted PostgreSQL databases hosted on Neon (cloud, ap-southeast-1 region). Access is protected by TLS encryption in transit and at rest. Authentication uses bcrypt password hashing. All login and access events are logged.</p>
+
+    <h2>Your rights under DPDPA 2023</h2>
+    <div class="rights-grid">
+      <div class="right-card">
+        <h3>Right to Access</h3>
+        <p>You can request a copy of all personal data we hold about you by contacting the society office.</p>
+      </div>
+      <div class="right-card">
+        <h3>Right to Correction</h3>
+        <p>If your name, phone, or email is incorrect, contact the society office to update it.</p>
+      </div>
+      <div class="right-card">
+        <h3>Right to Erasure</h3>
+        <p>You may request deletion of your personal data. This will remove your portal access, payment history, and personal identifiers.</p>
+      </div>
+      <div class="right-card">
+        <h3>Right to Grievance</h3>
+        <p>If you believe your data has been misused, raise a complaint with the society secretary or contact the Data Protection Board of India.</p>
+      </div>
+    </div>
+
+    <h2>Data retention</h2>
+    <p>Personal data is retained for the duration of your society membership plus 2 years as required by applicable laws. Financial records (notice and payment history) are retained for 7 years per statutory requirements.</p>
+
+    <h2>Request data deletion</h2>
+    <p>You may request deletion of your personal data from the portal below. Note that statutory financial records (notice history) cannot be deleted due to legal requirements, but all personally identifiable information will be anonymised.</p>
+
+    <div id="deleteSection" style="margin-top:16px;">
+      <button class="btn-danger" onclick="requestDeletion()">Request Data Deletion</button>
+      <div id="deleteMsg" style="margin-top:10px;font-size:12px;display:none;"></div>
+    </div>
+
+    <h2>Contact</h2>
+    <p>For any privacy-related queries, contact the society secretary. For DPDPA complaints, contact the <strong>Data Protection Board of India</strong>.</p>
+  </div>
+</div>
+
+<script>
+async function requestDeletion() {
+  if (!confirm('This will permanently delete your personal data and sign you out. Financial records (maintenance notices) will be anonymised but not deleted. Proceed?')) return;
+  const res  = await fetch('/portal/data-request', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action:'delete'})
+  });
+  const data = await res.json();
+  const msg  = document.getElementById('deleteMsg');
+  if (data.success) {
+    msg.style.color='#065F46'; msg.style.display='block';
+    msg.textContent = data.message;
+    document.getElementById('deleteSection').querySelector('button').disabled = true;
+    setTimeout(() => window.location='/portal/login', 3000);
+  } else {
+    msg.style.color='#B91C1C'; msg.style.display='block';
+    msg.textContent = data.error;
+  }
+}
+</script>
+</body>
+</html>

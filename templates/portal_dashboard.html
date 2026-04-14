@@ -4,6 +4,11 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{{ society_name }} — Member Portal</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#0ABFA3"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="SocietyNotice"/>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -242,6 +247,12 @@
                 <span class="bdg-dot"></span>{{ n.payment_status }}
               </span>
               {% if n.payment_date %}<span>· Paid: {{ n.payment_date }}</span>{% endif %}
+              {% if n.payment_status == 'Pending' %}
+              <button onclick="payNotice({{ n.id }}, {{ n.amount }})"
+                style="margin-left:6px;padding:3px 11px;border-radius:14px;background:linear-gradient(135deg,#0ABFA3,#08A891);border:none;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);">
+                Pay Now
+              </button>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -480,6 +491,52 @@ async function submitTicket() {
     errEl.style.display = 'block';
   }
 }
+/* ── Razorpay Payment ── */
+async function payNotice(noticeId, amount) {
+  const res  = await fetch('/portal/pay/create-order', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({notice_id: noticeId, amount: amount})
+  });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.error || 'Payment gateway not available. Contact the society office.');
+    return;
+  }
+  const options = {
+    key: data.key_id, amount: data.amount, currency: data.currency,
+    name: data.name, description: `Maintenance — Flat ${data.flat}`,
+    order_id: data.order_id, prefill: {name: data.member, contact: ''},
+    theme: {color: '#0ABFA3'},
+    handler: async function(response) {
+      const v = await fetch('/portal/pay/verify', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          razorpay_order_id:   response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature:  response.razorpay_signature,
+          amount: data.amount
+        })
+      });
+      const vdata = await v.json();
+      if (vdata.success) {
+        addMsg('✅ Payment of ₹' + (data.amount/100).toLocaleString('en-IN') + ' confirmed! Notice will update shortly.', 'bot');
+        document.getElementById('chatSugg').style.display='none';
+        setTimeout(() => location.reload(), 2500);
+      } else {
+        alert('Payment verification failed: ' + (vdata.error || 'Contact society office.'));
+      }
+    },
+    modal: {ondismiss: () => {}}
+  };
+  if (typeof Razorpay === 'undefined') { alert('Payment unavailable — check internet connection.'); return; }
+  new Razorpay(options).open();
+}
+/* ── PWA Service Worker ── */
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
+
 </script>
+<!-- Razorpay -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<div style="text-align:center;padding:10px 0 16px;font-size:11px;color:var(--muted);"><a href="/portal/privacy" style="color:var(--muted);text-decoration:none;">Privacy Notice &amp; Data Rights (DPDPA 2023)</a></div>
 </body>
 </html>

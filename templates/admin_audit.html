@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Admin{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+{% block page_sub %}Security and activity trail — all user actions{% endblock %}
+
+{% block extra_head %}
+<style>
+  .filter-row{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  .filter-row select{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink2);font-size:13px;font-family:var(--font)}
+  .log-table{width:100%;border-collapse:collapse;font-size:13px}
+  .log-table th{background:var(--surface2);padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)}
+  .log-table td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--ink2)}
+  .log-table tr:hover td{background:var(--surface2)}
+  .action-pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+  .a-login{background:#D1FAE5;color:#065F46}
+  .a-fail{background:#FEE2E2;color:#991B1B}
+  .a-payment{background:#FEF3C7;color:#92400E}
+  .a-delete{background:#FEE2E2;color:#7F1D1D}
+  .a-other{background:var(--surface2);color:var(--ink3)}
+  .tbl-wrap{max-height:600px;overflow-y:auto;border-radius:12px;border:1px solid var(--border)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="filter-row">
+  <form method="GET" action="/admin/audit" style="display:flex;gap:8px;align-items:center;">
+    <label style="font-size:13px;color:var(--ink3);">Filter by society:</label>
+    <select name="society_id" onchange="this.form.submit()">
+      <option value="">— Select society —</option>
+      {% for s in societies %}
+        <option value="{{ s.id }}" {% if selected_sid|string == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if logs %}
+<div class="tbl-wrap">
+  <table class="log-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Detail</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in logs %}
+      <tr>
+        <td style="white-space:nowrap;color:var(--muted);">{{ l.created_at.strftime('%d %b %Y %H:%M') if l.created_at else '—' }}</td>
+        <td style="font-weight:600;">{{ l.actor }}</td>
+        <td>
+          {% set cls = 'a-login' if 'LOGIN' in l.action and 'FAIL' not in l.action else 'a-fail' if 'FAIL' in l.action else 'a-payment' if 'PAYMENT' in l.action else 'a-delete' if 'DELET' in l.action else 'a-other' %}
+          <span class="action-pill {{ cls }}">{{ l.action }}</span>
+        </td>
+        <td>{{ l.detail or '—' }}</td>
+        <td style="font-family:monospace;font-size:11px;color:var(--muted);">{{ l.ip_address or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div style="text-align:center;padding:60px;color:var(--muted);">
+  <p style="font-size:32px;margin-bottom:12px;">🔍</p>
+  <p>Select a society to view its audit log.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -735,3 +735,227 @@ def get_ticket_by_id(ticket_id):
     cur.execute("SELECT * FROM member_tickets WHERE id=%s", (ticket_id,))
     row = cur.fetchone(); cur.close(); conn.close()
     return dict(row) if row else None
+
+
+# ── Audit Log ──────────────────────────────────────────────────────────────────
+
+def init_audit_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER,
+            actor       TEXT NOT NULL,
+            action      TEXT NOT NULL,
+            detail      TEXT,
+            ip_address  TEXT,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_society ON audit_log(society_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC);
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+init_audit_table()
+
+def log_audit(society_id, actor, action, detail='', ip_address=''):
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO audit_log (society_id, actor, action, detail, ip_address)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (society_id, actor, action, detail, ip_address))
+        conn.commit(); cur.close(); conn.close()
+    except Exception:
+        pass  # Never let audit logging crash the app
+
+def get_audit_log(society_id, limit=100):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM audit_log WHERE society_id=%s
+        ORDER BY created_at DESC LIMIT %s
+    """, (society_id, limit))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+
+# ── Payment Records ────────────────────────────────────────────────────────────
+
+def init_payments_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS portal_payments (
+            id                  SERIAL PRIMARY KEY,
+            society_id          INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            flat_combo          TEXT NOT NULL,
+            member_name         TEXT NOT NULL,
+            notice_id           INTEGER,
+            razorpay_order_id   TEXT UNIQUE,
+            razorpay_payment_id TEXT,
+            amount              NUMERIC(12,2) NOT NULL,
+            currency            TEXT DEFAULT 'INR',
+            status              TEXT DEFAULT 'created',
+            description         TEXT,
+            created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            paid_at             TIMESTAMP
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+init_payments_table()
+
+def create_payment_order(society_id, flat_combo, member_name, notice_id,
+                         razorpay_order_id, amount, description=''):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO portal_payments
+            (society_id, flat_combo, member_name, notice_id,
+             razorpay_order_id, amount, description)
+        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id
+    """, (society_id, flat_combo, member_name, notice_id,
+          razorpay_order_id, amount, description))
+    pid = cur.fetchone()['id']
+    conn.commit(); cur.close(); conn.close()
+    return pid
+
+def confirm_payment(razorpay_order_id, razorpay_payment_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE portal_payments
+        SET status='paid', razorpay_payment_id=%s, paid_at=NOW()
+        WHERE razorpay_order_id=%s
+        RETURNING id, notice_id, society_id, flat_combo, amount
+    """, (razorpay_payment_id, razorpay_order_id))
+    row = cur.fetchone()
+    conn.commit(); cur.close(); conn.close()
+    return dict(row) if row else None
+
+def get_payment_history(society_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM portal_payments
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+        ORDER BY created_at DESC
+    """, (society_id, flat_combo))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+
+# ── DPDPA Consent & Data Management ───────────────────────────────────────────
+
+def init_consent_table():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS member_consent (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            flat_combo  TEXT NOT NULL,
+            consent_given BOOLEAN DEFAULT FALSE,
+            consent_at  TIMESTAMP,
+            ip_address  TEXT,
+            UNIQUE(society_id, flat_combo)
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+init_consent_table()
+
+def record_consent(society_id, flat_combo, ip_address=''):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO member_consent (society_id, flat_combo, consent_given, consent_at, ip_address)
+        VALUES (%s, UPPER(%s), TRUE, NOW(), %s)
+        ON CONFLICT (society_id, flat_combo)
+        DO UPDATE SET consent_given=TRUE, consent_at=NOW(), ip_address=EXCLUDED.ip_address
+    """, (society_id, flat_combo, ip_address))
+    conn.commit(); cur.close(); conn.close()
+
+def has_consent(society_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT consent_given FROM member_consent
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+    """, (society_id, flat_combo))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return bool(row and row['consent_given'])
+
+def delete_member_data(society_id, flat_combo):
+    """DPDPA right to erasure — removes all personal data for a flat."""
+    conn = get_db(); cur = conn.cursor()
+    flat_up = flat_combo.strip().upper()
+    cur.execute("DELETE FROM member_logins   WHERE society_id=%s AND UPPER(flat_combo)=%s",
+                (society_id, flat_up))
+    cur.execute("DELETE FROM member_consent  WHERE society_id=%s AND UPPER(flat_combo)=%s",
+                (society_id, flat_up))
+    cur.execute("DELETE FROM member_tickets  WHERE society_id=%s AND UPPER(flat_combo)=%s",
+                (society_id, flat_up))
+    cur.execute("UPDATE society_members SET name='[Deleted]', phone='0000000000', email=''   "
+                "WHERE society_id=%s AND UPPER(flat_combo)=%s", (society_id, flat_up))
+    conn.commit(); cur.close(); conn.close()
+
+
+# ── Analytics Queries ──────────────────────────────────────────────────────────
+
+def get_analytics(society_id):
+    conn = get_db(); cur = conn.cursor()
+
+    # Monthly collection trend (last 12 months)
+    cur.execute("""
+        SELECT DATE_TRUNC('month', created_at) AS month,
+               COUNT(*) AS total_notices,
+               SUM(CASE WHEN payment_status='Paid' THEN 1 ELSE 0 END) AS paid,
+               COALESCE(SUM(CASE WHEN payment_status='Paid' THEN payment_amount ELSE 0 END),0) AS collected
+        FROM notices
+        WHERE society_id=%s AND created_at >= NOW() - INTERVAL '12 months'
+        GROUP BY month ORDER BY month
+    """, (society_id,))
+    monthly_trend = [dict(r) for r in cur.fetchall()]
+
+    # Ageing buckets (outstanding)
+    cur.execute("""
+        SELECT
+            COUNT(CASE WHEN NOW()-created_at < INTERVAL '30 days' THEN 1 END)  AS bucket_0_30,
+            COUNT(CASE WHEN NOW()-created_at BETWEEN INTERVAL '30 days' AND INTERVAL '60 days' THEN 1 END) AS bucket_31_60,
+            COUNT(CASE WHEN NOW()-created_at BETWEEN INTERVAL '60 days' AND INTERVAL '90 days' THEN 1 END) AS bucket_61_90,
+            COUNT(CASE WHEN NOW()-created_at > INTERVAL '90 days' THEN 1 END)  AS bucket_90_plus,
+            COALESCE(SUM(CASE WHEN NOW()-created_at < INTERVAL '30 days' THEN amount ELSE 0 END),0) AS amt_0_30,
+            COALESCE(SUM(CASE WHEN NOW()-created_at BETWEEN INTERVAL '30 days' AND INTERVAL '60 days' THEN amount ELSE 0 END),0) AS amt_31_60,
+            COALESCE(SUM(CASE WHEN NOW()-created_at > INTERVAL '90 days' THEN amount ELSE 0 END),0) AS amt_90_plus
+        FROM notices WHERE society_id=%s AND payment_status='Pending'
+    """, (society_id,))
+    ageing = dict(cur.fetchone())
+
+    # Top defaulters
+    cur.execute("""
+        SELECT flat_no, member_name, COUNT(*) AS notice_count,
+               SUM(amount) AS total_owed
+        FROM notices WHERE society_id=%s AND payment_status='Pending'
+        GROUP BY flat_no, member_name
+        ORDER BY total_owed DESC LIMIT 10
+    """, (society_id,))
+    defaulters = [dict(r) for r in cur.fetchall()]
+
+    # Ticket stats by category
+    cur.execute("""
+        SELECT category, status, COUNT(*) as cnt
+        FROM member_tickets WHERE society_id=%s
+        GROUP BY category, status ORDER BY cnt DESC
+    """, (society_id,))
+    ticket_stats = [dict(r) for r in cur.fetchall()]
+
+    # Notice type breakdown
+    cur.execute("""
+        SELECT notice_type, payment_status, COUNT(*) as cnt
+        FROM notices WHERE society_id=%s
+        GROUP BY notice_type, payment_status
+    """, (society_id,))
+    notice_breakdown = [dict(r) for r in cur.fetchall()]
+
+    cur.close(); conn.close()
+    return {
+        'monthly_trend':    monthly_trend,
+        'ageing':           ageing,
+        'defaulters':       defaulters,
+        'ticket_stats':     ticket_stats,
+        'notice_breakdown': notice_breakdown,
+    }

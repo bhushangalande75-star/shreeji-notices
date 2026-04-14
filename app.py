@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request, make_response, Response, stream_with_context, session, redirect, url_for, jsonify
+from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import pandas as pd
-import os, io, zipfile, json, uuid, tempfile, glob, subprocess, sys
+import os, io, zipfile, json, uuid, tempfile, glob, subprocess, sys, hmac, hashlib as _hashlib
 from datetime import date, datetime, timedelta
 from notice_generator import generate_notice
 from notice_generator_ai import build_ai_notice_docx, build_mom_docx
 from notice_generator_2nd import generate_notice_2nd
 from notice_generator_3rd import generate_notice_3rd
-from notice_generator_ai import build_ai_notice_docx, build_mom_docx
 import requests as http_requests
 import base64
 from pypdf import PdfWriter, PdfReader
@@ -28,7 +30,11 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       get_society_pin_format,
                       upsert_knowledge, get_knowledge, get_member_outstanding,
                       create_ticket, get_member_tickets, get_all_tickets,
-                      update_ticket_status, get_ticket_by_id)
+                      update_ticket_status, get_ticket_by_id,
+                      log_audit, get_audit_log,
+                      create_payment_order, confirm_payment, get_payment_history,
+                      record_consent, has_consent, delete_member_data,
+                      get_analytics)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -37,10 +43,40 @@ _secret = os.environ.get("SECRET_KEY")
 if not _secret:
     raise RuntimeError(
         "SECRET_KEY environment variable is not set. "
-        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\" "
-        "and add it to your Render → Environment settings."
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
     )
 app.secret_key = _secret
+
+# ── CSRF protection ────────────────────────────────────────────────────────────
+csrf = CSRFProtect(app)
+# Exempt JSON API routes and webhooks from CSRF (they use other auth)
+CSRF_EXEMPT_PREFIXES = ("/portal/chat", "/portal/tickets/create",
+                        "/whatsapp/", "/razorpay/webhook",
+                        "/session/ping", "/knowledge/", "/society/",
+                        "/tickets/update/", "/admin/", "/tracker/update",
+                        "/tracker/delete", "/members/upload", "/members/delete",
+                        "/portal/announcements/create", "/portal/announcements/delete",
+                        "/ai-notices/generate", "/ai-notices/download")
+
+@app.before_request
+def maybe_exempt_csrf():
+    path = request.path
+    if request.is_json or any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES):
+        setattr(request, '_csrf_token_used', True)
+
+# ── Rate limiting ──────────────────────────────────────────────────────────────
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://"
+)
+
+# ── External services ──────────────────────────────────────────────────────────
+RAZORPAY_KEY_ID     = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+SENDGRID_API_KEY    = os.environ.get("SENDGRID_API_KEY", "")
+SENDGRID_FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "noreply@societynotice.app")
 
 # ── Session timeout: 10 minutes of inactivity ──────────────────────────────────
 INACTIVITY_TIMEOUT = timedelta(minutes=10)
@@ -122,31 +158,35 @@ def society_required(f):
 
 # ── Auth ───────────────────────────────────────────────────────
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     error = ""
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
+        ip = request.remote_addr
 
         # Admin login
         if username == "admin" and password == ADMIN_PASSWORD:
             session["is_admin"]   = True
             session["society_id"] = None
             session["society_name"] = "Admin"
+            log_audit(None, "admin", "LOGIN", "Admin login", ip)
             return redirect(url_for("admin_dashboard"))
 
         # Society login
         society = get_society_by_username(username)
         if society and check_password(password, society["password"]):
-            # Auto-upgrade legacy plain-text passwords to bcrypt on first successful login
             stored = society["password"]
             if not (stored.startswith("$2b$") or stored.startswith("$2a$")):
                 change_society_password(society["id"], password)
             session["society_id"]   = society["id"]
             session["society_name"] = society["name"]
             session["is_admin"]     = False
+            log_audit(society["id"], username, "LOGIN", "Society login", ip)
             return redirect(url_for("index"))
 
+        log_audit(None, username, "LOGIN_FAILED", f"Failed login from {ip}", ip)
         error = "❌ Invalid username or password."
     return render_template("login.html", error=error)
 
@@ -168,10 +208,10 @@ def logout():
 @admin_required
 def admin_dashboard():
     societies = get_all_societies()
+    # Attach member counts to each society
     for s in societies:
         s["member_count"] = len(get_members(s["id"]))
     return render_template("admin.html", societies=societies, society_name=session.get("society_name", "Admin"))
-
 
 @app.route("/admin/create_society", methods=["POST"])
 @admin_required
@@ -842,177 +882,6 @@ def ai_generate_committee():
         fname = f"Committee_Notice_{safe_type}_{meeting_date.replace('-','')}.docx"
         with open(os.path.join(sess_dir, fname), "wb") as f:
             f.write(docx_bytes)
-
-        return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/ai-notices/generate-noc", methods=["POST"])
-@login_required
-def ai_generate_noc():
-    """
-    Generate a No Objection Certificate (NOC) using Groq AI.
-    Supports 11 NOC types + custom, in English / Marathi / Hindi.
-    """
-    try:
-        noc_type    = request.form.get("noc_type", "sale").strip()
-        custom_type = request.form.get("custom_type", "").strip()
-        name        = request.form.get("name", "").strip()
-        flat_no     = request.form.get("flat_no", "").strip()
-        noc_date    = request.form.get("noc_date", date.today().strftime("%d-%m-%Y"))
-        ref_no      = request.form.get("ref_no", "").strip()
-        buyer       = request.form.get("buyer", "").strip()
-        bank        = request.form.get("bank", "").strip()
-        details     = request.form.get("details", "").strip()
-        language    = request.form.get("language", "English").strip()
-        society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
-
-        try:
-            noc_date = datetime.strptime(noc_date, "%Y-%m-%d").strftime("%d-%m-%Y")
-        except:
-            pass
-
-        # ── NOC type labels and context ───────────────────────────────────────
-        NOC_LABELS = {
-            "sale"         : "Sale / Transfer of Flat",
-            "mortgage"     : "Mortgage / Bank Loan",
-            "rental"       : "Rental / Tenancy",
-            "renovation"   : "Renovation / Interior Alteration",
-            "vehicle"      : "Vehicle Parking Allotment",
-            "name_change"  : "Name Change / Mutation of Share Certificate",
-            "legal"        : "Legal / Court / Affidavit Purpose",
-            "gas_pipeline" : "Piped Natural Gas (PNG) / Gas Pipeline Installation",
-            "telecom"      : "Telecom / DTH / Internet Antenna Installation",
-            "address_proof": "Address Proof / Residence Certificate",
-            "inheritance"  : "Inheritance / Succession of Flat",
-            "custom"       : custom_type or "General Purpose",
-        }
-        noc_label = NOC_LABELS.get(noc_type, NOC_LABELS["custom"])
-
-        # ── Contextual extras per type ────────────────────────────────────────
-        extra_context = ""
-        if buyer:
-            extra_context += f"\nBuyer / Transferee / New Party: {buyer}"
-        if bank:
-            extra_context += f"\nBank / Financial Institution: {bank}"
-        if details:
-            extra_context += f"\nAdditional Details: {details}"
-
-        # ── Language-specific prompt configs ─────────────────────────────────
-        lang_cfg = {
-            "English": {
-                "system": (
-                    "You are the official Secretary of a Co-operative Housing Society in Maharashtra, India. "
-                    "You issue formal No Objection Certificates (NOCs) on behalf of the Managing Committee. "
-                    "Write the NOC body only — no letterhead, no subject line, no signature block. "
-                    "Use formal, legally precise English. Reference the Maharashtra Co-operative Societies Act 1960 "
-                    "and Society bye-laws where relevant. Number any conditions clearly."
-                ),
-                "user": (
-                    f"Issue a formal NOC for the following:\n\n"
-                    f"NOC Type: {noc_label}\n"
-                    f"Member / Owner Name: {name}\n"
-                    f"Flat No: {flat_no}\n"
-                    f"Society: {society_name}\n"
-                    f"Date: {noc_date}{extra_context}\n\n"
-                    "Write the complete NOC body paragraphs. Include: "
-                    "(1) a formal opening stating the Managing Committee has no objection, "
-                    "(2) specific details relevant to this NOC type (e.g. sale consideration, tenant name, "
-                    "loan amount, renovation scope — based on the details provided), "
-                    "(3) any standard conditions applicable under MCS Act 1960 for this type, "
-                    "(4) a validity clause (typically 3–6 months for sale NOC, 1 year for others). "
-                    "Do NOT write the letterhead, 'Sub:', or 'To:' section."
-                ),
-                "subject_system": "You are the Secretary of a Co-operative Housing Society.",
-                "subject_user": (
-                    f"Write a short one-line subject for a '{noc_label}' NOC issued to a society member. "
-                    "Output ONLY the subject text — no 'Sub:' prefix. "
-                    "Example: No Objection for Sale of Flat No. B01-201"
-                ),
-                "sub_label": "Sub:",
-            },
-            "Marathi": {
-                "system": (
-                    "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अधिकृत सचिव आहात. "
-                    "व्यवस्थापन समितीच्या वतीने अधिकृत ना-हरकत प्रमाणपत्र (NOC) जारी करा. "
-                    "फक्त NOC चा मुख्य भाग लिहा — लेटरहेड, विषय ओळ किंवा स्वाक्षरी नको. "
-                    "औपचारिक, कायदेशीरदृष्ट्या अचूक मराठी वापरा. "
-                    "महाराष्ट्र सहकारी संस्था अधिनियम १९६० आणि संस्थेच्या उपविधींचा संदर्भ द्या."
-                ),
-                "user": (
-                    f"खालील माहितीसाठी अधिकृत ना-हरकत प्रमाणपत्र (NOC) जारी करा:\n\n"
-                    f"NOC प्रकार: {noc_label}\n"
-                    f"सदस्याचे नाव: {name}\n"
-                    f"फ्लॅट क्र.: {flat_no}\n"
-                    f"संस्था: {society_name}\n"
-                    f"तारीख: {noc_date}{extra_context}\n\n"
-                    "संपूर्ण NOC मजकूर लिहा. समाविष्ट करा: "
-                    "(१) व्यवस्थापन समितीला कोणतीही हरकत नाही असे औपचारिक उद्घाटन, "
-                    "(२) या NOC प्रकाराशी संबंधित विशिष्ट तपशील, "
-                    "(३) MCS अधिनियम १९६० अंतर्गत लागू असलेल्या अटी, "
-                    "(४) वैधता कलम. "
-                    "लेटरहेड, 'विषय:' किंवा 'प्रति:' विभाग लिहू नका."
-                ),
-                "subject_system": "तुम्ही एका सहकारी गृहनिर्माण संस्थेचे सचिव आहात.",
-                "subject_user": (
-                    f"'{noc_label}' NOC साठी एक ओळीचा मराठी विषय लिहा. "
-                    "फक्त विषय ओळ — 'विषय:' उपसर्ग न लिहिता."
-                ),
-                "sub_label": "विषय:",
-            },
-            "Hindi": {
-                "system": (
-                    "आप महाराष्ट्र की एक सहकारी आवास संस्था के आधिकारिक सचिव हैं. "
-                    "प्रबंध समिति की ओर से आधिकारिक अनापत्ति प्रमाण पत्र (NOC) जारी करें. "
-                    "केवल NOC का मुख्य भाग लिखें — लेटरहेड, विषय पंक्ति या हस्ताक्षर नहीं. "
-                    "औपचारिक, कानूनी रूप से सटीक हिंदी का प्रयोग करें. "
-                    "महाराष्ट्र सहकारी संस्था अधिनियम 1960 और संस्था के उपनियमों का संदर्भ दें."
-                ),
-                "user": (
-                    f"निम्नलिखित के लिए आधिकारिक अनापत्ति प्रमाण पत्र जारी करें:\n\n"
-                    f"NOC प्रकार: {noc_label}\n"
-                    f"सदस्य / स्वामी का नाम: {name}\n"
-                    f"फ्लैट नं.: {flat_no}\n"
-                    f"संस्था: {society_name}\n"
-                    f"तारीख: {noc_date}{extra_context}\n\n"
-                    "पूर्ण NOC मुख्य भाग लिखें. शामिल करें: "
-                    "(1) प्रबंध समिति को कोई आपत्ति नहीं है, औपचारिक उद्घाटन, "
-                    "(2) इस NOC प्रकार से संबंधित विशिष्ट विवरण, "
-                    "(3) MCS अधिनियम 1960 के तहत लागू शर्तें, "
-                    "(4) वैधता खंड. "
-                    "लेटरहेड, 'विषय:' या 'सेवा में:' अनुभाग न लिखें."
-                ),
-                "subject_system": "आप एक सहकारी आवास संस्था के सचिव हैं.",
-                "subject_user": (
-                    f"'{noc_label}' NOC के लिए एक पंक्ति का हिंदी विषय लिखें. "
-                    "केवल विषय पंक्ति — 'विषय:' उपसर्ग के बिना."
-                ),
-                "sub_label": "विषय:",
-            },
-        }
-
-        cfg = lang_cfg.get(language, lang_cfg["English"])
-        print(f"[NOC] type={noc_type!r} lang={language!r}")
-
-        ai_text     = call_groq(cfg["system"], cfg["user"])
-        raw_subject = call_groq(cfg["subject_system"], cfg["subject_user"]).strip().strip('"').strip("'").strip()
-        for prefix in ("Sub:", "Subject:", "विषय:", "विषय :", "Vishay:"):
-            if raw_subject.lower().startswith(prefix.lower()):
-                raw_subject = raw_subject[len(prefix):].strip()
-                break
-        subject = f"{cfg['sub_label']} {raw_subject}"
-
-        docx_bytes = build_ai_notice_docx(ref_no, flat_no, name, noc_date, subject, ai_text)
-
-        sess_id  = str(uuid.uuid4())
-        sess_dir = os.path.join(TEMP_DIR, sess_id)
-        os.makedirs(sess_dir, exist_ok=True)
-        safe_type = noc_label.replace(" ", "_").replace("/", "-")[:40]
-        fname = f"NOC_{safe_type}_{flat_no or 'General'}.docx"
-        with open(os.path.join(sess_dir, fname), "wb") as fh:
-            fh.write(docx_bytes)
 
         return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
 
@@ -2318,7 +2187,343 @@ def society_update_ticket(ticket_id):
     status = data.get("status", "Open")
     note   = data.get("committee_note", "").strip()
     update_ticket_status(ticket_id, status, note)
+    log_audit(session["society_id"], session["society_name"],
+              "TICKET_UPDATE", f"Ticket #{ticket_id} → {status}")
     return jsonify({"success": True})
+
+
+# ══════════════════════════════════════════════════════════════
+#  PHASE 2: RAZORPAY PAYMENT INTEGRATION
+# ══════════════════════════════════════════════════════════════
+
+def _razorpay_client():
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        return None
+    import razorpay
+    return razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+
+
+@app.route("/portal/pay/create-order", methods=["POST"])
+@portal_required
+def portal_create_payment_order():
+    """Create a Razorpay order for a pending notice."""
+    client = _razorpay_client()
+    if not client:
+        return jsonify({"success": False,
+                        "error": "Payment gateway not configured. Contact society office."}), 503
+
+    sid       = session["member_society_id"]
+    flat      = session["member_flat"]
+    name      = session["member_name"]
+    data      = request.json or {}
+    notice_id = data.get("notice_id")
+    amount    = data.get("amount")          # in rupees
+
+    if not notice_id or not amount:
+        return jsonify({"success": False, "error": "notice_id and amount required"}), 400
+
+    try:
+        amount_paise = int(float(amount) * 100)
+        order = client.order.create({
+            "amount":   amount_paise,
+            "currency": "INR",
+            "receipt":  f"notice_{notice_id}_{flat}",
+            "notes":    {"flat": flat, "society_id": str(sid), "notice_id": str(notice_id)},
+        })
+        create_payment_order(sid, flat, name, notice_id, order["id"], amount,
+                             f"Maintenance notice payment")
+        return jsonify({
+            "success":  True,
+            "order_id": order["id"],
+            "key_id":   RAZORPAY_KEY_ID,
+            "amount":   amount_paise,
+            "currency": "INR",
+            "name":     session["member_society"],
+            "member":   name,
+            "flat":     flat,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/razorpay/webhook", methods=["POST"])
+@csrf.exempt
+def razorpay_webhook():
+    """Razorpay sends payment.captured event here. Verify signature, mark paid."""
+    payload   = request.get_data()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+
+    if RAZORPAY_KEY_SECRET:
+        expected = hmac.new(
+            RAZORPAY_KEY_SECRET.encode(),
+            payload,
+            _hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(expected, signature):
+            return jsonify({"error": "Invalid signature"}), 400
+
+    try:
+        event = json.loads(payload)
+        if event.get("event") == "payment.captured":
+            payment = event["payload"]["payment"]["entity"]
+            order_id   = payment.get("order_id")
+            payment_id = payment.get("id")
+            row = confirm_payment(order_id, payment_id)
+            if row and row.get("notice_id"):
+                update_payment(row["notice_id"], "Paid",
+                               datetime.now().strftime("%d-%m-%Y"),
+                               int(payment.get("amount", 0) / 100), "Paid via Razorpay")
+                log_audit(row["society_id"], row["flat_combo"],
+                          "PAYMENT", f"Razorpay {payment_id} Rs.{row['amount']}")
+                # Send email receipt
+                _send_payment_receipt_email(row)
+    except Exception as e:
+        print(f"[WEBHOOK ERROR] {e}")
+
+    return jsonify({"status": "ok"})
+
+
+@app.route("/portal/pay/verify", methods=["POST"])
+@portal_required
+def portal_verify_payment():
+    """Called by frontend after Razorpay checkout completes (client-side confirmation)."""
+    data       = request.json or {}
+    order_id   = data.get("razorpay_order_id", "")
+    payment_id = data.get("razorpay_payment_id", "")
+    signature  = data.get("razorpay_signature", "")
+
+    if RAZORPAY_KEY_SECRET:
+        body     = f"{order_id}|{payment_id}"
+        expected = hmac.new(
+            RAZORPAY_KEY_SECRET.encode(), body.encode(), _hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(expected, signature):
+            return jsonify({"success": False, "error": "Signature mismatch"}), 400
+
+    row = confirm_payment(order_id, payment_id)
+    if row and row.get("notice_id"):
+        update_payment(row["notice_id"], "Paid",
+                       datetime.now().strftime("%d-%m-%Y"),
+                       int(float(data.get("amount", 0)) / 100), "Paid via Razorpay")
+        log_audit(session["member_society_id"], session["member_flat"],
+                  "PAYMENT", f"Verified Rs.{row['amount']}")
+        _send_payment_receipt_email(row)
+        return jsonify({"success": True, "message": "Payment confirmed!"})
+
+    return jsonify({"success": False, "error": "Could not confirm payment"}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+#  PHASE 3: EMAIL DELIVERY RECEIPTS (SendGrid)
+# ══════════════════════════════════════════════════════════════
+
+def _send_email(to_email: str, subject: str, html_body: str) -> bool:
+    """Send an email via SendGrid. Returns True on success."""
+    if not SENDGRID_API_KEY or not to_email:
+        return False
+    try:
+        payload = {
+            "personalizations": [{"to": [{"email": to_email}]}],
+            "from": {"email": SENDGRID_FROM_EMAIL, "name": "SocietyNotice"},
+            "subject": subject,
+            "content": [{"type": "text/html", "value": html_body}],
+        }
+        resp = http_requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}",
+                     "Content-Type": "application/json"},
+            json=payload, timeout=10
+        )
+        return resp.status_code in (200, 202)
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+        return False
+
+
+def _send_payment_receipt_email(payment_row: dict):
+    sid   = payment_row.get("society_id")
+    flat  = payment_row.get("flat_combo", "")
+    member = get_member_by_flat(sid, flat)
+    if not member or not member.get("email"):
+        return
+    socs = get_all_societies()
+    soc  = next((s for s in socs if s["id"] == sid), {})
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;">
+      <h2 style="color:#0ABFA3;">✅ Payment Confirmed</h2>
+      <p>Dear <strong>{member['name']}</strong>,</p>
+      <p>Your maintenance payment of <strong>₹{payment_row['amount']:,.0f}</strong>
+         has been received for Flat <strong>{flat}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+        <tr><td style="padding:8px;color:#888;">Society</td>
+            <td style="padding:8px;font-weight:600;">{soc.get('name','')}</td></tr>
+        <tr style="background:#f9f9f9;">
+          <td style="padding:8px;color:#888;">Date</td>
+          <td style="padding:8px;">{datetime.now().strftime('%d %b %Y %I:%M %p')}</td></tr>
+        <tr><td style="padding:8px;color:#888;">Amount</td>
+            <td style="padding:8px;font-weight:600;color:#0ABFA3;">₹{payment_row['amount']:,.0f}</td></tr>
+      </table>
+      <p style="color:#888;font-size:12px;">This is an auto-generated receipt from SocietyNotice.</p>
+    </div>"""
+    _send_email(member["email"],
+                f"Payment Receipt — {soc.get('name', 'Society')} — Flat {flat}",
+                html)
+
+
+def _send_notice_delivery_email(member_email: str, member_name: str,
+                                flat: str, society_name: str,
+                                ref_no: str, amount: int, issued_date: str):
+    """Email sent when a notice is generated for a member."""
+    if not member_email:
+        return False
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;border:1px solid #e5e5e5;border-radius:12px;">
+      <div style="background:#0ABFA3;padding:20px;border-radius:8px 8px 0 0;margin:-32px -32px 24px;">
+        <h2 style="color:#fff;margin:0;">{society_name}</h2>
+        <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;">Maintenance Notice</p>
+      </div>
+      <p>Dear <strong>{member_name}</strong>,</p>
+      <p>A maintenance notice has been issued for your flat.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+        <tr style="background:#f4fdfb;"><td style="padding:10px;color:#888;">Flat No</td>
+            <td style="padding:10px;font-weight:600;">{flat}</td></tr>
+        <tr><td style="padding:10px;color:#888;">Ref No</td>
+            <td style="padding:10px;font-family:monospace;">{ref_no}</td></tr>
+        <tr style="background:#f4fdfb;"><td style="padding:10px;color:#888;">Amount Due</td>
+            <td style="padding:10px;font-weight:700;color:#D97706;">₹{amount:,}</td></tr>
+        <tr><td style="padding:10px;color:#888;">Issued Date</td>
+            <td style="padding:10px;">{issued_date}</td></tr>
+      </table>
+      <p>Please log in to the Member Portal to view and pay your notice.</p>
+      <p style="color:#888;font-size:12px;">Regards,<br>{society_name} Management</p>
+    </div>"""
+    return _send_email(member_email,
+                       f"Maintenance Notice — {society_name} — Flat {flat}",
+                       html)
+
+
+# ══════════════════════════════════════════════════════════════
+#  PHASE 4: PWA — service worker and manifest
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/manifest.json")
+def pwa_manifest():
+    manifest = {
+        "name": "SocietyNotice Member Portal",
+        "short_name": "SocietyNotice",
+        "description": "Your society notices, dues, and information — all in one place",
+        "start_url": "/portal/dashboard",
+        "display": "standalone",
+        "background_color": "#C8F0EA",
+        "theme_color": "#0ABFA3",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ]
+    }
+    resp = make_response(json.dumps(manifest))
+    resp.headers["Content-Type"] = "application/manifest+json"
+    return resp
+
+
+@app.route("/sw.js")
+def service_worker():
+    sw = """
+const CACHE = 'societynotice-v1';
+const OFFLINE_URLS = ['/portal/dashboard', '/portal/login'];
+self.addEventListener('install', e =>
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(OFFLINE_URLS))));
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(
+    fetch(e.request).catch(() => caches.match(e.request))
+  );
+});
+"""
+    resp = make_response(sw)
+    resp.headers["Content-Type"] = "application/javascript"
+    resp.headers["Service-Worker-Allowed"] = "/"
+    return resp
+
+
+# ══════════════════════════════════════════════════════════════
+#  PHASE 6: ANALYTICS DASHBOARD
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/analytics")
+@society_required
+def analytics_dashboard():
+    sid  = session["society_id"]
+    data = get_analytics(sid)
+    return render_template("analytics.html",
+                           society_name=session["society_name"],
+                           data=data)
+
+
+# ══════════════════════════════════════════════════════════════
+#  PHASE 7: DPDPA COMPLIANCE
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/portal/privacy")
+def portal_privacy():
+    return render_template("portal_privacy.html",
+                           society_name=session.get("member_society", "Society"))
+
+
+@app.route("/portal/consent", methods=["POST"])
+def portal_give_consent():
+    """Record explicit DPDPA consent from member."""
+    sid  = session.get("member_society_id")
+    flat = session.get("member_flat")
+    if sid and flat:
+        record_consent(sid, flat, request.remote_addr)
+        session["has_consent"] = True
+    return jsonify({"success": True})
+
+
+@app.route("/portal/data-request", methods=["POST"])
+@portal_required
+def portal_data_request():
+    """DPDPA right to erasure / data deletion request."""
+    sid  = session["member_society_id"]
+    flat = session["member_flat"]
+    action = request.json.get("action", "")
+    if action == "delete":
+        delete_member_data(sid, flat)
+        log_audit(sid, flat, "DATA_DELETION", "Member requested data deletion",
+                  request.remote_addr)
+        session.clear()
+        return jsonify({"success": True,
+                        "message": "Your data has been deleted. You have been signed out."})
+    return jsonify({"success": False, "error": "Unknown action"}), 400
+
+
+@app.route("/portal/audit-log")
+@portal_required
+def portal_my_audit():
+    """Member can see their own activity log (DPDPA transparency)."""
+    sid  = session["member_society_id"]
+    flat = session["member_flat"]
+    logs = get_audit_log(sid, limit=50)
+    my_logs = [l for l in logs if l.get("actor") == flat]
+    return jsonify({"logs": [
+        {"action": l["action"], "detail": l.get("detail",""),
+         "when": l["created_at"].strftime("%d %b %Y %H:%M") if l.get("created_at") else ""}
+        for l in my_logs
+    ]})
+
+
+@app.route("/admin/audit")
+@admin_required
+def admin_audit_log():
+    """Admin view of all audit events."""
+    sid  = request.args.get("society_id")
+    logs = get_audit_log(int(sid), 200) if sid else []
+    societies = get_all_societies()
+    return render_template("admin_audit.html",
+                           logs=logs, societies=societies,
+                           selected_sid=sid,
+                           society_name="Admin")
 
 
 if __name__ == "__main__":

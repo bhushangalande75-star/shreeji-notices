@@ -366,6 +366,9 @@
     <a class="nav-item {% if request.endpoint in ['society_tickets','society_update_ticket'] %}active{% endif %}" href="/tickets">
       <span class="nav-icon">🎟️</span> Member Tickets
     </a>
+    <a class="nav-item {% if request.endpoint == 'analytics_dashboard' %}active{% endif %}" href="/analytics">
+      <span class="nav-icon">📊</span> Analytics
+    </a>
     <a class="nav-item {% if request.endpoint == 'manage_announcements' %}active{% endif %}" href="/portal/announcements">
       <span class="nav-icon">📢</span> Announcements
     </a>
@@ -375,6 +378,9 @@
     <div class="nav-label">Admin</div>
     <a class="nav-item {% if request.endpoint == 'admin_dashboard' %}active{% endif %}" href="/admin">
       <span class="nav-icon">🏢</span> Manage Societies
+    </a>
+    <a class="nav-item {% if request.endpoint == 'admin_audit_log' %}active{% endif %}" href="/admin/audit">
+      <span class="nav-icon">🔍</span> Audit Log
     </a>
     {% endif %}
   </div>
