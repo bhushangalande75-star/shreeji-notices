@@ -71,6 +71,7 @@
     <h3>🧾 Create Monthly Bill</h3>
     <p>Generate a general maintenance bill for a society</p>
     <form method="POST" action="/admin/billing/create">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="form-grid">
         <div class="form-group full">
           <label class="form-label">Society</label>

@@ -152,6 +152,7 @@
       </div>
       {% if error and login_type == 'committee' %}<div class="error-msg">{{ error }}</div>{% endif %}
       <form method="POST" action="/login" id="committeeForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="login_type" value="committee"/>
         <label>Username</label>
         <input type="text" name="username" placeholder="your society username" required/>
@@ -173,6 +174,7 @@
       </div>
       {% if error and login_type == 'admin' %}<div class="error-msg">{{ error }}</div>{% endif %}
       <form method="POST" action="/login" id="adminForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="login_type" value="admin"/>
         <label>Admin Username</label>
         <input type="text" name="username" value="admin" readonly style="background:#f0faf8;color:var(--muted);"/>

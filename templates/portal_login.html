@@ -79,6 +79,7 @@
     </div>
     {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="form-group">
         <label>Society Code</label>
         <input type="text" name="portal_code" placeholder="e.g. SHREEJI" autofocus required autocomplete="off" style="text-transform:uppercase;letter-spacing:.1em;font-weight:600"/>

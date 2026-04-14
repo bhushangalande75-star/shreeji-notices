@@ -170,6 +170,7 @@
     <h3>🏢 Add New Society</h3>
     <p>Create login credentials for a new housing society</p>
     <form method="POST" action="/admin/create_society" enctype="multipart/form-data" id="createSocietyForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="form-grid">
         <div class="form-group full">
           <label class="form-label">Society Name</label>

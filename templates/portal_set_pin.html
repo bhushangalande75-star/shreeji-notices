@@ -38,6 +38,7 @@
   {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
   <div class="info-box">Your PIN must be at least 4 characters and cannot be the same as your flat number.</div>
   <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="form-group">
       <label>New PIN</label>
       <input type="password" name="new_pin" placeholder="Choose a PIN (min 4 characters)" required autofocus maxlength="20"/>

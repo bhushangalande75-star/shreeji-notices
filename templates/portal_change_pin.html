@@ -44,6 +44,7 @@
   {% if success %}<div class="success-msg">✓ {{ success }} <a href="/portal/dashboard" style="color:var(--teal);font-weight:600;">Go to dashboard →</a></div>{% endif %}
   {% if not success %}
   <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="form-group">
       <label>Current PIN</label>
       <input type="password" name="current_pin" placeholder="Enter your current PIN" required autofocus maxlength="20"/>
