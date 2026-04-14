@@ -3,243 +3,213 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SocietyNotice Pro — Login</title>
+  <title>SocietyNotice Pro — Welcome</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --teal:      #0ABFA3;
-      --teal2:     #08A891;
-      --teal3:     #069A82;
-      --teal-glow: rgba(10,191,163,0.35);
-      --bg:        #C8F0EA;
-      --surface:   #FFFFFF;
-      --surface2:  #F4FDFB;
-      --border:    #C2EDE6;
-      --ink:       #063D36;
-      --ink2:      #0A4F48;
-      --ink3:      #4A8A84;
-      --muted:     #7ABFB8;
-      --font:      'Plus Jakarta Sans', sans-serif;
-    }
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      min-height: 100vh;
-      display: flex; align-items: center; justify-content: center;
-      overflow: hidden;
-    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--teal:#0ABFA3;--teal2:#08A891;--teal3:#069A82;--teal-glow:rgba(10,191,163,0.35);--bg:#C8F0EA;--surface:#FFFFFF;--surface2:#F4FDFB;--border:#C2EDE6;--ink:#063D36;--ink2:#0A4F48;--ink3:#4A8A84;--muted:#7ABFB8;--font:'Plus Jakarta Sans',sans-serif}
+    body{font-family:var(--font);background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .bg{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 15% 50%,rgba(10,191,163,0.25) 0%,transparent 55%),radial-gradient(ellipse at 85% 15%,rgba(10,191,163,0.12) 0%,transparent 45%),var(--bg)}
+    .bg::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 80px,rgba(10,191,163,0.06) 80px,rgba(10,191,163,0.06) 81px),repeating-linear-gradient(90deg,transparent,transparent 80px,rgba(10,191,163,0.06) 80px,rgba(10,191,163,0.06) 81px)}
+    .wrap{position:relative;z-index:1;display:flex;align-items:center;gap:72px;padding:40px;max-width:1000px;width:100%}
+    .brand{flex:1;animation:fadeLeft 0.7s ease both}
+    .brand-logo{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+    .gem{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--teal),var(--teal2));display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px var(--teal-glow)}
+    .gem svg{width:24px;height:24px}
+    .brand-name{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.5px}
+    .brand-sub{font-size:10px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;font-weight:500;margin-top:2px}
+    .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(10,191,163,0.15);border:1px solid rgba(10,191,163,0.35);border-radius:99px;padding:5px 14px;margin-bottom:22px;font-size:11px;font-weight:600;color:var(--teal3);letter-spacing:.5px}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite}
+    .brand h1{font-size:44px;line-height:1.1;font-weight:700;color:var(--ink);margin-bottom:14px;letter-spacing:-1.5px}
+    .brand p{color:var(--ink3);font-size:15px;line-height:1.65;max-width:340px}
 
-    /* Animated background shell */
-    .bg {
-      position: fixed; inset: 0; z-index: 0;
-      background:
-        radial-gradient(ellipse at 15% 50%, rgba(10,191,163,0.25) 0%, transparent 55%),
-        radial-gradient(ellipse at 85% 15%, rgba(10,191,163,0.12) 0%, transparent 45%),
-        radial-gradient(ellipse at 50% 90%, rgba(10,191,163,0.1) 0%, transparent 40%),
-        var(--bg);
-    }
-    .bg::before {
-      content: '';
-      position: absolute; inset: 0;
-      background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(10,191,163,0.06) 80px, rgba(10,191,163,0.06) 81px),
-        repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(10,191,163,0.06) 80px, rgba(10,191,163,0.06) 81px);
-    }
+    /* Role selector card */
+    .card{width:420px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:36px;animation:fadeUp 0.7s ease 0.15s both;box-shadow:0 32px 80px rgba(10,191,163,0.18),0 8px 24px rgba(10,191,163,0.1),inset 0 1px 0 rgba(255,255,255,0.95)}
+    .card-head{margin-bottom:28px;text-align:center}
+    .card-head h2{font-size:22px;font-weight:700;color:var(--ink);margin-bottom:6px;letter-spacing:-.4px}
+    .card-head p{color:var(--muted);font-size:13px}
 
-    .wrapper {
-      position: relative; z-index: 1;
-      display: flex; align-items: center; gap: 72px;
-      padding: 40px; max-width: 960px; width: 100%;
-    }
+    /* Role buttons */
+    .role-btn{display:flex;align-items:center;gap:16px;width:100%;padding:18px 20px;border-radius:14px;border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;transition:all 0.2s;margin-bottom:12px;text-decoration:none;position:relative;overflow:hidden}
+    .role-btn:last-child{margin-bottom:0}
+    .role-btn:hover{border-color:var(--teal);background:#fff;transform:translateX(4px);box-shadow:0 4px 20px rgba(10,191,163,0.15)}
+    .role-btn.primary{background:linear-gradient(135deg,var(--teal),var(--teal2));border-color:transparent}
+    .role-btn.primary:hover{transform:translateX(4px);box-shadow:0 6px 24px var(--teal-glow)}
+    .role-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px}
+    .role-icon.teal{background:rgba(10,191,163,0.15)}
+    .role-icon.blue{background:rgba(37,99,235,0.1)}
+    .role-icon.amber{background:rgba(217,119,6,0.1)}
+    .role-icon.white{background:rgba(255,255,255,0.25)}
+    .role-text{flex:1;text-align:left}
+    .role-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:2px}
+    .role-sub{font-size:11px;color:var(--muted)}
+    .role-btn.primary .role-title{color:#fff}
+    .role-btn.primary .role-sub{color:rgba(255,255,255,0.75)}
+    .role-arrow{font-size:18px;color:var(--muted);transition:all 0.2s}
+    .role-btn:hover .role-arrow{color:var(--teal);transform:translateX(3px)}
+    .role-btn.primary .role-arrow{color:rgba(255,255,255,0.7)}
+    .role-btn.primary:hover .role-arrow{color:#fff}
 
-    /* Left branding */
-    .brand { flex: 1; animation: fadeLeft 0.7s ease both; }
+    .divider-wrap{display:flex;align-items:center;gap:10px;margin:20px 0}
+    .divider-line{flex:1;height:1px;background:var(--border)}
+    .divider-text{font-size:11px;color:var(--muted);white-space:nowrap;font-weight:500}
 
-    .brand-logo {
-      display: flex; align-items: center; gap: 14px; margin-bottom: 32px;
-    }
-    .brand-gem {
-      width: 48px; height: 48px; border-radius: 14px;
-      background: linear-gradient(135deg, var(--teal), var(--teal2));
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 6px 20px var(--teal-glow);
-    }
-    .brand-gem svg { width: 24px; height: 24px; }
-    .brand-logo-name { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -0.5px; }
-    .brand-logo-tag  { font-size: 10px; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; font-weight: 500; margin-top: 2px; }
+    /* Committee sub-login */
+    .committee-form{display:none}
+    .committee-form.show{display:block}
+    .back-btn{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:20px;background:none;border:none;font-family:var(--font);padding:0}
+    .back-btn:hover{color:var(--teal3)}
+    label{display:block;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+    input{width:100%;padding:12px 15px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--ink2);font-size:14px;font-family:var(--font);outline:none;transition:border-color 0.2s,box-shadow 0.2s;margin-bottom:16px}
+    input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(10,191,163,0.15)}
+    input::placeholder{color:#A8CFCC}
+    .error-msg{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:11px 15px;color:#B91C1C;font-size:13px;margin-bottom:18px}
+    .btn-login{width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));border:none;border-radius:10px;color:white;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all 0.2s;box-shadow:0 4px 16px var(--teal-glow)}
+    .btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 24px var(--teal-glow)}
 
-    .brand-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(10,191,163,0.15); border: 1px solid rgba(10,191,163,0.35);
-      border-radius: 99px; padding: 5px 14px; margin-bottom: 22px;
-      font-size: 11px; font-weight: 600; color: var(--teal3); letter-spacing: 0.5px;
-    }
-    .badge-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: pulse 2s infinite; }
-
-    .brand h1 {
-      font-size: 46px; line-height: 1.1; font-weight: 700;
-      color: var(--ink); margin-bottom: 14px; letter-spacing: -1.5px;
-    }
-    .brand p { color: var(--ink3); font-size: 15px; line-height: 1.65; max-width: 340px; font-weight: 400; }
-
-    .features { margin-top: 38px; display: flex; flex-direction: column; gap: 14px; }
-    .feature {
-      display: flex; align-items: center; gap: 12px;
-      color: var(--ink3); font-size: 13px; font-weight: 400;
-    }
-    .feature-icon {
-      width: 34px; height: 34px; border-radius: 10px;
-      background: rgba(255,255,255,0.7); border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center; font-size: 15px;
-      flex-shrink: 0; box-shadow: 0 2px 8px rgba(10,191,163,0.1);
-    }
-
-    /* Login card */
-    .card {
-      width: 400px; flex-shrink: 0;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 24px; padding: 38px;
-      animation: fadeUp 0.7s ease 0.15s both;
-      box-shadow: 0 32px 80px rgba(10,191,163,0.18), 0 8px 24px rgba(10,191,163,0.1), inset 0 1px 0 rgba(255,255,255,0.95);
-    }
-
-    .card-header { margin-bottom: 28px; }
-    .card-header h2 { font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 5px; letter-spacing: -0.5px; }
-    .card-header p  { color: var(--muted); font-size: 13px; font-weight: 400; }
-
-    .form-group { margin-bottom: 18px; }
-    label {
-      display: block; font-size: 11px; font-weight: 600; color: var(--muted);
-      letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 7px;
-    }
-    input[type="text"], input[type="password"] {
-      width: 100%; padding: 12px 15px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px; color: var(--ink2); font-size: 14px;
-      font-family: var(--font); outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(10,191,163,0.15); }
-    input::placeholder { color: #A8CFCC; }
-
-    .error-msg {
-      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
-      border-radius: 10px; padding: 11px 15px; color: #B91C1C;
-      font-size: 13px; margin-bottom: 20px;
-    }
-
-    .btn-login {
-      width: 100%; padding: 13px;
-      background: linear-gradient(135deg, var(--teal), var(--teal2));
-      border: none; border-radius: 10px; color: white;
-      font-size: 14px; font-weight: 600; font-family: var(--font);
-      cursor: pointer; transition: all 0.2s; letter-spacing: -0.2px;
-      box-shadow: 0 4px 16px var(--teal-glow);
-      margin-top: 8px;
-    }
-    .btn-login:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px var(--teal-glow);
-    }
-
-    .divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border), transparent);
-      margin: 24px 0;
-    }
-    .footer-note { text-align: center; font-size: 12px; color: var(--muted); }
-    .footer-note a { color: var(--teal); text-decoration: none; font-weight: 500; }
-    .footer-note a:hover { color: var(--teal2); }
-
-    @keyframes fadeLeft { from { opacity:0; transform:translateX(-28px); } to { opacity:1; transform:none; } }
-    @keyframes fadeUp   { from { opacity:0; transform:translateY(20px);  } to { opacity:1; transform:none; } }
-    @keyframes pulse    { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.85); } }
-
-    @media (max-width: 768px) {
-      .wrapper { flex-direction: column; gap: 36px; padding: 24px; }
-      .brand { text-align: center; }
-      .brand h1 { font-size: 32px; }
-      .brand p  { max-width: 100%; }
-      .features { align-items: center; }
-      .card { width: 100%; }
-    }
+    @keyframes fadeLeft{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+    @media(max-width:768px){.wrap{flex-direction:column;gap:32px;padding:24px}.brand h1{font-size:32px}.card{width:100%}}
   </style>
 </head>
 <body>
 <div class="bg"></div>
-<div class="wrapper">
+<div class="wrap">
 
+  <!-- Left branding -->
   <div class="brand">
     <div class="brand-logo">
-      <div class="brand-gem">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-          <polygon points="12,6 16,9 16,15 12,18 8,15 8,9" fill="white" opacity=".3"/>
-          <circle cx="12" cy="12" r="2.5" fill="white" opacity=".9"/>
-        </svg>
+      <div class="gem">
+        <svg viewBox="0 0 24 24" fill="none"><polygon points="12,2 20,7 20,17 12,22 4,17 4,7" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><polygon points="12,6 16,9 16,15 12,18 8,15 8,9" fill="white" opacity=".3"/><circle cx="12" cy="12" r="2.5" fill="white" opacity=".9"/></svg>
       </div>
       <div>
-        <div class="brand-logo-name">SocietyNotice</div>
-        <div class="brand-logo-tag">Management Suite</div>
+        <div class="brand-name">SocietyNotice</div>
+        <div class="brand-sub">Management Suite</div>
       </div>
     </div>
-
-    <div class="brand-badge">
-      <span class="badge-pulse"></span>
-      Live Platform
-    </div>
-
+    <div class="badge"><span class="dot"></span> Live Platform</div>
     <h1>Smarter<br>Society<br>Management</h1>
-    <p>Automated maintenance notice generation and payment tracking for Co-operative Housing Societies.</p>
-
-    <div class="features">
-      <div class="feature">
-        <div class="feature-icon">⚡</div>
-        Generate 1st &amp; 2nd notices instantly
-      </div>
-      <div class="feature">
-        <div class="feature-icon">💰</div>
-        Track payments &amp; defaulters in real-time
-      </div>
-      <div class="feature">
-        <div class="feature-icon">📊</div>
-        Export reports to Excel &amp; PDF
-      </div>
-      <div class="feature">
-        <div class="feature-icon">🏢</div>
-        Multi-society support
-      </div>
-    </div>
+    <p>Notices, payments, announcements and member portal — all in one place for Shreeji Iconic CHS.</p>
   </div>
 
+  <!-- Right: role selector -->
   <div class="card">
-    <div class="card-header">
-      <h2>Welcome back</h2>
-      <p>Sign in to your society portal</p>
+
+    <!-- Role selection view -->
+    <div id="roleView">
+      <div class="card-head">
+        <h2>Who are you?</h2>
+        <p>Select your role to sign in</p>
+      </div>
+
+      <!-- Member / Resident -->
+      <a href="/portal/login" class="role-btn primary">
+        <div class="role-icon white">🏠</div>
+        <div class="role-text">
+          <div class="role-title">Society Member</div>
+          <div class="role-sub">Flat resident — view notices, pay status & AI assistant</div>
+        </div>
+        <span class="role-arrow">→</span>
+      </a>
+
+      <div class="divider-wrap">
+        <div class="divider-line"></div>
+        <div class="divider-text">or sign in as</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <!-- Committee -->
+      <div class="role-btn" onclick="showCommittee()">
+        <div class="role-icon teal">👥</div>
+        <div class="role-text">
+          <div class="role-title" style="color:var(--ink);">Committee Member</div>
+          <div class="role-sub">Generate notices, track payments, manage members</div>
+        </div>
+        <span class="role-arrow" style="color:var(--muted);">→</span>
+      </div>
+
+      <!-- Admin -->
+      <div class="role-btn" onclick="showAdmin()">
+        <div class="role-icon amber">🔑</div>
+        <div class="role-text">
+          <div class="role-title" style="color:var(--ink);">Administrator</div>
+          <div class="role-sub">Manage all societies, billing and platform settings</div>
+        </div>
+        <span class="role-arrow" style="color:var(--muted);">→</span>
+      </div>
     </div>
 
-    {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
-
-    <form method="POST">
-      <div class="form-group">
+    <!-- Committee login form -->
+    <div id="committeeView" class="committee-form">
+      <button class="back-btn" onclick="showRoles()">← Back</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(10,191,163,0.12);display:flex;align-items:center;justify-content:center;font-size:17px;">👥</div>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--ink);">Committee Sign In</div>
+          <div style="font-size:12px;color:var(--muted);">Use your society credentials</div>
+        </div>
+      </div>
+      {% if error and login_type == 'committee' %}<div class="error-msg">{{ error }}</div>{% endif %}
+      <form method="POST" action="/login" id="committeeForm">
+        <input type="hidden" name="login_type" value="committee"/>
         <label>Username</label>
-        <input type="text" name="username" placeholder="your society username" autofocus required/>
-      </div>
-      <div class="form-group">
+        <input type="text" name="username" placeholder="your society username" required/>
         <label>Password</label>
-        <input type="password" name="password" placeholder="••••••••••" required/>
-      </div>
-      <button class="btn-login" type="submit">Sign In →</button>
-    </form>
-
-    <div class="divider"></div>
-    <div class="footer-note">
-      Administrator? Use <a href="/login">admin credentials</a>
+        <input type="password" name="password" placeholder="••••••••" required/>
+        <button class="btn-login" type="submit">Sign In →</button>
+      </form>
     </div>
-  </div>
 
+    <!-- Admin login form -->
+    <div id="adminView" class="committee-form">
+      <button class="back-btn" onclick="showRoles()">← Back</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(217,119,6,0.12);display:flex;align-items:center;justify-content:center;font-size:17px;">🔑</div>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--ink);">Admin Sign In</div>
+          <div style="font-size:12px;color:var(--muted);">Platform administrator access</div>
+        </div>
+      </div>
+      {% if error and login_type == 'admin' %}<div class="error-msg">{{ error }}</div>{% endif %}
+      <form method="POST" action="/login" id="adminForm">
+        <input type="hidden" name="login_type" value="admin"/>
+        <label>Admin Username</label>
+        <input type="text" name="username" value="admin" readonly style="background:#f0faf8;color:var(--muted);"/>
+        <label>Admin Password</label>
+        <input type="password" name="password" placeholder="••••••••" required autofocus/>
+        <button class="btn-login" type="submit">Sign In as Admin →</button>
+      </form>
+    </div>
+
+  </div>
 </div>
+
+<script>
+  function showRoles() {
+    document.getElementById('roleView').style.display = 'block';
+    document.getElementById('committeeView').classList.remove('show');
+    document.getElementById('adminView').classList.remove('show');
+  }
+  function showCommittee() {
+    document.getElementById('roleView').style.display = 'none';
+    document.getElementById('committeeView').classList.add('show');
+    document.getElementById('adminView').classList.remove('show');
+    document.querySelector('#committeeForm input[name="username"]').focus();
+  }
+  function showAdmin() {
+    document.getElementById('roleView').style.display = 'none';
+    document.getElementById('adminView').classList.add('show');
+    document.getElementById('committeeView').classList.remove('show');
+    document.querySelector('#adminForm input[name="password"]').focus();
+  }
+
+  // Auto-show the right form if there was a login error
+  {% if error %}
+    {% if login_type == 'committee' %}showCommittee();
+    {% elif login_type == 'admin' %}showAdmin();
+    {% endif %}
+  {% endif %}
+</script>
 </body>
 </html>

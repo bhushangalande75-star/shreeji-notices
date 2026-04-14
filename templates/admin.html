@@ -1,10 +1,102 @@
 {% extends "base.html" %}
-{% block title %}Admin — SocietyNotice Pro{% endblock %}
-{% block page_title %}Society Management{% endblock %}
-{% block page_sub %}Add and manage all registered societies on the platform{% endblock %}
+{% block title %}Admin — SocietyNotice Pro
+<!-- Set Portal Code Modal -->
+<div class="modal-overlay" id="portalCodeModal">
+  <div class="modal" style="width:420px;">
+    <h3>🔗 Set Member Portal Code</h3>
+    <p id="portalModalDesc">Set a unique code for members to login to the resident portal</p>
+    <div style="margin:18px 0;">
+      <label class="form-label">Portal Code</label>
+      <input class="form-input" type="text" id="portalCodeInput" placeholder="e.g. SHREEJI"
+        style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:6px;"
+        oninput="this.value=this.value.toUpperCase()"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;">
+        This code is shared with all members. They will use it as their <strong>Society Code</strong> on the member portal login.<br>
+        Keep it simple — e.g. <code style="background:rgba(10,191,163,0.1);padding:1px 6px;border-radius:4px;">SHREEJI</code>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('portalCodeModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="savePortalCode()">Save Portal Code</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block page_title %}Society Management
+<!-- Set Portal Code Modal -->
+<div class="modal-overlay" id="portalCodeModal">
+  <div class="modal" style="width:420px;">
+    <h3>🔗 Set Member Portal Code</h3>
+    <p id="portalModalDesc">Set a unique code for members to login to the resident portal</p>
+    <div style="margin:18px 0;">
+      <label class="form-label">Portal Code</label>
+      <input class="form-input" type="text" id="portalCodeInput" placeholder="e.g. SHREEJI"
+        style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:6px;"
+        oninput="this.value=this.value.toUpperCase()"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;">
+        This code is shared with all members. They will use it as their <strong>Society Code</strong> on the member portal login.<br>
+        Keep it simple — e.g. <code style="background:rgba(10,191,163,0.1);padding:1px 6px;border-radius:4px;">SHREEJI</code>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('portalCodeModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="savePortalCode()">Save Portal Code</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block page_sub %}Add and manage all registered societies on the platform
+<!-- Set Portal Code Modal -->
+<div class="modal-overlay" id="portalCodeModal">
+  <div class="modal" style="width:420px;">
+    <h3>🔗 Set Member Portal Code</h3>
+    <p id="portalModalDesc">Set a unique code for members to login to the resident portal</p>
+    <div style="margin:18px 0;">
+      <label class="form-label">Portal Code</label>
+      <input class="form-input" type="text" id="portalCodeInput" placeholder="e.g. SHREEJI"
+        style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:6px;"
+        oninput="this.value=this.value.toUpperCase()"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;">
+        This code is shared with all members. They will use it as their <strong>Society Code</strong> on the member portal login.<br>
+        Keep it simple — e.g. <code style="background:rgba(10,191,163,0.1);padding:1px 6px;border-radius:4px;">SHREEJI</code>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('portalCodeModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="savePortalCode()">Save Portal Code</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
 {% block topbar_right %}
   <a class="btn btn-secondary" href="/admin/billing" style="margin-right:8px;">🧾 Billing</a>
   <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">+ Add Society</button>
+
+<!-- Set Portal Code Modal -->
+<div class="modal-overlay" id="portalCodeModal">
+  <div class="modal" style="width:420px;">
+    <h3>🔗 Set Member Portal Code</h3>
+    <p id="portalModalDesc">Set a unique code for members to login to the resident portal</p>
+    <div style="margin:18px 0;">
+      <label class="form-label">Portal Code</label>
+      <input class="form-input" type="text" id="portalCodeInput" placeholder="e.g. SHREEJI"
+        style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:6px;"
+        oninput="this.value=this.value.toUpperCase()"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;">
+        This code is shared with all members. They will use it as their <strong>Society Code</strong> on the member portal login.<br>
+        Keep it simple — e.g. <code style="background:rgba(10,191,163,0.1);padding:1px 6px;border-radius:4px;">SHREEJI</code>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('portalCodeModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="savePortalCode()">Save Portal Code</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block content %}
@@ -238,6 +330,25 @@
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
   });
 
+  let _portalSocietyId = null;
+  function setPortalCode(id, name) {
+    _portalSocietyId = id;
+    document.getElementById('portalModalDesc').textContent = `Set member portal code for: ${name}`;
+    document.getElementById('portalCodeInput').value = '';
+    document.getElementById('portalCodeModal').classList.add('show');
+  }
+  async function savePortalCode() {
+    const code = document.getElementById('portalCodeInput').value.trim().toUpperCase();
+    if (!code) { alert('Please enter a portal code.'); return; }
+    const res  = await fetch('/admin/set-portal-code', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ society_id: _portalSocietyId, portal_code: code })
+    });
+    const data = await res.json();
+    if (data.success) { location.reload(); }
+    else { alert('Error: ' + data.error); }
+  }
+
   async function resetPassword(id, name) {
     if (!confirm(`Reset password for ${name}? A new 6-digit password will be generated.`)) return;
     const res  = await fetch(`/admin/reset-password/${id}`, { method: 'POST' });
@@ -292,4 +403,27 @@
     <button class="btn btn-primary" style="width:100%;" onclick="document.getElementById('resetPwModal').classList.remove('show')">Close</button>
   </div>
 </div>
+
+<!-- Set Portal Code Modal -->
+<div class="modal-overlay" id="portalCodeModal">
+  <div class="modal" style="width:420px;">
+    <h3>🔗 Set Member Portal Code</h3>
+    <p id="portalModalDesc">Set a unique code for members to login to the resident portal</p>
+    <div style="margin:18px 0;">
+      <label class="form-label">Portal Code</label>
+      <input class="form-input" type="text" id="portalCodeInput" placeholder="e.g. SHREEJI"
+        style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:6px;"
+        oninput="this.value=this.value.toUpperCase()"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;">
+        This code is shared with all members. They will use it as their <strong>Society Code</strong> on the member portal login.<br>
+        Keep it simple — e.g. <code style="background:rgba(10,191,163,0.1);padding:1px 6px;border-radius:4px;">SHREEJI</code>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('portalCodeModal').classList.remove('show')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="savePortalCode()">Save Portal Code</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
