@@ -171,20 +171,6 @@ def admin_dashboard():
     for s in societies:
         s["member_count"] = len(get_members(s["id"]))
     return render_template("admin.html", societies=societies, society_name=session.get("society_name", "Admin"))
-@app.route("/admin/set-portal-code", methods=["POST"])
-@admin_required
-def admin_set_portal_code():
-    data       = request.json
-    society_id = data.get("society_id")
-    portal_code = data.get("portal_code","").strip().upper()
-    if not portal_code:
-        return jsonify({"success": False, "error": "Portal code cannot be empty"}), 400
-    try:
-        set_portal_code(int(society_id), portal_code)
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
 
 
 @app.route("/admin/create_society", methods=["POST"])

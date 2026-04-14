@@ -340,9 +340,9 @@
   async function savePortalCode() {
     const code = document.getElementById('portalCodeInput').value.trim().toUpperCase();
     if (!code) { alert('Please enter a portal code.'); return; }
-    const res  = await fetch('/admin/set-portal-code', {
+    const res  = await fetch(`/admin/set-portal-code/${_portalSocietyId}`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ society_id: _portalSocietyId, portal_code: code })
+      body: JSON.stringify({ code: code })
     });
     const data = await res.json();
     if (data.success) { location.reload(); }
