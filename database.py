@@ -925,15 +925,50 @@ def get_analytics(society_id):
     """, (society_id,))
     ageing = dict(cur.fetchone())
 
-    # Top defaulters
-    cur.execute("""
-        SELECT flat_no, member_name, COUNT(*) AS notice_count,
-               SUM(amount) AS total_owed
-        FROM notices WHERE society_id=%s AND payment_status='Pending'
-        GROUP BY flat_no, member_name
-        ORDER BY total_owed DESC LIMIT 10
-    """, (society_id,))
-    defaulters = [dict(r) for r in cur.fetchall()]
+    # Top defaulters — from knowledge base outstanding data (latest Excel uploaded by committee)
+    # Falls back to summing pending notices if no KB data uploaded yet
+    kb_rows = get_knowledge(society_id, 'outstanding')
+    defaulters = []
+    if kb_rows:
+        import re as _re
+        kb_text = kb_rows[0]['content']
+        for line in kb_text.splitlines():
+            if '|' not in line:
+                continue
+            if line.strip().startswith('-'):
+                continue
+            parts = [p.strip() for p in line.split('|')]
+            if len(parts) < 2:
+                continue
+            flat = parts[0].strip()
+            if not flat or flat.lower() in ('flat', 'flat no', 'flat_no', ''):
+                continue
+            amt_raw = _re.sub(r'[^\d.]', '', parts[1])
+            try:
+                amt = float(amt_raw)
+            except (ValueError, TypeError):
+                continue
+            if amt <= 0:
+                continue
+            member = parts[2].strip() if len(parts) > 2 else ''
+            defaulters.append({
+                'flat_no':      flat,
+                'member_name':  member,
+                'notice_count': '-',
+                'total_owed':   amt,
+            })
+        defaulters = sorted(defaulters, key=lambda x: x['total_owed'], reverse=True)[:10]
+
+    if not defaulters:
+        # Fallback: sum pending notice amounts from notices table
+        cur.execute("""
+            SELECT flat_no, member_name, COUNT(*) AS notice_count,
+                   SUM(amount) AS total_owed
+            FROM notices WHERE society_id=%s AND payment_status='Pending'
+            GROUP BY flat_no, member_name
+            ORDER BY total_owed DESC LIMIT 10
+        """, (society_id,))
+        defaulters = [dict(r) for r in cur.fetchall()]
 
     # Ticket stats by category
     cur.execute("""

@@ -24,9 +24,5 @@ COPY . .
 # Expose port
 EXPOSE 5000
 
-# Copy and make startup script executable
-COPY start.sh .
-RUN chmod +x start.sh
-
-# Run migration then start gunicorn
-CMD ["./start.sh"]
+# Run with gunicorn (production server)
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "1", "app:app"]

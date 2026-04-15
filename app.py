@@ -56,7 +56,9 @@ CSRF_EXEMPT_PREFIXES = ("/portal/chat", "/portal/tickets/create",
                         "/tickets/update/", "/admin/", "/tracker/update",
                         "/tracker/delete", "/members/upload", "/members/delete",
                         "/portal/announcements/create", "/portal/announcements/delete",
-                        "/ai-notices/generate", "/ai-notices/download")
+                        "/ai-notices/generate", "/ai-notices/download",
+                        "/ai-notices/generate-notice", "/ai-notices/generate-mom",
+                        "/ai-notices/generate-committee", "/ai-notices/generate-noc")
 
 @app.before_request
 def maybe_exempt_csrf():
@@ -880,6 +882,128 @@ def ai_generate_committee():
         os.makedirs(sess_dir, exist_ok=True)
         safe_type = meeting_type.replace(" ", "_").replace("(", "").replace(")", "")
         fname = f"Committee_Notice_{safe_type}_{meeting_date.replace('-','')}.docx"
+        with open(os.path.join(sess_dir, fname), "wb") as f:
+            f.write(docx_bytes)
+
+        return jsonify({"success": True, "preview": ai_text, "sess_id": sess_id, "filename": fname})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+@app.route("/ai-notices/generate-noc", methods=["POST"])
+@login_required
+def ai_generate_noc():
+    """Generate an AI-written NOC (No Objection Certificate) in chosen language."""
+    try:
+        noc_type     = request.form.get("noc_type", "").strip()
+        custom_type  = request.form.get("custom_type", "").strip()
+        name         = request.form.get("name", "").strip()
+        flat_no      = request.form.get("flat_no", "").strip()
+        noc_date     = request.form.get("noc_date", date.today().strftime("%d-%m-%Y"))
+        ref_no       = request.form.get("ref_no", "").strip()
+        buyer        = request.form.get("buyer", "").strip()
+        bank         = request.form.get("bank", "").strip()
+        details      = request.form.get("details", "").strip()
+        language     = request.form.get("language", "English").strip()
+        society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
+
+        display_type = custom_type if noc_type == "Custom" else noc_type
+
+        try:
+            noc_date = datetime.strptime(noc_date, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except:
+            pass
+
+        lang_cfg = {
+            "English": {
+                "system": (
+                    f"You are the official secretary of {society_name}, a Co-operative Housing Society in Maharashtra, India. "
+                    f"Write a formal NOC (No Objection Certificate) in English. "
+                    "Write ONLY the body paragraphs — no letterhead, no subject line, no signature block. "
+                    "Keep it concise, formal and legally appropriate under Maharashtra Co-operative Societies Act 1960."
+                ),
+                "user": (
+                    f"Write a formal NOC for: {display_type}\n\n"
+                    f"Member Name: {name}\nFlat No: {flat_no}\nDate: {noc_date}\n"
+                    f"{'Buyer/Transferee: ' + buyer if buyer else ''}\n"
+                    f"{'Bank/Lender: ' + bank if bank else ''}\n"
+                    f"{'Additional Details: ' + details if details else ''}\n\n"
+                    "Write 2-3 formal paragraphs: certify there is no objection, state the NOC is issued in good faith "
+                    "based on society records, and mention any standard conditions/caveats if applicable."
+                ),
+                "subject_system": "You are the secretary of a Co-operative Housing Society in Maharashtra.",
+                "subject_user": (
+                    f"Write a one-line formal English subject line for a NOC regarding '{display_type}'. "
+                    "Output ONLY the subject text — no 'Sub:' prefix. "
+                    "Example: No Objection Certificate for Sale of Flat — Flat B01-310."
+                ),
+                "sub_label": "Sub:",
+            },
+            "Marathi": {
+                "system": (
+                    f"तुम्ही {society_name} या सहकारी गृहनिर्माण संस्थेचे अधिकृत सचिव आहात. "
+                    "मराठीत औपचारिक ना-हरकत प्रमाणपत्र (NOC) लिहा — कायदेशीरदृष्ट्या योग्य भाषेत. "
+                    "फक्त मुख्य परिच्छेद लिहा — लेटरहेड, विषय ओळ किंवा स्वाक्षरी नको."
+                ),
+                "user": (
+                    f"'{display_type}' साठी मराठीत औपचारिक ना-हरकत प्रमाणपत्र लिहा.\n\n"
+                    f"सदस्याचे नाव: {name}\nफ्लॅट क्र.: {flat_no}\nतारीख: {noc_date}\n"
+                    f"{'खरेदीदार: ' + buyer if buyer else ''}\n"
+                    f"{'बँक: ' + bank if bank else ''}\n"
+                    f"{'तपशील: ' + details if details else ''}\n\n"
+                    "२-३ औपचारिक परिच्छेद लिहा: ना-हरकत असल्याचे प्रमाणित करा, "
+                    "संस्थेच्या नोंदींनुसार हे प्रमाणपत्र सदिच्छेने दिले जात असल्याचे नमूद करा."
+                ),
+                "subject_system": "तुम्ही एका सहकारी गृहनिर्माण संस्थेचे सचिव आहात.",
+                "subject_user": (
+                    f"'{display_type}' साठी एक ओळीचा औपचारिक मराठी विषय लिहा. "
+                    "फक्त विषय ओळ लिहा — कोणताही उपसर्ग न लिहिता."
+                ),
+                "sub_label": "विषय:",
+            },
+            "Hindi": {
+                "system": (
+                    f"आप {society_name} सहकारी आवास संस्था के आधिकारिक सचिव हैं. "
+                    "हिंदी में औपचारिक अनापत्ति प्रमाण पत्र (NOC) लिखें — कानूनी रूप से उचित भाषा में. "
+                    "केवल मुख्य अनुच्छेद लिखें — लेटरहेड, विषय पंक्ति या हस्ताक्षर नहीं."
+                ),
+                "user": (
+                    f"'{display_type}' के लिए हिंदी में औपचारिक अनापत्ति प्रमाण पत्र लिखें.\n\n"
+                    f"सदस्य का नाम: {name}\nफ्लैट नं.: {flat_no}\nतारीख: {noc_date}\n"
+                    f"{'खरीदार: ' + buyer if buyer else ''}\n"
+                    f"{'बैंक: ' + bank if bank else ''}\n"
+                    f"{'विवरण: ' + details if details else ''}\n\n"
+                    "2-3 औपचारिक अनुच्छेद लिखें: अनापत्ति प्रमाणित करें, "
+                    "संस्था के रिकॉर्ड के आधार पर सद्भावना से जारी किया गया है यह उल्लेख करें."
+                ),
+                "subject_system": "आप एक सहकारी आवास संस्था के सचिव हैं.",
+                "subject_user": (
+                    f"'{display_type}' के लिए एक पंक्ति का औपचारिक हिंदी विषय लिखें. "
+                    "केवल विषय पंक्ति लिखें — कोई उपसर्ग नहीं."
+                ),
+                "sub_label": "विषय:",
+            },
+        }
+
+        cfg = lang_cfg.get(language, lang_cfg["English"])
+
+        ai_text     = call_groq(cfg["system"], cfg["user"])
+        raw_subject = call_groq(cfg["subject_system"], cfg["subject_user"]).strip().strip('"').strip("'").strip()
+        for prefix in ("Sub:", "Subject:", "विषय:", "विषय :", "Vishay:"):
+            if raw_subject.lower().startswith(prefix.lower()):
+                raw_subject = raw_subject[len(prefix):].strip()
+                break
+        subject = f"{cfg['sub_label']} {raw_subject}"
+
+        docx_bytes = build_ai_notice_docx(ref_no, flat_no, name, noc_date, subject, ai_text)
+
+        sess_id  = str(uuid.uuid4())
+        sess_dir = os.path.join(TEMP_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        safe_type = display_type.replace(" ", "_").replace("/", "-").replace(":", "")
+        fname = f"NOC_{safe_type}_{flat_no or 'General'}_{noc_date.replace('-', '')}.docx"
         with open(os.path.join(sess_dir, fname), "wb") as f:
             f.write(docx_bytes)
 
