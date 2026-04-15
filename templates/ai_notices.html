@@ -666,6 +666,23 @@
 
 
 <script>
+  // ── Safe fetch helper — handles session expiry & non-JSON responses ─────────
+  async function safeFetch(url, options) {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      // Server returned HTML (e.g. login redirect or 500 page)
+      if (res.status === 401 || res.redirected || res.status === 302) {
+        // Session expired — redirect to login
+        window.location.href = '/login';
+        throw new Error('Session expired. Redirecting to login…');
+      }
+      const text = await res.text();
+      throw new Error('Server returned an unexpected response (status ' + res.status + '). Please refresh and try again.');
+    }
+    return res.json();
+  }
+
   // Set default dates
   document.getElementById('n_date').value = new Date().toISOString().split('T')[0];
   document.getElementById('m_date').value = new Date().toISOString().split('T')[0];
@@ -752,8 +769,7 @@
     fd.append('language',     document.getElementById('noticeLangInput').value);
 
     try {
-      const res  = await fetch('/ai-notices/generate-notice', { method: 'POST', body: fd });
-      const data = await res.json();
+      const data = await safeFetch('/ai-notices/generate-notice', { method: 'POST', body: fd });
       if (data.success) {
         preview.textContent = data.preview;
         dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
@@ -800,8 +816,7 @@
     if (photoFile) fd.append('photo', photoFile);
 
     try {
-      const res  = await fetch('/ai-notices/generate-mom', { method: 'POST', body: fd });
-      const data = await res.json();
+      const data = await safeFetch('/ai-notices/generate-mom', { method: 'POST', body: fd });
       if (data.success) {
         preview.textContent = data.preview;
         dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
@@ -863,8 +878,7 @@
     fd.append('language',     document.getElementById('cmLangInput').value);
 
     try {
-      const res  = await fetch('/ai-notices/generate-committee', { method: 'POST', body: fd });
-      const data = await res.json();
+      const data = await safeFetch('/ai-notices/generate-committee', { method: 'POST', body: fd });
       if (data.success) {
         preview.textContent = data.preview;
         dlBtn.href = `/ai-notices/download/${data.sess_id}/${data.filename}`;
@@ -1081,8 +1095,7 @@
     fd.append('language',    document.getElementById('nocLangInput').value);
 
     try {
-      const res  = await fetch('/ai-notices/generate-noc', { method: 'POST', body: fd });
-      const data = await res.json();
+      const data = await safeFetch('/ai-notices/generate-noc', { method: 'POST', body: fd });
       if (data.success) {
         preview.textContent = data.preview;
         dlBtn.href          = `/ai-notices/download/${data.sess_id}/${data.filename}`;

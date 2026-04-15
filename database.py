@@ -932,6 +932,31 @@ def get_analytics(society_id):
     if kb_rows:
         import re as _re
         kb_text = kb_rows[0]['content']
+
+        # Detect if first data line has a header so we can map column positions
+        # Header format: "Flat | Outstanding Amount | Member"
+        header_parts = None
+        for line in kb_text.splitlines():
+            if '|' in line and not line.strip().startswith('-'):
+                hp = [p.strip().lower().replace(' ', '').replace('_', '') for p in line.split('|')]
+                # Check if this looks like a header (no numeric values)
+                if all(not _re.search(r'\d{2,}', p) for p in hp):
+                    header_parts = hp
+                break
+
+        # Determine which column index holds the amount
+        amt_idx    = 1   # default: second column
+        flat_idx   = 0   # default: first column
+        member_idx = 2   # default: third column
+        if header_parts:
+            for i, h in enumerate(header_parts):
+                if any(k in h for k in ('outstanding', 'amount', 'dues', 'balance', 'pending', 'total', 'owed', 'arrear')):
+                    amt_idx = i
+                elif any(k in h for k in ('flat', 'unit', 'aptno', 'flatno')):
+                    flat_idx = i
+                elif any(k in h for k in ('member', 'name', 'owner', 'resident')):
+                    member_idx = i
+
         for line in kb_text.splitlines():
             if '|' not in line:
                 continue
@@ -940,17 +965,40 @@ def get_analytics(society_id):
             parts = [p.strip() for p in line.split('|')]
             if len(parts) < 2:
                 continue
-            flat = parts[0].strip()
-            if not flat or flat.lower() in ('flat', 'flat no', 'flat_no', ''):
+            flat = parts[flat_idx].strip() if flat_idx < len(parts) else ''
+            if not flat or flat.lower() in ('flat', 'flat no', 'flat_no', 'unit', ''):
                 continue
-            amt_raw = _re.sub(r'[^\d.]', '', parts[1])
+            # Skip header row
+            if flat.lower().replace(' ', '').replace('_', '') in ('flat', 'flatno', 'unit', 'aptno'):
+                continue
+
+            # Try the detected amount column first; fall back to scanning all parts
+            amt = 0.0
+            amt_part = parts[amt_idx].strip() if amt_idx < len(parts) else ''
+            amt_raw = _re.sub(r'[^\d.]', '', amt_part)
             try:
                 amt = float(amt_raw)
             except (ValueError, TypeError):
-                continue
+                amt = 0.0
+
+            # If amount still zero, scan remaining parts for a numeric value
+            if amt <= 0:
+                for i, p in enumerate(parts):
+                    if i == flat_idx:
+                        continue
+                    candidate = _re.sub(r'[^\d.]', '', p.strip())
+                    try:
+                        v = float(candidate)
+                        if v > 0:
+                            amt = v
+                            break
+                    except (ValueError, TypeError):
+                        continue
+
             if amt <= 0:
                 continue
-            member = parts[2].strip() if len(parts) > 2 else ''
+
+            member = parts[member_idx].strip() if member_idx < len(parts) else ''
             defaulters.append({
                 'flat_no':      flat,
                 'member_name':  member,

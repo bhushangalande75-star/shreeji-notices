@@ -135,6 +135,13 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("society_id") and not session.get("is_admin"):
+            # For AJAX/fetch requests return JSON 401 instead of HTML redirect
+            # so the frontend can show a proper error instead of crashing on JSON parse
+            if (request.is_json
+                    or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+                    or request.method in ("POST", "PUT", "PATCH", "DELETE")
+                    and request.content_type and "multipart" in request.content_type):
+                return jsonify({"success": False, "error": "Session expired. Please log in again."}), 401
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
@@ -2154,12 +2161,53 @@ def knowledge_upload_outstanding():
     try:
         df = pd.read_excel(file)
         df.columns = [str(c).strip() for c in df.columns]
-        lines = ["Flat | Outstanding Amount | Remark"]
+
+        # Detect flat, amount, and member columns by matching common header names
+        flat_col   = None
+        amount_col = None
+        member_col = None
+        for col in df.columns:
+            cl = col.lower().replace(' ', '').replace('_', '').replace('.', '')
+            if flat_col is None and any(k in cl for k in ('flat', 'unit', 'aptno', 'flatno')):
+                flat_col = col
+            elif amount_col is None and any(k in cl for k in ('outstanding', 'amount', 'dues', 'balance', 'pending', 'total', 'owed', 'arrear')):
+                amount_col = col
+            elif member_col is None and any(k in cl for k in ('member', 'name', 'owner', 'resident')):
+                member_col = col
+
+        lines = ["Flat | Outstanding Amount | Member"]
         lines.append("-" * 50)
-        for _, row in df.iterrows():
-            parts = [str(v).strip() for v in row.values if str(v).strip() and str(v).lower() != "nan"]
-            if parts:
-                lines.append(" | ".join(parts))
+
+        if flat_col and amount_col:
+            # Structured extraction using detected columns
+            for _, row in df.iterrows():
+                flat   = str(row[flat_col]).strip()
+                amt    = str(row[amount_col]).strip()
+                member = str(row[member_col]).strip() if member_col else ''
+                if not flat or flat.lower() == 'nan' or amt.lower() == 'nan':
+                    continue
+                # Skip header-like rows
+                if flat.lower() in ('flat', 'flat no', 'flat_no', 'unit'):
+                    continue
+                member = '' if member.lower() == 'nan' else member
+                lines.append(f"{flat} | {amt} | {member}")
+        else:
+            # Fallback: assume first col = flat, last numeric col = amount
+            for _, row in df.iterrows():
+                vals = [str(v).strip() for v in row.values]
+                flat = vals[0] if vals else ''
+                if not flat or flat.lower() in ('nan', 'flat', 'flat no'):
+                    continue
+                # Find rightmost numeric value as amount
+                amt = ''
+                member = ''
+                for v in reversed(vals[1:]):
+                    import re as _re2
+                    if _re2.sub(r'[^\d.]', '', v):
+                        amt = v
+                        break
+                lines.append(f"{flat} | {amt} | {member}")
+
         content = "\n".join(lines)
         upsert_knowledge(session["society_id"], "outstanding", content)
         return jsonify({"success": True, "rows": len(df)})
