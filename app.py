@@ -509,6 +509,7 @@ def call_groq(system_prompt, user_content):
 
 
 @app.route("/ai-notices/generate-notice", methods=["POST"])
+@csrf.exempt
 @login_required
 def ai_generate_notice():
     """Generate a notice in the user's chosen language (English / Marathi / Hindi)."""
@@ -638,6 +639,7 @@ def ai_generate_notice():
 
 
 @app.route("/ai-notices/generate-mom", methods=["POST"])
+@csrf.exempt
 @login_required
 def ai_generate_mom():
     """Generate MOM in the user's chosen language (English / Marathi / Hindi)."""
@@ -758,6 +760,7 @@ def ai_generate_mom():
 
 
 @app.route("/ai-notices/generate-committee", methods=["POST"])
+@csrf.exempt
 @login_required
 def ai_generate_committee():
     """Generate a formal committee meeting notice with agenda in chosen language."""
@@ -900,6 +903,7 @@ def ai_generate_committee():
 
 
 @app.route("/ai-notices/generate-noc", methods=["POST"])
+@csrf.exempt
 @login_required
 def ai_generate_noc():
     """Generate an AI-written NOC (No Objection Certificate) in chosen language."""
