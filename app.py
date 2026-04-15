@@ -1995,6 +1995,7 @@ def portal_dashboard():
 
 
 @app.route("/portal/chat", methods=["POST"])
+@csrf.exempt
 @portal_required
 def portal_chat():
     """AI chatbot — answers questions using the member's own data + society KB as context."""
@@ -2320,6 +2321,7 @@ def portal_tickets():
 
 
 @app.route("/portal/tickets/create", methods=["POST"])
+@csrf.exempt
 @portal_required
 def portal_create_ticket():
     sid  = session["member_society_id"]

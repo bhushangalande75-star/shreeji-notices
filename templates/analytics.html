@@ -34,7 +34,7 @@
 {% set ageing  = data.ageing %}
 {% set defaulters = data.defaulters %}
 
-{% set total_outstanding = (ageing.amt_0_30 or 0) + (ageing.amt_31_60 or 0) + (ageing.amt_90_plus or 0) %}
+{% set total_outstanding = data.defaulters | sum(attribute='total_owed') %}
 {% set total_defaulters  = (ageing.bucket_0_30 or 0) + (ageing.bucket_31_60 or 0) + (ageing.bucket_61_90 or 0) + (ageing.bucket_90_plus or 0) %}
 
 <!-- KPI row -->
