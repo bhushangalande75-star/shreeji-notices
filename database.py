@@ -1042,3 +1042,139 @@ def get_analytics(society_id):
         'ticket_stats':     ticket_stats,
         'notice_breakdown': notice_breakdown,
     }
+
+
+# ══════════════════════════════════════════════════════════════
+#  VECTOR KNOWLEDGE BASE  (pgvector on Neon)
+# ══════════════════════════════════════════════════════════════
+
+def init_vector_kb():
+    """Enable pgvector extension and create kb_chunks table."""
+    conn = get_db(); cur = conn.cursor()
+    # Enable pgvector - safe to run multiple times
+    cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS kb_chunks (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            kb_type     TEXT NOT NULL,
+            doc_name    TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            chunk_text  TEXT NOT NULL,
+            embedding   vector(768),
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    # Index for fast cosine similarity search
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS kb_chunks_embedding_idx
+        ON kb_chunks USING ivfflat (embedding vector_cosine_ops)
+        WITH (lists = 50);
+    """)
+    # Track uploaded documents per society
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS kb_documents (
+            id          SERIAL PRIMARY KEY,
+            society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            kb_type     TEXT NOT NULL,
+            doc_name    TEXT NOT NULL,
+            file_type   TEXT NOT NULL,
+            chunk_count INTEGER DEFAULT 0,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+def delete_kb_document(society_id, doc_name, kb_type):
+    """Remove all chunks for a document and its metadata record."""
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        DELETE FROM kb_chunks
+        WHERE society_id=%s AND doc_name=%s AND kb_type=%s
+    """, (society_id, doc_name, kb_type))
+    cur.execute("""
+        DELETE FROM kb_documents
+        WHERE society_id=%s AND doc_name=%s AND kb_type=%s
+    """, (society_id, doc_name, kb_type))
+    conn.commit(); cur.close(); conn.close()
+
+def save_kb_chunks(society_id, kb_type, doc_name, file_type, chunks_with_embeddings):
+    """
+    chunks_with_embeddings: list of (chunk_text, embedding_list)
+    Replaces existing chunks for same doc_name.
+    """
+    conn = get_db(); cur = conn.cursor()
+    # Remove old version of this doc
+    cur.execute("""
+        DELETE FROM kb_chunks WHERE society_id=%s AND doc_name=%s AND kb_type=%s
+    """, (society_id, doc_name, kb_type))
+    cur.execute("""
+        DELETE FROM kb_documents WHERE society_id=%s AND doc_name=%s AND kb_type=%s
+    """, (society_id, doc_name, kb_type))
+    # Insert new chunks
+    for idx, (text, embedding) in enumerate(chunks_with_embeddings):
+        cur.execute("""
+            INSERT INTO kb_chunks (society_id, kb_type, doc_name, chunk_index, chunk_text, embedding)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (society_id, kb_type, doc_name, idx, text, embedding))
+    # Track document
+    cur.execute("""
+        INSERT INTO kb_documents (society_id, kb_type, doc_name, file_type, chunk_count)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (society_id, kb_type, doc_name, file_type, len(chunks_with_embeddings)))
+    conn.commit(); cur.close(); conn.close()
+
+def get_kb_documents(society_id, kb_type=None):
+    """List all uploaded documents for a society."""
+    conn = get_db(); cur = conn.cursor()
+    if kb_type:
+        cur.execute("""
+            SELECT * FROM kb_documents WHERE society_id=%s AND kb_type=%s
+            ORDER BY uploaded_at DESC
+        """, (society_id, kb_type))
+    else:
+        cur.execute("""
+            SELECT * FROM kb_documents WHERE society_id=%s ORDER BY kb_type, uploaded_at DESC
+        """, (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def vector_search(society_id, query_embedding, kb_type=None, top_k=5):
+    """
+    Semantic similarity search using cosine distance.
+    Returns top_k most relevant chunks.
+    """
+    conn = get_db(); cur = conn.cursor()
+    emb_str = str(query_embedding)  # pgvector accepts Python list as string
+    if kb_type:
+        cur.execute("""
+            SELECT chunk_text, doc_name, kb_type,
+                   1 - (embedding <=> %s::vector) AS similarity
+            FROM kb_chunks
+            WHERE society_id=%s AND kb_type=%s
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s
+        """, (emb_str, society_id, kb_type, emb_str, top_k))
+    else:
+        cur.execute("""
+            SELECT chunk_text, doc_name, kb_type,
+                   1 - (embedding <=> %s::vector) AS similarity
+            FROM kb_chunks
+            WHERE society_id=%s
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s
+        """, (emb_str, society_id, emb_str, top_k))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+def get_kb_chunk_count(society_id):
+    """Total chunks stored for a society."""
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) as total FROM kb_chunks WHERE society_id=%s", (society_id,))
+    r = cur.fetchone(); cur.close(); conn.close()
+    return r['total'] if r else 0
+
+try:
+    init_vector_kb()
+except Exception as e:
+    print(f"[WARN] pgvector init skipped: {e}")

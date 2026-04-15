@@ -13,3 +13,6 @@ bcrypt
 razorpay
 sendgrid
 openai
+pgvector
+pymupdf
+sentence-transformers

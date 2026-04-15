@@ -7,12 +7,15 @@ import os, io, zipfile, json, uuid, tempfile, glob, subprocess, sys, hmac, hashl
 from datetime import date, datetime, timedelta
 from notice_generator import generate_notice
 from notice_generator_ai import build_ai_notice_docx, build_mom_docx
+from vector_kb import process_document, embed_query, extract_text
 from notice_generator_2nd import generate_notice_2nd
 from notice_generator_3rd import generate_notice_3rd
 import requests as http_requests
 import base64
 from pypdf import PdfWriter, PdfReader
 from database import (save_batch, get_batches, get_batch_notices, update_payment,
+                      save_kb_chunks, get_kb_documents, vector_search,
+                      delete_kb_document, get_kb_chunk_count,
                       get_eligible_for_2nd, get_paid_members, delete_batch,
                       get_society_by_username, get_all_societies, create_society,
                       delete_society, get_society_stats,
@@ -2028,24 +2031,43 @@ def portal_chat():
 
         ann_lines = [f"- {a['title']}: {a['body'][:120]}" for a in anns[:5]]
 
-        # ── Load society knowledge base ────────────────────────────────────
-        kb_entries = get_knowledge(sid)
+        # ── Vector KB semantic search ─────────────────────────────────────
         kb_sections = []
         flat_outstanding_line = None
-        for kb in kb_entries:
-            if kb["kb_type"] == "outstanding":
-                # Find this flat's specific outstanding row
-                for line in kb["content"].splitlines():
-                    if flat.upper() in line.upper():
-                        flat_outstanding_line = line.strip()
-                        break
-                kb_sections.append(f"OUTSTANDING AMOUNTS (from society records):\n{kb['content'][:3000]}")
-            elif kb["kb_type"] == "rules":
-                kb_sections.append(f"SOCIETY RULES & REGULATIONS:\n{kb['content'][:3000]}")
-            else:
-                kb_sections.append(f"SOCIETY INFORMATION ({kb['kb_type'].upper()}):\n{kb['content'][:2000]}")
+        try:
+            q_embed  = embed_query(user_msg)
+            vresults = vector_search(sid, q_embed, top_k=6)
+            if vresults:
+                kb_sections.append("RELEVANT SOCIETY KNOWLEDGE (semantic search):")
+                for r in vresults:
+                    if r["similarity"] > 0.3:  # only confident matches
+                        label = r["kb_type"].upper()
+                        kb_sections.append(f"[{label} — {r['doc_name']}]\n{r['chunk_text']}")
+                        # Check if this chunk has flat outstanding info
+                        if flat.upper() in r["chunk_text"].upper() and "outstanding" in r["kb_type"].lower():
+                            for line in r["chunk_text"].splitlines():
+                                if flat.upper() in line.upper():
+                                    flat_outstanding_line = line.strip()
+                                    break
+        except Exception as _ve:
+            print(f"[VECTOR SEARCH WARN] {_ve}")
 
-        kb_text = "\n\n".join(kb_sections) if kb_sections else "No additional society knowledge base loaded."
+        # Fallback to legacy text KB if vector KB is empty
+        if not kb_sections:
+            kb_entries = get_knowledge(sid)
+            for kb in kb_entries:
+                if kb["kb_type"] == "outstanding":
+                    for line in kb["content"].splitlines():
+                        if flat.upper() in line.upper():
+                            flat_outstanding_line = line.strip()
+                            break
+                    kb_sections.append(f"OUTSTANDING AMOUNTS:\n{kb['content'][:3000]}")
+                elif kb["kb_type"] == "rules":
+                    kb_sections.append(f"SOCIETY RULES:\n{kb['content'][:3000]}")
+                else:
+                    kb_sections.append(f"SOCIETY INFO:\n{kb['content'][:2000]}")
+
+        kb_text = "\n\n".join(kb_sections) if kb_sections else "No society knowledge base loaded yet."
 
         outstanding_summary = (
             f"Outstanding for Flat {flat} (from society records): {flat_outstanding_line}"
@@ -2149,11 +2171,93 @@ def manage_announcements():
 @app.route("/knowledge")
 @society_required
 def knowledge_page():
-    sid = session["society_id"]
-    kb  = {r["kb_type"]: r for r in get_knowledge(sid)}
+    sid  = session["society_id"]
+    kb   = {r["kb_type"]: r for r in get_knowledge(sid)}
+    docs = get_kb_documents(sid)
+    total_chunks = get_kb_chunk_count(sid)
+    # Group docs by kb_type for easy template access
+    docs_by_type = {}
+    for d in docs:
+        docs_by_type.setdefault(d["kb_type"], []).append(d)
     return render_template("knowledge.html",
                            society_name=session["society_name"],
-                           kb=kb)
+                           kb=kb,
+                           docs_by_type=docs_by_type,
+                           total_chunks=total_chunks)
+
+
+@app.route("/knowledge/upload-doc", methods=["POST"])
+@society_required
+def knowledge_upload_doc():
+    """
+    Upload a PDF/DOCX/Excel/TXT document to the vector knowledge base.
+    Extracts text, chunks it, embeds via Groq, stores in pgvector.
+    """
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    file    = request.files["file"]
+    kb_type = request.form.get("kb_type", "general")
+    if file.filename == "":
+        return jsonify({"success": False, "error": "No file selected"}), 400
+
+    allowed = {"pdf", "docx", "doc", "xlsx", "xls", "txt"}
+    ext     = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in allowed:
+        return jsonify({"success": False, "error": f"Unsupported file type .{ext}. Use PDF, DOCX, Excel or TXT."}), 400
+
+    try:
+        file_bytes = file.read()
+        doc_name   = file.filename
+        society_id = session["society_id"]
+
+        # Full pipeline: extract → chunk → embed
+        chunks, embeddings = process_document(file_bytes, doc_name)
+
+        # Pair and store in pgvector
+        pairs = list(zip(chunks, embeddings))
+        save_kb_chunks(society_id, kb_type, doc_name, ext, pairs)
+
+        return jsonify({
+            "success": True,
+            "doc_name": doc_name,
+            "chunks": len(chunks),
+            "kb_type": kb_type,
+            "message": f"✅ {doc_name} uploaded — {len(chunks)} chunks indexed in vector KB"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/knowledge/delete-doc", methods=["POST"])
+@society_required
+def knowledge_delete_doc():
+    """Delete a document and all its chunks from the vector KB."""
+    data     = request.json
+    doc_name = data.get("doc_name", "")
+    kb_type  = data.get("kb_type", "")
+    if not doc_name or not kb_type:
+        return jsonify({"success": False, "error": "doc_name and kb_type required"}), 400
+    try:
+        delete_kb_document(session["society_id"], doc_name, kb_type)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/knowledge/search", methods=["POST"])
+@society_required
+def knowledge_search():
+    """Test semantic search endpoint — for admin to verify the KB is working."""
+    query = request.json.get("query", "").strip()
+    if not query:
+        return jsonify({"success": False, "error": "Query required"}), 400
+    try:
+        q_embed = embed_query(query)
+        results = vector_search(session["society_id"], q_embed, top_k=5)
+        return jsonify({"success": True, "results": results})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/knowledge/upload-outstanding", methods=["POST"])

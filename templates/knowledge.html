@@ -1,205 +1,375 @@
 {% extends "base.html" %}
 {% block title %}Knowledge Base — SocietyNotice Pro{% endblock %}
 {% block page_title %}AI Knowledge Base{% endblock %}
-{% block page_sub %}Upload outstanding amounts and society rules so the member portal AI gives accurate answers{% endblock %}
+{% block page_sub %}Upload documents — AI reads and answers questions using semantic vector search{% endblock %}
 
 {% block extra_head %}
 <style>
-  .kb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-  .kb-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-  .kb-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
-  .kb-head-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-  .kb-head-title { font-size: 14px; font-weight: 700; color: var(--ink); }
-  .kb-head-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .kb-body { padding: 20px 22px; }
-  .kb-status { font-size: 11px; padding: 6px 12px; border-radius: 20px; font-weight: 600; display: inline-flex; align-items: center; gap:5px; margin-bottom: 14px; }
-  .kb-status.loaded { background: #D1FAE5; color: #065F46; }
-  .kb-status.empty  { background: #FEF3C7; color: #92400E; }
-  .upload-zone { border: 2px dashed rgba(10,191,163,0.4); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all .2s; background: rgba(10,191,163,0.03); }
-  .upload-zone:hover { background: rgba(10,191,163,0.07); border-color: var(--teal); }
-  .upload-zone input { display: none; }
-  textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); color: var(--ink2); font-size: 13px; font-family: var(--font); resize: vertical; outline: none; min-height: 180px; line-height: 1.7; }
-  textarea:focus { border-color: var(--teal); }
-  .btn-save { padding: 10px 22px; background: var(--teal); border: none; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; margin-top: 12px; }
-  .btn-save:hover { background: var(--teal2); }
-  .status-msg { padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-top: 10px; display: none; }
-  .status-ok  { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
-  .status-err { background: #FEE2E2; color: #B91C1C; border: 1px solid #FECACA; }
-  .preview-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 11px; color: var(--ink3); font-family: monospace; line-height: 1.8; max-height: 150px; overflow-y: auto; margin-top: 12px; white-space: pre-wrap; word-break: break-word; }
-  .col-guide { background: rgba(10,191,163,0.06); border: 1px solid rgba(10,191,163,0.2); border-radius: 10px; padding: 14px 16px; font-size: 12px; color: var(--ink3); line-height: 2; margin-bottom: 16px; }
-  .col-guide code { background: rgba(192,0,0,0.08); color: var(--red); border-radius: 4px; padding: 1px 5px; }
-  .full-card { grid-column: 1 / -1; }
-  .how-it-works { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
-  .how-step { flex: 1; min-width: 160px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: 12px; color: var(--ink3); line-height: 1.7; }
-  .how-step-num { font-size: 18px; font-weight: 800; color: var(--teal); margin-bottom: 4px; }
+  .kb-type-tabs { display:flex; gap:6px; margin-bottom:22px; }
+  .kb-tab { padding:8px 18px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); color:var(--muted); font-size:12px; font-weight:600;
+    cursor:pointer; font-family:var(--font); transition:all 0.15s; }
+  .kb-tab:hover { border-color:var(--teal); color:var(--teal3); }
+  .kb-tab.active { background:linear-gradient(135deg,var(--teal),var(--teal2));
+    color:#fff; border-color:transparent; box-shadow:0 3px 10px var(--teal-glow); }
+
+  .drop-zone { border:2px dashed rgba(10,191,163,0.35); border-radius:14px;
+    padding:36px 24px; text-align:center; cursor:pointer; transition:all .2s;
+    background:rgba(10,191,163,0.02); position:relative; }
+  .drop-zone:hover, .drop-zone.drag { border-color:var(--teal); background:rgba(10,191,163,0.06); }
+  .drop-zone input { position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%; }
+  .drop-icon { font-size:36px; margin-bottom:10px; }
+  .drop-title { font-size:14px; font-weight:600; color:var(--ink); margin-bottom:4px; }
+  .drop-sub { font-size:12px; color:var(--muted); }
+  .file-types { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
+  .file-badge { padding:3px 10px; border-radius:99px; font-size:11px; font-weight:600;
+    background:var(--surface2); border:1px solid var(--border); color:var(--ink3); }
+
+  .upload-progress { display:none; margin-top:16px; }
+  .prog-bar-wrap { background:var(--border); border-radius:99px; height:6px; overflow:hidden; margin-bottom:8px; }
+  .prog-bar { height:100%; background:linear-gradient(90deg,var(--teal),var(--teal2));
+    border-radius:99px; width:0%; transition:width 0.4s; }
+  .prog-msg { font-size:12px; color:var(--ink3); }
+
+  .doc-list { margin-top:18px; display:flex; flex-direction:column; gap:8px; }
+  .doc-row { display:flex; align-items:center; gap:12px; background:var(--surface2);
+    border:1px solid var(--border); border-radius:10px; padding:10px 14px; }
+  .doc-icon { font-size:20px; flex-shrink:0; }
+  .doc-name { font-size:13px; font-weight:600; color:var(--ink); flex:1; }
+  .doc-meta { font-size:11px; color:var(--muted); }
+  .doc-del { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2);
+    color:#B91C1C; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600;
+    cursor:pointer; font-family:var(--font); transition:all .15s; }
+  .doc-del:hover { background:rgba(239,68,68,0.15); }
+
+  .stat-row { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:22px; }
+  .stat-mini { background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+    padding:14px 18px; }
+  .stat-mini-num { font-size:28px; font-weight:700; color:var(--teal); font-family:var(--font); }
+  .stat-mini-label { font-size:11px; color:var(--muted); margin-top:2px; }
+
+  .test-box { background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+    padding:18px; margin-top:22px; }
+  .test-row { display:flex; gap:10px; margin-bottom:14px; }
+  .test-input { flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:8px;
+    background:var(--surface); color:var(--ink); font-size:13px; font-family:var(--font); outline:none; }
+  .test-input:focus { border-color:var(--teal); }
+  .result-chunk { background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    padding:10px 14px; font-size:12px; color:var(--ink3); line-height:1.7; margin-bottom:8px; }
+  .result-score { font-size:10px; font-weight:700; color:var(--teal3); margin-bottom:4px; }
+
+  .info-box { background:rgba(10,191,163,0.06); border:1px solid rgba(10,191,163,0.2);
+    border-radius:10px; padding:14px 16px; font-size:12px; color:var(--ink3); line-height:1.8; }
+  .info-box strong { color:var(--teal3); }
+  .status-msg { padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600;
+    margin-top:10px; display:none; }
+  .ok  { background:#D1FAE5; color:#065F46; border:1px solid #A7F3D0; }
+  .err { background:#FEE2E2; color:#B91C1C; border:1px solid #FECACA; }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- How it works strip -->
-<div class="card" style="margin-bottom:22px;">
-  <div class="card-body">
-    <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px;">How the AI uses this knowledge base</div>
-    <div class="how-it-works">
-      <div class="how-step">
-        <div class="how-step-num">1</div>
-        Upload the outstanding Excel — each row is one flat's dues. The AI reads the exact amount from this, not from the notice amount.
-      </div>
-      <div class="how-step">
-        <div class="how-step-num">2</div>
-        Paste your society rules & regulations. Members can ask "what is the fine for late payment?" and get an accurate answer.
-      </div>
-      <div class="how-step">
-        <div class="how-step-num">3</div>
-        Add general info — contact numbers, office hours, committee names, building amenities, etc.
-      </div>
-      <div class="how-step">
-        <div class="how-step-num">4</div>
-        The AI always stays on-topic. Off-topic questions (politics, news, general knowledge) are politely redirected.
-      </div>
-    </div>
+<!-- Stats row -->
+<div class="stat-row">
+  <div class="stat-mini">
+    <div class="stat-mini-num">{{ total_chunks or 0 }}</div>
+    <div class="stat-mini-label">Vector chunks indexed</div>
+  </div>
+  <div class="stat-mini">
+    <div class="stat-mini-num">{{ docs_by_type.values()|sum(start=[])|length }}</div>
+    <div class="stat-mini-label">Documents uploaded</div>
+  </div>
+  <div class="stat-mini">
+    <div class="stat-mini-num">768</div>
+    <div class="stat-mini-label">Embedding dimensions</div>
   </div>
 </div>
 
-<div class="kb-grid">
+<!-- Info strip -->
+<div class="info-box" style="margin-bottom:22px;">
+  <strong>How it works:</strong> Upload PDFs, Word docs or Excel files → text is extracted, split into 500-character chunks, embedded via Groq's <strong>nomic-embed-text</strong> model → stored in your <strong>Neon PostgreSQL pgvector</strong> DB. When a member asks the AI assistant a question, the top matching chunks are retrieved via cosine similarity and sent to the AI as context. No separate vector DB needed — everything is in your existing Neon DB.
+</div>
 
-  <!-- Outstanding amounts -->
-  <div class="kb-card">
-    <div class="kb-head">
-      <div class="kb-head-icon" style="background:rgba(10,191,163,0.1);">💰</div>
-      <div>
-        <div class="kb-head-title">Outstanding Amounts</div>
-        <div class="kb-head-sub">Upload Excel — AI reads actual dues per flat</div>
+<!-- Type tabs -->
+<div class="kb-type-tabs">
+  <button class="kb-tab active" onclick="switchType('rules', this)">📋 Rules & Bye-Laws</button>
+  <button class="kb-tab" onclick="switchType('general', this)">🏢 Society Info</button>
+  <button class="kb-tab" onclick="switchType('outstanding', this)">💰 Outstanding Amounts</button>
+  <button class="kb-tab" onclick="switchType('circular', this)">📢 Circulars & Notices</button>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;">
+
+  <!-- Left: Upload -->
+  <div>
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:4px;" id="upload-section-title">Upload Rules & Bye-Laws</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:18px;" id="upload-section-sub">
+          Upload society bye-laws, maintenance rules, penalty schedules — any governance document
+        </div>
+
+        <div class="drop-zone" id="dropZone"
+          ondragover="handleDrag(event,true)" ondragleave="handleDrag(event,false)"
+          ondrop="handleDrop(event)">
+          <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.xlsx,.xls,.txt"
+            onchange="handleFile(this.files[0])"/>
+          <div class="drop-icon">📄</div>
+          <div class="drop-title">Drop file here or click to browse</div>
+          <div class="drop-sub">Supports PDF, Word (.docx), Excel (.xlsx), Text (.txt)</div>
+          <div class="file-types">
+            <span class="file-badge">PDF</span>
+            <span class="file-badge">DOCX</span>
+            <span class="file-badge">XLSX</span>
+            <span class="file-badge">TXT</span>
+          </div>
+        </div>
+
+        <div class="upload-progress" id="uploadProgress">
+          <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"></div></div>
+          <div class="prog-msg" id="progMsg">Extracting text...</div>
+        </div>
+        <div class="status-msg ok"  id="statusOk"></div>
+        <div class="status-msg err" id="statusErr"></div>
+
+        <!-- Current documents for active type -->
+        <div class="doc-list" id="docList">
+          <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-top:4px;margin-bottom:6px;">
+            Indexed documents
+          </div>
+          <div id="docItems">
+            {% set active_docs = docs_by_type.get('rules', []) %}
+            {% if active_docs %}
+              {% for d in active_docs %}
+              <div class="doc-row" id="doc-{{ loop.index }}">
+                <span class="doc-icon">{{ '📊' if d.file_type in ['xlsx','xls'] else ('📝' if d.file_type in ['docx','doc'] else '📄') }}</span>
+                <div style="flex:1;">
+                  <div class="doc-name">{{ d.doc_name }}</div>
+                  <div class="doc-meta">{{ d.chunk_count }} chunks · {{ d.file_type.upper() }} · {{ d.uploaded_at.strftime('%d %b %Y') if d.uploaded_at else '' }}</div>
+                </div>
+                <button class="doc-del" onclick="deleteDoc('{{ d.doc_name }}', '{{ d.kb_type }}', this)">Remove</button>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:12px;color:var(--muted);text-align:center;padding:16px;">No documents uploaded yet</div>
+            {% endif %}
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="kb-body">
-      {% if kb.outstanding %}
-        <div class="kb-status loaded">✓ Loaded — {{ kb.outstanding.updated_at.strftime('%d %b %Y, %I:%M %p') if kb.outstanding.updated_at else 'uploaded' }}</div>
-      {% else %}
-        <div class="kb-status empty">⚠ Not uploaded yet — AI will use notice amounts as fallback</div>
-      {% endif %}
-
-      <div class="col-guide">
-        Recommended columns: <code>Flat Combo</code> &nbsp;<code>Outstanding Amount</code> &nbsp;<code>Remark</code><br>
-        Example row: <code>B01-310</code> &nbsp;<code>26567</code> &nbsp;<code>Maintenance Apr 2026</code>
-      </div>
-
-      <div class="upload-zone" onclick="document.getElementById('outstandingFile').click()">
-        <div style="font-size:28px;margin-bottom:8px;">📊</div>
-        <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Click to upload outstanding Excel</div>
-        <div style="font-size:11px;color:var(--muted);">.xlsx or .xls — one row per flat</div>
-        <input type="file" id="outstandingFile" accept=".xlsx,.xls" onchange="uploadOutstanding(this)"/>
-      </div>
-
-      <div id="outStatus" class="status-msg"></div>
-
-      {% if kb.outstanding %}
-      <div style="margin-top:12px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Preview (first 10 lines)</div>
-      <div class="preview-box">{{ kb.outstanding.content.splitlines()[:10]|join('\n') }}</div>
-      {% endif %}
     </div>
   </div>
 
-  <!-- Rules & Regulations -->
-  <div class="kb-card">
-    <div class="kb-head">
-      <div class="kb-head-icon" style="background:rgba(124,58,237,0.1);">📜</div>
-      <div>
-        <div class="kb-head-title">Society Rules & Regulations</div>
-        <div class="kb-head-sub">Paste bye-laws, fines, policies — AI will quote these</div>
+  <!-- Right: Guide + test search -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- All docs summary -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-title" style="margin-bottom:14px;">All Uploaded Documents</div>
+        {% set all_docs = docs_by_type.values()|sum(start=[]) %}
+        {% if all_docs %}
+          {% for kb_type, tdocs in docs_by_type.items() %}
+          <div style="margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:700;color:var(--teal3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">
+              {{ kb_type }}
+            </div>
+            {% for d in tdocs %}
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink3);padding:4px 0;border-bottom:1px solid var(--border);">
+              <span>{{ d.doc_name }}</span>
+              <span>{{ d.chunk_count }} chunks</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">
+            No documents yet — upload your first document!
+          </div>
+        {% endif %}
       </div>
     </div>
-    <div class="kb-body">
-      {% if kb.rules %}
-        <div class="kb-status loaded">✓ Saved — {{ kb.rules.updated_at.strftime('%d %b %Y, %I:%M %p') if kb.rules.updated_at else 'saved' }}</div>
-      {% else %}
-        <div class="kb-status empty">⚠ Not added yet</div>
-      {% endif %}
 
-      <textarea id="rulesText" placeholder="Paste society rules, bye-laws, maintenance charges, fine structure, parking rules, pet policy, visitor rules, etc.
-Example:
-- Late payment fine: Rs. 50 per day after due date
-- Parking: One vehicle per flat, visitor parking in B03 basement
-- Pets: Allowed with committee approval, must be on leash in common areas
-...">{{ kb.rules.content if kb.rules else '' }}</textarea>
-      <button class="btn-save" onclick="saveRules()">Save Rules</button>
-      <div id="rulesStatus" class="status-msg"></div>
-    </div>
-  </div>
-
-  <!-- General Information (full width) -->
-  <div class="kb-card full-card">
-    <div class="kb-head">
-      <div class="kb-head-icon" style="background:rgba(59,130,246,0.1);">ℹ️</div>
-      <div>
-        <div class="kb-head-title">General Society Information</div>
-        <div class="kb-head-sub">Office contacts, committee members, amenities, timings — anything members might ask about</div>
+    <!-- Test semantic search -->
+    <div class="test-box">
+      <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px;">🔍 Test Semantic Search</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Try a question a member might ask — see what the AI will retrieve</div>
+      <div class="test-row">
+        <input class="test-input" type="text" id="testQuery" placeholder="e.g. What is the fine for late maintenance?"/>
+        <button class="kb-tab active" style="white-space:nowrap;" onclick="testSearch()">Search</button>
       </div>
+      <div id="searchResults"></div>
     </div>
-    <div class="kb-body">
-      {% if kb.general %}
-        <div class="kb-status loaded">✓ Saved — {{ kb.general.updated_at.strftime('%d %b %Y, %I:%M %p') if kb.general.updated_at else 'saved' }}</div>
-      {% else %}
-        <div class="kb-status empty">⚠ Not added yet</div>
-      {% endif %}
 
-      <textarea id="generalText" rows="6" placeholder="Examples:
-Society Office: Ground floor, B01 wing. Hours: 10am–1pm and 4pm–7pm, Mon–Sat (closed Sundays)
-Secretary: Mr. Ramesh Sharma — 9876543210
-Treasurer: Mrs. Priya Patel — 9876543211
-Maintenance Helpdesk: 9876543212 (8am–8pm)
-Gym: B02 basement, 6am–10pm daily
-Swimming Pool: B03 terrace, open May–Oct, 6am–8pm
-CCTV complaints: security@shreeji.com
-Emergency: Building security 9876543213 (24x7)">{{ kb.general.content if kb.general else '' }}</textarea>
-      <button class="btn-save" onclick="saveGeneral()">Save General Info</button>
-      <div id="generalStatus" class="status-msg"></div>
+    <!-- Tips -->
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:12px;font-weight:700;color:var(--teal3);margin-bottom:10px;">💡 Upload tips</div>
+        <div style="font-size:12px;color:var(--ink3);line-height:1.9;">
+          <div>✅ Upload multiple docs per category — all get indexed</div>
+          <div>✅ PDFs should be text-based (not scanned images)</div>
+          <div>✅ Excel outstanding list: include Flat No, Name, Amount columns</div>
+          <div>✅ Re-upload a doc to refresh it — old version is replaced</div>
+          <div>✅ Marathi / Hindi documents are supported</div>
+        </div>
+      </div>
     </div>
   </div>
 
 </div>
 
 <script>
-function showStatus(id, msg, ok) {
-  const el = document.getElementById(id);
-  el.textContent = msg;
-  el.className = 'status-msg ' + (ok ? 'status-ok' : 'status-err');
-  el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 4000);
-}
+  let activeKbType = 'rules';
 
-async function uploadOutstanding(input) {
-  const file = input.files[0]; if (!file) return;
-  showStatus('outStatus', '⏳ Uploading and processing...', true);
-  const fd = new FormData(); fd.append('excel', file);
-  try {
-    const res  = await fetch('/knowledge/upload-outstanding', { method: 'POST', body: fd });
+  const typeLabels = {
+    rules:       { title:'Upload Rules & Bye-Laws',     sub:'Society bye-laws, maintenance rules, penalty schedules' },
+    general:     { title:'Upload Society Info',          sub:'Contact numbers, office hours, committee names, amenities' },
+    outstanding: { title:'Upload Outstanding Amounts',   sub:'Excel with flat-wise outstanding dues for AI lookup' },
+    circular:    { title:'Upload Circulars & Notices',   sub:'Past circulars, AGM notices, important communications' },
+  };
+
+  const docsData = {{ docs_by_type | tojson }};
+
+  function switchType(type, btn) {
+    activeKbType = type;
+    document.querySelectorAll('.kb-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const cfg = typeLabels[type] || { title: 'Upload Document', sub: '' };
+    document.getElementById('upload-section-title').textContent = cfg.title;
+    document.getElementById('upload-section-sub').textContent   = cfg.sub;
+    renderDocList(type);
+    clearStatus();
+  }
+
+  function renderDocList(type) {
+    const docs = docsData[type] || [];
+    const container = document.getElementById('docItems');
+    if (!docs.length) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:16px;">No documents uploaded yet</div>';
+      return;
+    }
+    const icons = { xlsx:'📊', xls:'📊', docx:'📝', doc:'📝', pdf:'📄', txt:'📃' };
+    container.innerHTML = docs.map(d => `
+      <div class="doc-row">
+        <span class="doc-icon">${icons[d.file_type] || '📄'}</span>
+        <div style="flex:1;">
+          <div class="doc-name">${d.doc_name}</div>
+          <div class="doc-meta">${d.chunk_count} chunks · ${d.file_type.toUpperCase()}</div>
+        </div>
+        <button class="doc-del" onclick="deleteDoc('${d.doc_name}','${d.kb_type}',this)">Remove</button>
+      </div>
+    `).join('');
+  }
+
+  function handleDrag(e, over) {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.toggle('drag', over);
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.remove('drag');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  }
+  function clearStatus() {
+    ['statusOk','statusErr','uploadProgress'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+  }
+
+  async function handleFile(file) {
+    if (!file) return;
+    clearStatus();
+    const progress = document.getElementById('uploadProgress');
+    const progBar  = document.getElementById('progBar');
+    const progMsg  = document.getElementById('progMsg');
+    progress.style.display = 'block';
+
+    const steps = ['Extracting text...', 'Splitting into chunks...', 'Generating embeddings...', 'Storing in vector DB...'];
+    let step = 0;
+    const ticker = setInterval(() => {
+      if (step < steps.length) {
+        progMsg.textContent = steps[step];
+        progBar.style.width = ((step + 1) / (steps.length + 1) * 90) + '%';
+        step++;
+      }
+    }, 2500);
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('kb_type', activeKbType);
+
+    try {
+      const res  = await fetch('/knowledge/upload-doc', { method: 'POST', body: fd });
+      const data = await res.json();
+      clearInterval(ticker);
+      progress.style.display = 'none';
+
+      if (data.success) {
+        progBar.style.width = '100%';
+        const ok = document.getElementById('statusOk');
+        ok.textContent = data.message;
+        ok.style.display = 'block';
+        // Add doc to local data and re-render
+        if (!docsData[activeKbType]) docsData[activeKbType] = [];
+        docsData[activeKbType] = docsData[activeKbType].filter(d => d.doc_name !== data.doc_name);
+        docsData[activeKbType].unshift({ doc_name: data.doc_name, kb_type: activeKbType, file_type: file.name.split('.').pop(), chunk_count: data.chunks });
+        renderDocList(activeKbType);
+        setTimeout(() => location.reload(), 2500);
+      } else {
+        const err = document.getElementById('statusErr');
+        err.textContent = '❌ ' + data.error;
+        err.style.display = 'block';
+      }
+    } catch (e) {
+      clearInterval(ticker);
+      progress.style.display = 'none';
+      const err = document.getElementById('statusErr');
+      err.textContent = '❌ Network error: ' + e.message;
+      err.style.display = 'block';
+    }
+    document.getElementById('fileInput').value = '';
+  }
+
+  async function deleteDoc(docName, kbType, btn) {
+    if (!confirm(`Remove "${docName}" from knowledge base?`)) return;
+    btn.textContent = '...';
+    const res  = await fetch('/knowledge/delete-doc', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ doc_name: docName, kb_type: kbType })
+    });
     const data = await res.json();
     if (data.success) {
-      showStatus('outStatus', `✓ ${data.rows} rows loaded into knowledge base. Reloading...`, true);
-      setTimeout(() => location.reload(), 1400);
+      docsData[kbType] = (docsData[kbType] || []).filter(d => d.doc_name !== docName);
+      renderDocList(kbType);
     } else {
-      showStatus('outStatus', '❌ ' + data.error, false);
+      alert('Error: ' + data.error);
+      btn.textContent = 'Remove';
     }
-  } catch(e) { showStatus('outStatus', '❌ ' + e.message, false); }
-  input.value = '';
-}
+  }
 
-async function saveRules() {
-  const content = document.getElementById('rulesText').value.trim();
-  if (!content) { showStatus('rulesStatus', 'Rules cannot be empty.', false); return; }
-  const res  = await fetch('/knowledge/save-rules', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content}) });
-  const data = await res.json();
-  showStatus('rulesStatus', data.success ? '✓ Rules saved successfully.' : '❌ ' + data.error, data.success);
-}
-
-async function saveGeneral() {
-  const content = document.getElementById('generalText').value.trim();
-  if (!content) { showStatus('generalStatus', 'Content cannot be empty.', false); return; }
-  const res  = await fetch('/knowledge/save-general', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content}) });
-  const data = await res.json();
-  showStatus('generalStatus', data.success ? '✓ General info saved.' : '❌ ' + data.error, data.success);
-}
+  async function testSearch() {
+    const q = document.getElementById('testQuery').value.trim();
+    if (!q) return;
+    document.getElementById('searchResults').innerHTML = '<div style="font-size:12px;color:var(--muted);">Searching...</div>';
+    try {
+      const res  = await fetch('/knowledge/search', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ query: q })
+      });
+      const data = await res.json();
+      if (data.success && data.results.length) {
+        document.getElementById('searchResults').innerHTML = data.results.map(r => `
+          <div class="result-chunk">
+            <div class="result-score">📌 ${r.kb_type.toUpperCase()} · ${r.doc_name} · similarity ${(r.similarity*100).toFixed(1)}%</div>
+            ${r.chunk_text.substring(0, 280)}${r.chunk_text.length > 280 ? '…' : ''}
+          </div>
+        `).join('');
+      } else {
+        document.getElementById('searchResults').innerHTML = '<div style="font-size:12px;color:var(--muted);">No results found — try uploading documents first.</div>';
+      }
+    } catch(e) {
+      document.getElementById('searchResults').innerHTML = '<div style="color:#B91C1C;font-size:12px;">Search error: ' + e.message + '</div>';
+    }
+  }
 </script>
 {% endblock %}
