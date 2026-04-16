@@ -2169,6 +2169,7 @@ def manage_announcements():
 # ══════════════════════════════════════════════════════════════
 
 @app.route("/knowledge")
+@csrf.exempt
 @society_required
 def knowledge_page():
     sid  = session["society_id"]
