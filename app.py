@@ -2859,6 +2859,19 @@ def admin_audit_log():
                            society_name="Admin")
 
 
+# ── Pre-warm embedding model so it is loaded into the gunicorn worker
+# process at startup, not on the first upload request (which would time out).
+def _prewarm_embedder():
+    try:
+        from vector_kb import _get_embedder
+        _get_embedder()
+        print("[KB] Embedding model pre-warmed ✅")
+    except Exception as _e:
+        print(f"[KB] WARNING: Could not pre-warm model at startup: {_e}")
+
+_prewarm_embedder()
+
+
 if __name__ == "__main__":
     lo = get_libreoffice_path()
     print("="*55)
