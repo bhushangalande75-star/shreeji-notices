@@ -2187,6 +2187,7 @@ def knowledge_page():
 
 
 @app.route("/knowledge/upload-doc", methods=["POST"])
+@csrf.exempt
 @society_required
 def knowledge_upload_doc():
     """
