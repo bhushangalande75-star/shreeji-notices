@@ -4,22 +4,31 @@ vector_kb.py — Document processing pipeline for SocietyNotice Pro Vector KB.
 Responsibilities:
   1. Extract text from PDF / DOCX / XLSX / TXT
   2. Chunk text into overlapping segments
-  3. Embed chunks via Groq (nomic-embed-text-v1.5) — FREE
+  3. Embed chunks using sentence-transformers (local, FREE, no API key needed)
   4. Store in Neon pgvector
 
-Embedding model: nomic-embed-text-v1.5
-  - Dimension: 768
-  - Context: 8192 tokens
-  - Hosted on Groq API (free tier)
+Embedding model: all-MiniLM-L6-v2
+  - Dimension: 384
+  - Size: ~80MB (downloads once on first use)
+  - Runs locally on Render — zero cost, zero API key
 """
 
 import os, io, re
-import requests as _req
 
-GROQ_API_KEY  = os.environ.get("NOTICE_API_KEY", "")
-GROQ_EMBED_URL = "https://api.groq.com/openai/v1/embeddings"
-EMBED_MODEL    = "nomic-embed-text-v1.5"
-EMBED_DIM      = 768
+EMBED_MODEL = "all-MiniLM-L6-v2"
+EMBED_DIM   = 384   # dimension for this model
+
+# Lazy-load the model — downloaded once, cached on disk
+_embedder = None
+
+def _get_embedder():
+    global _embedder
+    if _embedder is None:
+        from sentence_transformers import SentenceTransformer
+        print(f"[KB] Loading embedding model {EMBED_MODEL}...")
+        _embedder = SentenceTransformer(EMBED_MODEL)
+        print(f"[KB] Model loaded ✅")
+    return _embedder
 
 CHUNK_SIZE     = 500   # characters (not tokens) — safe for 8192 token model
 CHUNK_OVERLAP  = 80    # characters overlap between consecutive chunks
@@ -142,45 +151,23 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """
-    Embed a list of texts using Groq nomic-embed-text-v1.5.
-    Returns list of embedding vectors (dim=768).
-    Batches in groups of 96 to stay under API limits.
+    Embed a list of texts using sentence-transformers (local, no API key).
+    Returns list of embedding vectors (dim=384).
     """
-    if not GROQ_API_KEY:
-        raise ValueError("NOTICE_API_KEY not set — cannot embed documents.")
-
-    all_embeddings = []
-    batch_size     = 32   # Groq allows up to 96 but 32 is safe
-
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        resp  = _req.post(
-            GROQ_EMBED_URL,
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type":  "application/json",
-            },
-            json={
-                "model": EMBED_MODEL,
-                "input": batch,
-            },
-            timeout=60,
-        )
-        if resp.status_code != 200:
-            raise ValueError(f"Groq embed error {resp.status_code}: {resp.text[:300]}")
-
-        data = resp.json()
-        # Sort by index to preserve order
-        sorted_data = sorted(data["data"], key=lambda x: x["index"])
-        all_embeddings.extend([item["embedding"] for item in sorted_data])
-
-    return all_embeddings
+    if not texts:
+        return []
+    model  = _get_embedder()
+    # encode() returns numpy array — convert to plain Python list
+    vecs   = model.encode(texts, batch_size=32, show_progress_bar=False,
+                          convert_to_numpy=True)
+    return [v.tolist() for v in vecs]
 
 
 def embed_query(query: str) -> list[float]:
     """Embed a single query string."""
-    results = embed_texts([query])
-    return results[0]
+    model = _get_embedder()
+    vec   = model.encode([query], convert_to_numpy=True)
+    return vec[0].tolist()
 
 
 # ── Full pipeline ──────────────────────────────────────────────

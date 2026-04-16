@@ -14,5 +14,5 @@ razorpay
 sendgrid
 openai
 pgvector
-pymupdf
 sentence-transformers
+torch

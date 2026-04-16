@@ -81,8 +81,8 @@
     <div class="stat-mini-label">Documents uploaded</div>
   </div>
   <div class="stat-mini">
-    <div class="stat-mini-num">768</div>
-    <div class="stat-mini-label">Embedding dimensions</div>
+    <div class="stat-mini-num">384</div>
+    <div class="stat-mini-label">Embedding dimensions (MiniLM)</div>
   </div>
 </div>
 
@@ -308,13 +308,17 @@
         progBar.style.width = '100%';
         const ok = document.getElementById('statusOk');
         ok.textContent = data.message;
+        // Style as warning if fallback (⚠️ means embed failed but text saved)
+        if (data.message && data.message.includes('⚠️')) {
+          ok.style.background = '#FEF3C7'; ok.style.color = '#92400E'; ok.style.border = '1px solid #FDE68A';
+        }
         ok.style.display = 'block';
         // Add doc to local data and re-render
         if (!docsData[activeKbType]) docsData[activeKbType] = [];
         docsData[activeKbType] = docsData[activeKbType].filter(d => d.doc_name !== data.doc_name);
         docsData[activeKbType].unshift({ doc_name: data.doc_name, kb_type: activeKbType, file_type: file.name.split('.').pop(), chunk_count: data.chunks });
         renderDocList(activeKbType);
-        setTimeout(() => location.reload(), 2500);
+        setTimeout(() => location.reload(), 3000);
       } else {
         const err = document.getElementById('statusErr');
         err.textContent = '❌ ' + data.error;

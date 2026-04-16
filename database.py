@@ -1061,10 +1061,39 @@ def init_vector_kb():
             doc_name    TEXT NOT NULL,
             chunk_index INTEGER NOT NULL,
             chunk_text  TEXT NOT NULL,
-            embedding   vector(768),
+            embedding   vector(384),
             created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    # Migration: if table existed with vector(768), drop and recreate
+    # (safe because data will be re-uploaded anyway)
+    try:
+        cur.execute("""
+            SELECT pg_catalog.format_type(a.atttypid, a.atttypmod)
+            FROM pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+            WHERE c.relname = 'kb_chunks' AND a.attname = 'embedding' AND a.attnum > 0
+        """)
+        row = cur.fetchone()
+        if row and '768' in str(row):
+            print("[KB] Migrating kb_chunks from vector(768) to vector(384)...")
+            cur.execute("DROP TABLE IF EXISTS kb_chunks CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS kb_documents CASCADE;")
+            cur.execute("""
+                CREATE TABLE kb_chunks (
+                    id          SERIAL PRIMARY KEY,
+                    society_id  INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+                    kb_type     TEXT NOT NULL,
+                    doc_name    TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    chunk_text  TEXT NOT NULL,
+                    embedding   vector(384),
+                    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            print("[KB] Migration complete ✅")
+    except Exception as _me:
+        print(f"[KB] Migration check skipped: {_me}")
     # Index for fast cosine similarity search
     cur.execute("""
         CREATE INDEX IF NOT EXISTS kb_chunks_embedding_idx

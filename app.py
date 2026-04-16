@@ -2187,46 +2187,95 @@ def knowledge_page():
 
 
 @app.route("/knowledge/upload-doc", methods=["POST"])
-@csrf.exempt
 @society_required
 def knowledge_upload_doc():
     """
     Upload a PDF/DOCX/Excel/TXT document to the vector knowledge base.
     Extracts text, chunks it, embeds via Groq, stores in pgvector.
+    Outstanding kb_type replaces ALL previous outstanding docs.
     """
-    if "file" not in request.files:
-        return jsonify({"success": False, "error": "No file uploaded"}), 400
-
-    file    = request.files["file"]
-    kb_type = request.form.get("kb_type", "general")
-    if file.filename == "":
-        return jsonify({"success": False, "error": "No file selected"}), 400
-
-    allowed = {"pdf", "docx", "doc", "xlsx", "xls", "txt"}
-    ext     = file.filename.rsplit(".", 1)[-1].lower()
-    if ext not in allowed:
-        return jsonify({"success": False, "error": f"Unsupported file type .{ext}. Use PDF, DOCX, Excel or TXT."}), 400
-
     try:
+        if "file" not in request.files:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+        file    = request.files["file"]
+        kb_type = request.form.get("kb_type", "general")
+        if not file or file.filename == "":
+            return jsonify({"success": False, "error": "No file selected"}), 400
+
+        allowed = {"pdf", "docx", "doc", "xlsx", "xls", "txt"}
+        ext     = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in allowed:
+            return jsonify({"success": False,
+                            "error": f"Unsupported file type .{ext}. Use PDF, DOCX, Excel or TXT."}), 400
+
         file_bytes = file.read()
         doc_name   = file.filename
         society_id = session["society_id"]
 
-        # Full pipeline: extract → chunk → embed
-        chunks, embeddings = process_document(file_bytes, doc_name)
+        # ── Outstanding: always replace ALL existing outstanding data ──
+        if kb_type == "outstanding":
+            from database import get_db
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("DELETE FROM kb_chunks   WHERE society_id=%s AND kb_type='outstanding'", (society_id,))
+            cur.execute("DELETE FROM kb_documents WHERE society_id=%s AND kb_type='outstanding'", (society_id,))
+            conn.commit(); cur.close(); conn.close()
+            # Also update legacy text KB for backward compat
+            try:
+                import pandas as pd, io as _io
+                df = pd.read_excel(_io.BytesIO(file_bytes))
+                df.columns = [str(c).strip() for c in df.columns]
+                lines = ["Flat | Outstanding Amount | Member", "-"*50]
+                flat_col=amount_col=member_col=None
+                for col in df.columns:
+                    cl=col.lower().replace(" ","").replace("_","")
+                    if not flat_col   and any(k in cl for k in ("flat","unit","aptno","flatno")): flat_col=col
+                    elif not amount_col and any(k in cl for k in ("outstanding","amount","dues","balance","pending","total")): amount_col=col
+                    elif not member_col and any(k in cl for k in ("member","name","owner","resident")): member_col=col
+                if flat_col and amount_col:
+                    for _,row in df.iterrows():
+                        flat=str(row[flat_col]).strip(); amt=str(row[amount_col]).strip()
+                        mem=str(row[member_col]).strip() if member_col else ""
+                        if flat and flat.lower()!="nan" and amt.lower()!="nan":
+                            lines.append(f"{flat} | {amt} | {mem}")
+                upsert_knowledge(society_id, "outstanding", "\n".join(lines))
+            except Exception as _leg:
+                print(f"[WARN] Legacy outstanding KB update failed: {_leg}")
 
-        # Pair and store in pgvector
-        pairs = list(zip(chunks, embeddings))
-        save_kb_chunks(society_id, kb_type, doc_name, ext, pairs)
+        # ── Full vector pipeline: extract → chunk → embed ──
+        try:
+            chunks, embeddings = process_document(file_bytes, doc_name)
+            pairs = list(zip(chunks, embeddings))
+            save_kb_chunks(society_id, kb_type, doc_name, ext, pairs)
+            return jsonify({
+                "success": True,
+                "doc_name": doc_name,
+                "chunks": len(chunks),
+                "kb_type": kb_type,
+                "message": f"✅ {doc_name} uploaded — {len(chunks)} chunks indexed in vector KB"
+            })
+        except Exception as embed_err:
+            # Embedding failed — store as plain text fallback (no vectors)
+            err_str = str(embed_err)
+            print(f"[WARN] Embed failed: {err_str}")
+            # Still try to save the text extraction result without embeddings
+            try:
+                raw_text = extract_text(file_bytes, doc_name)
+                upsert_knowledge(society_id, kb_type, raw_text[:50000])
+                return jsonify({
+                    "success": True,
+                    "doc_name": doc_name,
+                    "chunks": 1,
+                    "kb_type": kb_type,
+                    "message": f"⚠️ {doc_name} saved as plain text (vector embed unavailable: {err_str[:80]})"
+                })
+            except Exception as text_err:
+                return jsonify({"success": False,
+                                "error": f"Upload failed: {str(text_err)}"}), 500
 
-        return jsonify({
-            "success": True,
-            "doc_name": doc_name,
-            "chunks": len(chunks),
-            "kb_type": kb_type,
-            "message": f"✅ {doc_name} uploaded — {len(chunks)} chunks indexed in vector KB"
-        })
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -24,5 +24,9 @@ COPY . .
 # Expose port
 EXPOSE 5000
 
+# Pre-download the sentence-transformers model during Docker build
+# so it's cached — no cold-start delay at runtime
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" || true
+
 # Run with gunicorn (production server)
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "1", "app:app"]
