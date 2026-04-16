@@ -1133,25 +1133,33 @@ def save_kb_chunks(society_id, kb_type, doc_name, file_type, chunks_with_embeddi
     Replaces existing chunks for same doc_name.
     """
     conn = get_db(); cur = conn.cursor()
-    # Remove old version of this doc
-    cur.execute("""
-        DELETE FROM kb_chunks WHERE society_id=%s AND doc_name=%s AND kb_type=%s
-    """, (society_id, doc_name, kb_type))
-    cur.execute("""
-        DELETE FROM kb_documents WHERE society_id=%s AND doc_name=%s AND kb_type=%s
-    """, (society_id, doc_name, kb_type))
-    # Insert new chunks
-    for idx, (text, embedding) in enumerate(chunks_with_embeddings):
+    try:
+        # Remove old version of this doc
         cur.execute("""
-            INSERT INTO kb_chunks (society_id, kb_type, doc_name, chunk_index, chunk_text, embedding)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (society_id, kb_type, doc_name, idx, text, embedding))
-    # Track document
-    cur.execute("""
-        INSERT INTO kb_documents (society_id, kb_type, doc_name, file_type, chunk_count)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (society_id, kb_type, doc_name, file_type, len(chunks_with_embeddings)))
-    conn.commit(); cur.close(); conn.close()
+            DELETE FROM kb_chunks WHERE society_id=%s AND doc_name=%s AND kb_type=%s
+        """, (society_id, doc_name, kb_type))
+        cur.execute("""
+            DELETE FROM kb_documents WHERE society_id=%s AND doc_name=%s AND kb_type=%s
+        """, (society_id, doc_name, kb_type))
+        # Insert new chunks — convert embedding list to string so psycopg2
+        # passes it as "[0.1, 0.2, ...]" which pgvector expects (same as vector_search)
+        for idx, (text, embedding) in enumerate(chunks_with_embeddings):
+            emb_str = str(embedding)   # e.g. "[0.023, -0.11, ...]"
+            cur.execute("""
+                INSERT INTO kb_chunks (society_id, kb_type, doc_name, chunk_index, chunk_text, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s::vector)
+            """, (society_id, kb_type, doc_name, idx, text, emb_str))
+        # Track document
+        cur.execute("""
+            INSERT INTO kb_documents (society_id, kb_type, doc_name, file_type, chunk_count)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (society_id, kb_type, doc_name, file_type, len(chunks_with_embeddings)))
+        conn.commit()
+    except Exception:
+        conn._conn.rollback()   # reset the failed transaction
+        raise                   # re-raise so the caller can fall back to text KB
+    finally:
+        cur.close(); conn.close()   # always return connection to pool
 
 def get_kb_documents(society_id, kb_type=None):
     """List all uploaded documents for a society."""
