@@ -15,4 +15,6 @@ sendgrid
 openai
 pgvector
 sentence-transformers
-torch
+# torch is installed separately in Dockerfile with CPU-only wheel
+# to save ~500MB RAM vs the default CUDA build:
+#   pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu

@@ -4,7 +4,17 @@ services:
     runtime: docker
     plan: free
     envVars:
-      - key: APP_PASSWORD
-        value: shreeji2026
+      - key: SECRET_KEY
+        generateValue: true        # Render auto-generates this ✅
+
       - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_7nHiMWjXbue3@ep-quiet-term-a18iejjt-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+        sync: false                # Set manually in Render dashboard ✅
+
+      - key: APP_PASSWORD
+        value: shreeji2026         # Society login password
+
+      - key: ADMIN_PASSWORD
+        value: Ayan@2020          # Admin panel password — change this!
+
+      - key: NOTICE_API_KEY
+        sync: false                # Your Groq API key — set in dashboard
