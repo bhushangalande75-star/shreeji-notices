@@ -14,7 +14,11 @@ razorpay
 sendgrid
 openai
 pgvector
-sentence-transformers
-# torch is installed separately in Dockerfile with CPU-only wheel
-# to save ~500MB RAM vs the default CUDA build:
+
+# Pinned to versions known to work together with CPU-only torch 2.2.2
+# torch is installed first in Dockerfile via the CPU-only wheel:
 #   pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers==2.7.0
+transformers==4.40.2
+tokenizers==0.19.1
+huggingface-hub==0.23.4

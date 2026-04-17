@@ -10,10 +10,22 @@ Responsibilities:
 Embedding model: all-MiniLM-L6-v2
   - Dimension: 384
   - Size: ~80MB (downloads once on first use)
-  - Runs locally on Render — zero cost, zero API key
+  - Runs locally on Render/Railway — zero cost, zero API key
 """
 
 import os, io, re
+
+# Verify torch is intact before sentence-transformers tries to use it.
+# A missing or CUDA-vs-CPU mismatch shows up as "name 'nn' is not defined".
+try:
+    import torch
+    import torch.nn as _nn  # noqa — validates torch.nn is accessible
+except ImportError as _torch_err:
+    raise ImportError(
+        f"PyTorch is not installed or broken: {_torch_err}. "
+        "The Dockerfile must install the CPU-only wheel FIRST: "
+        "pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu"
+    ) from _torch_err
 
 EMBED_MODEL = "all-MiniLM-L6-v2"
 EMBED_DIM   = 384   # dimension for this model

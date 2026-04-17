@@ -16,26 +16,29 @@ WORKDIR /app
 # ── Python deps ───────────────────────────────────────────────────────────────
 COPY requirements.txt .
 
-# Install CPU-only PyTorch FIRST (saves ~500 MB vs default CUDA build).
-# Must be installed before sentence-transformers so it does not pull CUDA torch.
+# Step 1: CPU-only PyTorch — must come FIRST before sentence-transformers
+# so it never pulls in the 800MB CUDA build as a dependency.
 RUN pip install --no-cache-dir \
     torch==2.2.2 \
     --index-url https://download.pytorch.org/whl/cpu
 
-# Install everything else
+# Step 2: Everything else (sentence-transformers pinned in requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── App files ─────────────────────────────────────────────────────────────────
 COPY . .
 
 # ── Pre-download the embedding model at build time ────────────────────────────
-# Bakes the model weights into the image so there is no cold-start download.
+# Bakes weights into the image — zero download delay at runtime.
 RUN python3 -c "\
+import torch; \
+print('torch version:', torch.__version__); \
+print('torch.nn ok:', torch.nn.Linear); \
 from sentence_transformers import SentenceTransformer; \
 m = SentenceTransformer('all-MiniLM-L6-v2'); \
-print('Model cached OK')" || echo "WARNING: model pre-download failed"
+print('Model cached OK'); \
+"
 
 EXPOSE 5000
 
-# start.sh handles migrations + gunicorn
 CMD ["bash", "start.sh"]
