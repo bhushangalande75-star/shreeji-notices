@@ -32,6 +32,7 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       check_password, hash_password,
                       get_society_pin_format,
                       upsert_knowledge, get_knowledge, get_member_outstanding,
+                      get_outstanding_from_vector_kb,
                       create_ticket, get_member_tickets, get_all_tickets,
                       update_ticket_status, get_ticket_by_id,
                       log_audit, get_audit_log,
@@ -2031,49 +2032,59 @@ def portal_chat():
 
         ann_lines = [f"- {a['title']}: {a['body'][:120]}" for a in anns[:5]]
 
-        # ── Vector KB semantic search ─────────────────────────────────────
-        kb_sections = []
+        # ── Step 1: Direct flat lookup in outstanding vector KB chunks ────
+        # This is a text scan, NOT semantic search — far more reliable for
+        # structured Excel data where flat number is the lookup key.
+        outstanding_result = get_outstanding_from_vector_kb(sid, flat)
         flat_outstanding_line = None
+        if outstanding_result["found"]:
+            flat_outstanding_line = " | ".join(outstanding_result["lines"])
+
+        # ── Step 2: Legacy text KB fallback (if no vector chunks exist) ──
+        if not outstanding_result["found"]:
+            legacy_row = get_member_outstanding(sid, flat)
+            if legacy_row:
+                flat_outstanding_line = legacy_row
+
+        # ── Step 3: Semantic search for rules / general / announcements ───
+        kb_sections = []
         try:
             q_embed  = embed_query(user_msg)
+            # Search only non-outstanding KB types for semantic context
             vresults = vector_search(sid, q_embed, top_k=6)
             if vresults:
-                kb_sections.append("RELEVANT SOCIETY KNOWLEDGE (semantic search):")
+                semantic_added = False
                 for r in vresults:
-                    if r["similarity"] > 0.3:  # only confident matches
+                    if r["similarity"] > 0.3 and r["kb_type"] != "outstanding":
+                        if not semantic_added:
+                            kb_sections.append("RELEVANT SOCIETY KNOWLEDGE:")
+                            semantic_added = True
                         label = r["kb_type"].upper()
                         kb_sections.append(f"[{label} — {r['doc_name']}]\n{r['chunk_text']}")
-                        # Check if this chunk has flat outstanding info
-                        if flat.upper() in r["chunk_text"].upper() and "outstanding" in r["kb_type"].lower():
-                            for line in r["chunk_text"].splitlines():
-                                if flat.upper() in line.upper():
-                                    flat_outstanding_line = line.strip()
-                                    break
         except Exception as _ve:
             print(f"[VECTOR SEARCH WARN] {_ve}")
 
-        # Fallback to legacy text KB if vector KB is empty
+        # Add rules/general from legacy KB if vector KB returned nothing useful
         if not kb_sections:
             kb_entries = get_knowledge(sid)
             for kb in kb_entries:
-                if kb["kb_type"] == "outstanding":
-                    for line in kb["content"].splitlines():
-                        if flat.upper() in line.upper():
-                            flat_outstanding_line = line.strip()
-                            break
-                    kb_sections.append(f"OUTSTANDING AMOUNTS:\n{kb['content'][:3000]}")
-                elif kb["kb_type"] == "rules":
+                if kb["kb_type"] == "rules":
                     kb_sections.append(f"SOCIETY RULES:\n{kb['content'][:3000]}")
-                else:
+                elif kb["kb_type"] == "general":
                     kb_sections.append(f"SOCIETY INFO:\n{kb['content'][:2000]}")
 
-        kb_text = "\n\n".join(kb_sections) if kb_sections else "No society knowledge base loaded yet."
+        kb_text = "\n\n".join(kb_sections) if kb_sections else ""
 
-        outstanding_summary = (
-            f"Outstanding for Flat {flat} (from society records): {flat_outstanding_line}"
-            if flat_outstanding_line
-            else f"Outstanding notices for Flat {flat}: Rs.{total_pending_amount:,} (based on {len([n for n in notices if n['payment_status']=='Pending'])} pending notice(s))"
-        )
+        # ── Outstanding summary: ONLY from KB, never from notice sums ─────
+        if flat_outstanding_line:
+            outstanding_summary = (
+                f"Outstanding for Flat {flat} (from uploaded society records): {flat_outstanding_line}"
+            )
+        else:
+            outstanding_summary = (
+                f"Outstanding amount for Flat {flat}: Data not available in society records. "
+                f"The member should contact the society office for the exact outstanding amount."
+            )
 
         context = f"""You are the official AI assistant for {soc} housing society.
 You are speaking with {name}, resident of Flat {flat}.
@@ -2082,7 +2093,7 @@ STRICT RULES:
 - Answer ONLY questions related to this member's notices, outstanding dues, society rules, announcements, or general society information.
 - If a member asks something unrelated to the society (e.g. news, politics, sports, general knowledge), respond: "I'm here to assist with {soc} society matters only. For other queries, please use a general search engine."
 - NEVER say "I don't know" — if you lack the data, say "Please contact the society office for this information."
-- Use the KNOWLEDGE BASE data for outstanding amount queries, not just notice amounts.
+- CRITICAL: For outstanding amount queries, use ONLY the OUTSTANDING SUMMARY below. NEVER calculate or infer outstanding from notice amounts or notice count. Notices and outstanding dues are separate records.
 - For notice-related questions (ref no, due date, notice amount), refer to NOTICES section.
 - Be helpful, polite, and concise (2-4 sentences). Reply in the same language the member uses.
 
@@ -2092,7 +2103,7 @@ Flat: {flat}
 Society: {soc}
 Phone: {member.get('phone','N/A') if member else 'N/A'}
 
-OUTSTANDING SUMMARY:
+OUTSTANDING SUMMARY (authoritative — from uploaded society Excel):
 {outstanding_summary}
 
 NOTICES ISSUED TO THIS MEMBER:

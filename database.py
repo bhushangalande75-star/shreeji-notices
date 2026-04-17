@@ -644,6 +644,57 @@ def get_knowledge(society_id, kb_type=None):
     rows = cur.fetchall(); cur.close(); conn.close()
     return [dict(r) for r in rows]
 
+def get_outstanding_from_vector_kb(society_id, flat_combo):
+    """
+    Directly scan ALL outstanding-type kb_chunks for a society and return
+    the line(s) matching this flat.  This is more reliable than semantic
+    search for structured Excel data where flat numbers are the key.
+
+    Returns a dict:
+        {
+          "found": True/False,
+          "lines": ["B01-010 | Rs.53,134 | ..."],   # all matching lines
+          "amount_text": "Rs. 53,134"                # best extracted amount string
+        }
+    """
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "SELECT chunk_text FROM kb_chunks WHERE society_id=%s AND kb_type='outstanding'",
+        (society_id,)
+    )
+    rows = cur.fetchall(); cur.close(); conn.close()
+
+    flat_up = flat_combo.strip().upper()
+    matching_lines = []
+    for row in rows:
+        for line in row["chunk_text"].splitlines():
+            if flat_up in line.upper():
+                stripped = line.strip()
+                if stripped and stripped not in matching_lines:
+                    matching_lines.append(stripped)
+
+    if not matching_lines:
+        return {"found": False, "lines": [], "amount_text": None}
+
+    # Try to extract a numeric amount from the best line
+    import re
+    amount_text = None
+    for line in matching_lines:
+        # Match patterns like Rs.53134 / Rs. 53,134 / 53134 / 53,134.00
+        m = re.search(r"(?:Rs\.?\s*)?(\d[\d,]*(?:\.\d{1,2})?)", line)
+        if m:
+            raw = m.group(1).replace(",", "")
+            try:
+                val = float(raw)
+                if val > 0:
+                    amount_text = f"Rs. {int(val):,}" if val == int(val) else f"Rs. {val:,.2f}"
+                    break
+            except ValueError:
+                pass
+
+    return {"found": True, "lines": matching_lines, "amount_text": amount_text}
+
+
 def get_member_outstanding(society_id, flat_combo):
     """Look up a flat's outstanding in the knowledge base outstanding text."""
     rows = get_knowledge(society_id, 'outstanding')
