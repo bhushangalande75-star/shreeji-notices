@@ -13,7 +13,16 @@ if not DATABASE_URL:
     )
 
 # ── Fix 5: Connection pool (1–10 connections reused across requests) ───────────
-_pool = ThreadedConnectionPool(1, 10, DATABASE_URL, cursor_factory=RealDictCursor)
+# Neon serverless drops idle connections. Keepalives detect a dead socket
+# before psycopg2 tries to use it, triggering reconnect rather than a crash.
+_CONNECT_KWARGS = dict(
+    cursor_factory=RealDictCursor,
+    keepalives=1,
+    keepalives_idle=30,       # send first keepalive after 30s idle
+    keepalives_interval=5,    # retry every 5s
+    keepalives_count=3,       # give up after 3 failed probes → connection removed
+)
+_pool = ThreadedConnectionPool(1, 10, DATABASE_URL, **_CONNECT_KWARGS)
 
 class _PooledConn:
     """Thin wrapper so existing conn.close() calls return the conn to the pool."""
@@ -25,7 +34,18 @@ class _PooledConn:
         _pool.putconn(self._conn)
 
 def get_db():
-    return _PooledConn(_pool.getconn())
+    """Get a live connection from the pool, replacing it if it has gone stale."""
+    conn = _pool.getconn()
+    try:
+        # Cheap ping — catches broken/SSL-dropped connections before they hit a route
+        conn.cursor().execute("SELECT 1")
+    except Exception:
+        try:
+            _pool.putconn(conn, close=True)   # discard the dead connection
+        except Exception:
+            pass
+        conn = _pool.getconn()                # get (or create) a fresh one
+    return _PooledConn(conn)
 
 # ── Fix 2: Password hashing helpers ───────────────────────────────────────────
 def hash_password(plain: str) -> str:
