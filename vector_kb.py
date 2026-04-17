@@ -4,56 +4,44 @@ vector_kb.py — Document processing pipeline for SocietyNotice Pro Vector KB.
 Responsibilities:
   1. Extract text from PDF / DOCX / XLSX / TXT
   2. Chunk text into overlapping segments
-  3. Embed chunks using sentence-transformers (local, FREE, no API key needed)
+  3. Embed chunks using fastembed (ONNX-based, NO torch required)
   4. Store in Neon pgvector
 
-Embedding model: all-MiniLM-L6-v2
-  - Dimension: 384
-  - Size: ~80MB (downloads once on first use)
-  - Runs locally on Render/Railway — zero cost, zero API key
+Embedding model: sentence-transformers/all-MiniLM-L6-v2 via fastembed
+  - Dimension: 384  (same as before — no DB migration needed)
+  - Uses ONNX runtime instead of PyTorch → ~80MB RAM vs ~600MB
+  - Zero API key, runs fully local
 """
 
-import os, io, re
+import io, re
 
-# Verify torch is intact before sentence-transformers tries to use it.
-# A missing or CUDA-vs-CPU mismatch shows up as "name 'nn' is not defined".
-try:
-    import torch
-    import torch.nn as _nn  # noqa — validates torch.nn is accessible
-except ImportError as _torch_err:
-    raise ImportError(
-        f"PyTorch is not installed or broken: {_torch_err}. "
-        "The Dockerfile must install the CPU-only wheel FIRST: "
-        "pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu"
-    ) from _torch_err
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBED_DIM   = 384
 
-EMBED_MODEL = "all-MiniLM-L6-v2"
-EMBED_DIM   = 384   # dimension for this model
-
-# Lazy-load the model — downloaded once, cached on disk
+# Lazy-load the fastembed model
 _embedder = None
 
 def _get_embedder():
     global _embedder
     if _embedder is None:
-        from sentence_transformers import SentenceTransformer
-        print(f"[KB] Loading embedding model {EMBED_MODEL}...")
-        _embedder = SentenceTransformer(EMBED_MODEL)
-        print(f"[KB] Model loaded ✅")
+        from fastembed import TextEmbedding
+        print(f"[KB] Loading fastembed model {EMBED_MODEL}...")
+        _embedder = TextEmbedding(model_name=EMBED_MODEL)
+        print("[KB] Model loaded ✅")
     return _embedder
 
-CHUNK_SIZE     = 500   # characters (not tokens) — safe for 8192 token model
-CHUNK_OVERLAP  = 80    # characters overlap between consecutive chunks
+
+CHUNK_SIZE    = 500  # characters
+CHUNK_OVERLAP = 80
 
 
 # ── Text Extraction ────────────────────────────────────────────
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract text from PDF bytes using pypdf."""
     try:
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(file_bytes))
-        pages  = []
+        pages = []
         for page in reader.pages:
             t = page.extract_text()
             if t:
@@ -64,15 +52,15 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
-    """Extract text from DOCX bytes using python-docx."""
     try:
         from docx import Document
-        doc  = Document(io.BytesIO(file_bytes))
+        doc   = Document(io.BytesIO(file_bytes))
         paras = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        # Also extract tables
         for table in doc.tables:
             for row in table.rows:
-                row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                row_text = " | ".join(
+                    cell.text.strip() for cell in row.cells if cell.text.strip()
+                )
                 if row_text:
                     paras.append(row_text)
         return "\n\n".join(paras)
@@ -81,17 +69,13 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
 
 
 def extract_text_from_excel(file_bytes: bytes) -> str:
-    """Extract text from Excel bytes using pandas."""
     try:
         import pandas as pd
-        dfs = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None)
+        dfs      = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None)
         sections = []
         for sheet_name, df in dfs.items():
-            df = df.fillna("").astype(str)
-            rows = []
-            # Header row
-            rows.append(" | ".join(str(c) for c in df.columns))
-            rows.append("-" * 60)
+            df   = df.fillna("").astype(str)
+            rows = [" | ".join(str(c) for c in df.columns), "-" * 60]
             for _, row in df.iterrows():
                 line = " | ".join(str(v).strip() for v in row.values)
                 if any(v.strip() for v in row.values if v.strip() not in ("nan", "")):
@@ -103,7 +87,6 @@ def extract_text_from_excel(file_bytes: bytes) -> str:
 
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
-    """Route to correct extractor based on file extension."""
     ext = filename.rsplit(".", 1)[-1].lower()
     if ext == "pdf":
         return extract_text_from_pdf(file_bytes)
@@ -119,12 +102,8 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 
 # ── Chunking ───────────────────────────────────────────────────
 
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
-    """
-    Split text into overlapping chunks of ~chunk_size characters.
-    Tries to break at sentence/paragraph boundaries.
-    """
-    # Normalise whitespace
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
+               overlap: int = CHUNK_OVERLAP) -> list[str]:
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     if not text:
         return []
@@ -134,18 +113,15 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     while start < len(text):
         end = start + chunk_size
         if end >= len(text):
-            # Last chunk
             chunks.append(text[start:].strip())
             break
-        # Try to break at paragraph boundary
         para_break = text.rfind("\n\n", start, end)
         if para_break > start + overlap:
             end = para_break
         else:
-            # Try sentence boundary
             sent_break = max(
-                text.rfind(". ", start + overlap, end),
-                text.rfind("। ", start + overlap, end),  # Devanagari full stop
+                text.rfind(". ",  start + overlap, end),
+                text.rfind("। ", start + overlap, end),
                 text.rfind("\n",  start + overlap, end),
             )
             if sent_break > start + overlap:
@@ -154,7 +130,7 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
-        start = end - overlap  # overlap so context carries over
+        start = end - overlap
 
     return chunks
 
@@ -163,32 +139,27 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """
-    Embed a list of texts using sentence-transformers (local, no API key).
-    Returns list of embedding vectors (dim=384).
+    Embed a list of texts using fastembed (ONNX, no torch).
+    Returns list of 384-dim float vectors.
     """
     if not texts:
         return []
-    model  = _get_embedder()
-    # encode() returns numpy array — convert to plain Python list
-    vecs   = model.encode(texts, batch_size=32, show_progress_bar=False,
-                          convert_to_numpy=True)
-    return [v.tolist() for v in vecs]
+    model = _get_embedder()
+    # fastembed.embed() returns a generator of numpy arrays
+    return [vec.tolist() for vec in model.embed(texts)]
 
 
 def embed_query(query: str) -> list[float]:
     """Embed a single query string."""
     model = _get_embedder()
-    vec   = model.encode([query], convert_to_numpy=True)
-    return vec[0].tolist()
+    return next(model.embed([query])).tolist()
 
 
 # ── Full pipeline ──────────────────────────────────────────────
 
-def process_document(file_bytes: bytes, filename: str) -> tuple[list[str], list[list[float]]]:
-    """
-    Full pipeline: extract → chunk → embed.
-    Returns (chunks, embeddings).
-    """
+def process_document(file_bytes: bytes,
+                     filename: str) -> tuple[list[str], list[list[float]]]:
+    """extract → chunk → embed. Returns (chunks, embeddings)."""
     text   = extract_text(file_bytes, filename)
     chunks = chunk_text(text)
     if not chunks:
