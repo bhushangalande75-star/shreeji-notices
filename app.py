@@ -2387,6 +2387,7 @@ def knowledge_upload_outstanding():
 
 
 @app.route("/knowledge/save-rules", methods=["POST"])
+@csrf.exempt
 @society_required
 def knowledge_save_rules():
     """Save society rules/regulations text to the KB."""
