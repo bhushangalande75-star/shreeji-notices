@@ -168,13 +168,7 @@ def society_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
-@app.route("/debug/db-check")
-def debug_db_check():
-    import inspect, database
-    src = inspect.getsource(database.get_db)
-    return f"<pre>{src}</pre>"
 
-@app.route("/login", methods=["GET", "POST"])
 # ── Auth ───────────────────────────────────────────────────────
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
