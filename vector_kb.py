@@ -137,16 +137,21 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
 
 # ── Embedding ──────────────────────────────────────────────────
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
+def embed_texts(texts: list[str], batch_size: int = 8) -> list[list[float]]:
     """
-    Embed a list of texts using fastembed (ONNX, no torch).
+    Embed texts in small batches to stay within 512MB RAM on free tier.
     Returns list of 384-dim float vectors.
     """
     if not texts:
         return []
     model = _get_embedder()
-    # fastembed.embed() returns a generator of numpy arrays
-    return [vec.tolist() for vec in model.embed(texts)]
+    results = []
+    total_batches = (len(texts) - 1) // batch_size + 1
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        results.extend(vec.tolist() for vec in model.embed(batch))
+        print(f"[KB] Embedded batch {i // batch_size + 1}/{total_batches}")
+    return results
 
 
 def embed_query(query: str) -> list[float]:
@@ -164,5 +169,11 @@ def process_document(file_bytes: bytes,
     chunks = chunk_text(text)
     if not chunks:
         raise ValueError("No text could be extracted from this document.")
+
+    # Safety cap — free tier has 512MB RAM; beyond ~120 chunks risks OOM
+    if len(chunks) > 120:
+        print(f"[KB] Trimming {len(chunks)} chunks to 120 to avoid OOM on free tier")
+        chunks = chunks[:120]
+
     embeddings = embed_texts(chunks)
     return chunks, embeddings
