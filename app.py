@@ -2046,32 +2046,73 @@ def portal_chat():
             if legacy_row:
                 flat_outstanding_line = legacy_row
 
-        # ── Step 3: Semantic search for rules / general / announcements ───
+        # ── Step 3: Smart semantic search — legal query detection ──────────
+        # Bye-laws/rules queries need: more chunks, lower similarity threshold,
+        # and targeted rules-type search before broad search.
+        LEGAL_KEYWORDS = {
+            "bye-law", "byelaw", "rule", "rules", "regulation", "right", "rights",
+            "transfer", "sub-let", "subletting", "sublease", "noc", "permission",
+            "maintenance", "charge", "charges", "fee", "penalty", "fine",
+            "committee", "agm", "meeting", "quorum", "vote", "election",
+            "redevelopment", "sinking fund", "reserve fund", "audit",
+            "membership", "member", "nomination", "nominee",
+            "flat", "repair", "alteration", "modification",
+            "interest", "arrears", "dues", "recovery", "section 101",
+            "can they", "can i", "allowed", "permitted", "legal", "illegal",
+            "cut", "disconnect", "evict", "notice period", "days",
+            "parking", "common area", "terrace", "leakage", "damage",
+            "non-occupancy", "leave and licence", "arbitration", "dispute",
+            "share certificate", "entrance fee", "water", "electricity",
+        }
+        msg_lower = user_msg.lower()
+        is_legal_query = any(kw in msg_lower for kw in LEGAL_KEYWORDS)
+
+        # Legal queries: fetch more chunks + accept lower similarity scores
+        # (legal language != casual member language → natural cosine gap)
+        rules_top_k     = 15 if is_legal_query else 8
+        rules_threshold = 0.15 if is_legal_query else 0.28
+
         kb_sections = []
         try:
-            q_embed  = embed_query(user_msg)
-            # Search only non-outstanding KB types for semantic context
-            vresults = vector_search(sid, q_embed, top_k=6)
-            if vresults:
-                semantic_added = False
-                for r in vresults:
-                    if r["similarity"] > 0.3 and r["kb_type"] != "outstanding":
-                        if not semantic_added:
-                            kb_sections.append("RELEVANT SOCIETY KNOWLEDGE:")
-                            semantic_added = True
-                        label = r["kb_type"].upper()
-                        kb_sections.append(f"[{label} — {r['doc_name']}]\n{r['chunk_text']}")
+            q_embed = embed_query(user_msg)
+
+            # Priority 1: targeted rules/general KB search
+            rules_hits   = vector_search(sid, q_embed, kb_type="rules",   top_k=rules_top_k)
+            general_hits = vector_search(sid, q_embed, kb_type="general", top_k=4)
+            # Priority 2: broad search across all KB types
+            broad_hits   = vector_search(sid, q_embed, top_k=rules_top_k)
+
+            # Merge & deduplicate — rules first, then general, then broad
+            seen, merged = set(), []
+            for r in (rules_hits + general_hits + broad_hits):
+                if r["kb_type"] == "outstanding":
+                    continue
+                key = r["chunk_text"][:80]
+                if key not in seen and r["similarity"] >= rules_threshold:
+                    seen.add(key)
+                    merged.append(r)
+
+            if merged:
+                kb_sections.append(
+                    "KNOWLEDGE BASE (authoritative source — use for ALL rules/bye-law answers):"
+                )
+                for r in merged[:12]:   # cap at 12 chunks to stay within LLM context window
+                    label = r["kb_type"].upper()
+                    kb_sections.append(
+                        f"[{label} — {r['doc_name']} | score:{r['similarity']:.2f}]\n{r['chunk_text']}"
+                    )
+
         except Exception as _ve:
             print(f"[VECTOR SEARCH WARN] {_ve}")
 
-        # Add rules/general from legacy KB if vector KB returned nothing useful
+        # Fallback to legacy text KB if vector KB has no indexed documents
         if not kb_sections:
             kb_entries = get_knowledge(sid)
             for kb in kb_entries:
                 if kb["kb_type"] == "rules":
-                    kb_sections.append(f"SOCIETY RULES:\n{kb['content'][:3000]}")
+                    kb_sections.append(f"SOCIETY RULES:\n{kb['content'][:6000]}")
                 elif kb["kb_type"] == "general":
-                    kb_sections.append(f"SOCIETY INFO:\n{kb['content'][:2000]}")
+                    kb_sections.append(f"SOCIETY INFO:\n{kb['content'][:3000]}")
 
         kb_text = "\n\n".join(kb_sections) if kb_sections else ""
 
@@ -2086,6 +2127,21 @@ def portal_chat():
                 f"The member should contact the society office for the exact outstanding amount."
             )
 
+        # Tailor answer style: legal questions need detailed answers with bye-law numbers
+        if is_legal_query:
+            response_guidance = (
+                "- This is a rules/bye-laws question. Use the KNOWLEDGE BASE section as your PRIMARY and authoritative source.\n"
+                "- Always cite the specific Bye-Law number (e.g. 'As per Bye-Law No. 43...') when relevant.\n"
+                "- Give a COMPLETE and DETAILED answer — do not cut it short at 2-3 sentences.\n"
+                "- Structure your answer: state the rule clearly, then explain what it means in plain language.\n"
+                "- If the answer is not in the knowledge base, say: Please contact the society office or refer to the registered bye-laws."
+            )
+        else:
+            response_guidance = (
+                "- Be helpful, polite, and concise (2-4 sentences).\n"
+                "- Reply in the same language the member uses."
+            )
+
         context = f"""You are the official AI assistant for {soc} housing society.
 You are speaking with {name}, resident of Flat {flat}.
 
@@ -2095,7 +2151,7 @@ STRICT RULES:
 - NEVER say "I don't know" — if you lack the data, say "Please contact the society office for this information."
 - CRITICAL: For outstanding amount queries, use ONLY the OUTSTANDING SUMMARY below. NEVER calculate or infer outstanding from notice amounts or notice count. Notices and outstanding dues are separate records.
 - For notice-related questions (ref no, due date, notice amount), refer to NOTICES section.
-- Be helpful, polite, and concise (2-4 sentences). Reply in the same language the member uses.
+{response_guidance}
 
 MEMBER DATA:
 Name: {name}

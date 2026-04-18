@@ -35,6 +35,30 @@ CHUNK_SIZE    = 900  # characters — larger for legal/policy documents to prese
 CHUNK_OVERLAP = 150  # chars — more overlap so bye-law boundaries aren't severed
 
 
+# ── Text Cleaning ──────────────────────────────────────────────
+
+def _clean_extracted_text(text: str) -> str:
+    """
+    Clean text extracted from PDFs before chunking and embedding.
+
+    Problems this fixes:
+    - \x7f (DEL char): pypdf maps ReportLab bullet glyphs to \x7f.
+      This non-printable char pollutes embeddings badly — 'Manage day-to-day'
+      becomes '\x7f  Manage day-to-day' which the model treats as near-random noise.
+    - Other control characters (except \n, \r, \t) that add noise.
+    - Excessive whitespace from PDF layout artifacts.
+    """
+    # \x7f is the DEL character — ReportLab bullet points map to this via pypdf
+    text = text.replace('\x7f', '• ')
+    # Remove other non-printable control chars (keep \n \r \t)
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x80-\x9f]', ' ', text)
+    # Collapse multiple spaces (but preserve newlines)
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    # Normalize line endings
+    text = re.sub(r'\r\n?', '\n', text)
+    return text
+
+
 # ── Text Extraction ────────────────────────────────────────────
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -46,7 +70,8 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             t = page.extract_text()
             if t:
                 pages.append(t.strip())
-        return "\n\n".join(pages)
+        raw = "\n\n".join(pages)
+        return _clean_extracted_text(raw)
     except Exception as e:
         raise ValueError(f"PDF extraction failed: {e}")
 
@@ -63,7 +88,7 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
                 )
                 if row_text:
                     paras.append(row_text)
-        return "\n\n".join(paras)
+        return _clean_extracted_text("\n\n".join(paras))
     except Exception as e:
         raise ValueError(f"DOCX extraction failed: {e}")
 
