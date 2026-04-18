@@ -168,7 +168,13 @@ def society_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
+@app.route("/debug/db-check")
+def debug_db_check():
+    import inspect, database
+    src = inspect.getsource(database.get_db)
+    return f"<pre>{src}</pre>"
 
+@app.route("/login", methods=["GET", "POST"])
 # ── Auth ───────────────────────────────────────────────────────
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
@@ -2222,6 +2228,10 @@ def knowledge_upload_doc():
                             "error": f"Unsupported file type .{ext}. Use PDF, DOCX, Excel or TXT."}), 400
 
         file_bytes = file.read()
+# Reject files over 10 MB to prevent worker timeouts
+        if len(file_bytes) > 10 * 1024 * 1024:
+           return jsonify({"success": False,
+                    "error": "File too large. Please upload a PDF under 10 MB."}), 400
         doc_name   = file.filename
         society_id = session["society_id"]
 
