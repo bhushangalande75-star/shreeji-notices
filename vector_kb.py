@@ -31,8 +31,8 @@ def _get_embedder():
     return _embedder
 
 
-CHUNK_SIZE    = 500  # characters
-CHUNK_OVERLAP = 80
+CHUNK_SIZE    = 900  # characters — larger for legal/policy documents to preserve full bye-law context
+CHUNK_OVERLAP = 150  # chars — more overlap so bye-law boundaries aren't severed
 
 
 # ── Text Extraction ────────────────────────────────────────────
@@ -169,11 +169,6 @@ def process_document(file_bytes: bytes,
     chunks = chunk_text(text)
     if not chunks:
         raise ValueError("No text could be extracted from this document.")
-
-    # Safety cap — free tier has 512MB RAM; beyond ~120 chunks risks OOM
-    if len(chunks) > 120:
-        print(f"[KB] Trimming {len(chunks)} chunks to 120 to avoid OOM on free tier")
-        chunks = chunks[:120]
 
     embeddings = embed_texts(chunks)
     return chunks, embeddings
