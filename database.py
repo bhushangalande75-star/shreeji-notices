@@ -1347,6 +1347,12 @@ def init_agm_tables():
             UNIQUE(vote_id, flat_combo)
         );
     """)
+    # Add role column to society_members (safe — ignored if already exists)
+    # Values: NULL = regular | 'Committee' | 'Chairman' | 'Secretary' | 'Treasurer'
+    cur.execute("""
+        ALTER TABLE society_members
+        ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL;
+    """)
     conn.commit(); cur.close(); conn.close()
 
 try:
@@ -1376,6 +1382,68 @@ def get_agm_meetings(society_id):
         WHERE m.society_id=%s
         GROUP BY m.id
         ORDER BY m.scheduled_at DESC
+    """, (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_agm_meetings_for_member(society_id, flat_combo):
+    """
+    Portal-side meetings list filtered by member's role.
+    - AGM / SGM         → visible to ALL members
+    - Committee Meeting → visible ONLY to members with any role (Committee/Chairman/Secretary/Treasurer)
+    """
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT role FROM society_members
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+    """, (society_id, flat_combo))
+    row = cur.fetchone()
+    is_committee = bool(row and row["role"])
+
+    if is_committee:
+        cur.execute("""
+            SELECT m.*, COUNT(DISTINCT a.flat_combo) as attendee_count
+            FROM agm_meetings m
+            LEFT JOIN agm_attendance a ON a.meeting_id = m.id
+            WHERE m.society_id=%s
+            GROUP BY m.id ORDER BY m.scheduled_at DESC
+        """, (society_id,))
+    else:
+        cur.execute("""
+            SELECT m.*, COUNT(DISTINCT a.flat_combo) as attendee_count
+            FROM agm_meetings m
+            LEFT JOIN agm_attendance a ON a.meeting_id = m.id
+            WHERE m.society_id=%s AND m.meeting_type != 'Committee'
+            GROUP BY m.id ORDER BY m.scheduled_at DESC
+        """, (society_id,))
+
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_member_role(society_id, flat_combo, role):
+    """Set or clear a member's committee role. Pass role=None to clear."""
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE society_members SET role=%s
+        WHERE society_id=%s AND UPPER(flat_combo)=UPPER(%s)
+    """, (role or None, society_id, flat_combo))
+    conn.commit(); cur.close(); conn.close()
+
+
+def get_committee_members(society_id):
+    """Return all members who have a committee role."""
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM society_members
+        WHERE society_id=%s AND role IS NOT NULL
+        ORDER BY CASE role
+            WHEN 'Chairman'  THEN 1
+            WHEN 'Secretary' THEN 2
+            WHEN 'Treasurer' THEN 3
+            ELSE 4
+        END, name
     """, (society_id,))
     rows = cur.fetchall(); cur.close(); conn.close()
     return [dict(r) for r in rows]

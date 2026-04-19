@@ -46,7 +46,9 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       get_agm_attendance, get_agm_present_count,
                       create_agm_vote, open_agm_vote, close_agm_vote,
                       get_agm_votes, get_active_vote, cast_agm_vote,
-                      get_vote_results, member_has_voted)
+                      get_vote_results, member_has_voted,
+                      get_agm_meetings_for_member,
+                      update_member_role, get_committee_members)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -1241,9 +1243,11 @@ def _process_member_excel(file_obj, society_id):
 def members_directory():
     society_id = session["society_id"]
     members    = get_members(society_id)
+    committee  = get_committee_members(society_id)
     return render_template("members.html",
                            society_name=session["society_name"],
-                           members=members)
+                           members=members,
+                           committee=committee)
 
 
 @app.route("/members/upload", methods=["POST"])
@@ -1282,6 +1286,23 @@ def members_upload():
 def members_delete_all():
     delete_all_members(session["society_id"])
     return jsonify({"success": True})
+
+
+@app.route("/members/set-role", methods=["POST"])
+@csrf.exempt
+@society_required
+def members_set_role():
+    """Set or clear a committee role for a member."""
+    data       = request.get_json()
+    flat_combo = (data or {}).get("flat_combo", "").strip()
+    role       = (data or {}).get("role", "").strip() or None
+    if not flat_combo:
+        return jsonify({"success": False, "error": "flat_combo required"}), 400
+    VALID_ROLES = {None, "Committee", "Chairman", "Secretary", "Treasurer"}
+    if role not in VALID_ROLES:
+        return jsonify({"success": False, "error": "Invalid role"}), 400
+    update_member_role(session["society_id"], flat_combo, role)
+    return jsonify({"success": True, "flat_combo": flat_combo, "role": role})
 
 
 # ══════════════════════════════════════════════════════════════
@@ -3035,7 +3056,6 @@ def agm_list():
 
 
 @app.route("/agm/create", methods=["POST"])
-@csrf.exempt 
 @login_required
 def agm_create():
     title        = request.form.get("title", "").strip()
@@ -3218,7 +3238,10 @@ def agm_save_minutes_route(mid):
 @app.route("/portal/agm")
 @portal_required
 def portal_agm_list():
-    meetings = get_agm_meetings(session["member_society_id"])
+    meetings = get_agm_meetings_for_member(
+        session["member_society_id"],
+        session["member_flat"]
+    )
     return render_template("portal_agm_list.html", meetings=meetings)
 
 
@@ -3286,13 +3309,6 @@ def portal_cast_vote(vid):
     ok, msg = cast_agm_vote(vid, session["member_flat"], session["member_name"], response)
     return jsonify({"success": ok, "message": msg})
 
-# ── One-time DB table initialisation (runs at server startup) ─────────────
-with app.app_context():
-    try:
-        init_agm_tables()
-        print("✅ AGM tables ready")
-    except Exception as _e:
-        print(f"[WARN] init_agm_tables failed: {_e}")
 
 if __name__ == "__main__":
     lo = get_libreoffice_path()

@@ -90,6 +90,9 @@ textarea.form-input{resize:vertical;min-height:80px}
         <span>·</span>
         <span>{{ m.scheduled_at.strftime('%d %b %Y, %I:%M %p') }}</span>
         {% if m.quorum_required %}<span>· Quorum: {{ m.quorum_required }}</span>{% endif %}
+        {% if m.meeting_type == 'Committee' %}
+        <span style="background:rgba(99,102,241,.12);color:#4338CA;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;">🔒 Committee Members Only</span>
+        {% endif %}
       </div>
     </div>
     <div class="meeting-right">

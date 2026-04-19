@@ -1,316 +1,323 @@
 {% extends "base.html" %}
 {% block title %}Member Directory — SocietyNotice Pro{% endblock %}
 {% block page_title %}Member Directory{% endblock %}
-{% block page_sub %}Upload member data for WhatsApp notice delivery{% endblock %}
-
-{% block extra_head %}
-<style>
-  .upload-zone {
-    border: 2px dashed rgba(10,191,163,0.4);
-    border-radius: 14px; padding: 36px 24px;
-    text-align: center; cursor: pointer;
-    transition: all 0.2s; background: rgba(10,191,163,0.03);
-  }
-  .upload-zone:hover { background: rgba(10,191,163,0.06); border-color: var(--teal); }
-  .upload-zone input { display: none; }
-
-  .col-spec {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px 20px; font-size: 12px;
-    line-height: 2; color: var(--ink3);
-  }
-  .col-spec code {
-    background: rgba(192,0,0,0.08); color: var(--red);
-    border-radius: 4px; padding: 1px 6px; font-size: 11px;
-  }
-
-  .member-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .member-table th {
-    background: var(--surface2); padding: 10px 14px;
-    text-align: left; font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    color: var(--muted); border-bottom: 1px solid var(--border);
-    position: sticky; top: 0;
-  }
-  .member-table td {
-    padding: 10px 14px; border-bottom: 1px solid var(--border);
-    color: var(--ink2);
-  }
-  .member-table tr:hover td { background: var(--surface2); }
-  .combo-badge {
-    font-family: monospace; font-size: 12px; font-weight: 600;
-    background: rgba(192,0,0,0.08); color: var(--red);
-    padding: 3px 8px; border-radius: 6px;
-  }
-  .phone-tag {
-    font-family: monospace; font-size: 12px;
-    background: rgba(37,211,102,0.1); color: #128C7E;
-    padding: 3px 8px; border-radius: 6px;
-  }
-  .tbl-wrap { max-height: 520px; overflow-y: auto; border-radius: 12px; border: 1px solid var(--border); }
-  .stat-pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 20px; padding: 5px 14px; font-size: 12px; color: var(--ink3);
-  }
-  .stat-pill strong { color: var(--red); }
-  .spinner-sm {
-    display: none; width: 16px; height: 16px; border-radius: 50%;
-    border: 2px solid rgba(192,0,0,0.2); border-top-color: var(--red);
-    animation: spin 0.7s linear infinite; flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style>
-{% endblock %}
+{% block page_sub %}{{ members|length }} members · {{ committee|length }} committee{% endblock %}
 
 {% block topbar_right %}
-  <a class="btn btn-outline" href="/ai-notices">
-    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
-    AI Notices
-  </a>
+<label class="btn-outline" style="cursor:pointer;">
+  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+  Upload Excel
+  <input type="file" accept=".xlsx,.xls" id="excel-upload" style="display:none" onchange="uploadMembers(this)">
+</label>
+<button class="btn-outline" style="color:var(--red);border-color:var(--red)" onclick="deleteAll()">
+  <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+  Clear All
+</button>
 {% endblock %}
 
 {% block content %}
+<style>
+/* ── Committee Summary Strip ─────────────────────────────── */
+.committee-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.role-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px 18px;display:flex;align-items:center;gap:12px;transition:box-shadow .15s}
+.role-card:hover{box-shadow:0 4px 20px rgba(10,191,163,.1)}
+.role-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;
+  justify-content:center;font-size:18px;flex-shrink:0}
+.role-icon.chairman {background:rgba(245,158,11,.12)}
+.role-icon.secretary{background:rgba(10,191,163,.12)}
+.role-icon.treasurer{background:rgba(59,130,246,.12)}
+.role-icon.committee{background:rgba(99,102,241,.12)}
+.role-name{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.role-val {font-size:14px;font-weight:700;color:var(--ink);margin-top:2px}
+.role-val.empty{color:var(--faint);font-weight:400;font-size:12px}
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;">
+/* ── Search & Filter bar ─────────────────────────────────── */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.search-box{flex:1;min-width:200px;display:flex;align-items:center;gap:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:9px 14px}
+.search-box input{border:none;outline:none;background:transparent;font-size:13px;
+  color:var(--ink);font-family:var(--font);flex:1}
+.search-box input::placeholder{color:var(--faint)}
+.search-box svg{width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2;flex-shrink:0}
+.filter-btn{padding:8px 14px;border-radius:9px;border:1px solid var(--border);
+  background:var(--surface);color:var(--ink3);font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:all .15s}
+.filter-btn:hover,.filter-btn.active{background:var(--teal);color:#fff;border-color:var(--teal)}
 
-  <!-- Left: Upload -->
-  <div>
-    <div class="card">
-      <div class="card-body">
-        <div class="card-title" style="margin-bottom:4px;">Upload Member Excel</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">
-          Upload once, reuse for all WhatsApp notice sending. New uploads merge with existing data.
-        </div>
+/* ── Member Table ─────────────────────────────────────────── */
+.members-wrap{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+.tbl-head{display:grid;grid-template-columns:52px 1fr 1fr 120px 160px 130px;
+  padding:10px 20px;background:linear-gradient(135deg,var(--surface2),#ECFAF6);
+  border-bottom:1px solid var(--border2)}
+.tbl-head span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);font-weight:700}
+.member-row{display:grid;grid-template-columns:52px 1fr 1fr 120px 160px 130px;
+  padding:13px 20px;border-bottom:1px solid var(--border2);align-items:center;
+  transition:background .1s}
+.member-row:last-child{border-bottom:none}
+.member-row:hover{background:var(--surface2)}
+.member-row.highlighted{background:rgba(10,191,163,.05)}
 
-        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('memberExcel').click()">
-          <div style="font-size:36px;margin-bottom:10px;">📊</div>
-          <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Click to upload Excel file</div>
-          <div style="font-size:12px;color:var(--muted);">.xlsx or .xls</div>
-          <input type="file" id="memberExcel" accept=".xlsx,.xls" onchange="uploadMembers(this)"/>
-        </div>
+/* Avatar */
+.avatar{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
 
-        <div id="uploadStatus" style="display:none;margin-top:14px;padding:12px 16px;border-radius:10px;font-size:13px;"></div>
+/* Role badge */
+.role-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:700}
+.badge-chairman {background:rgba(245,158,11,.12);color:#B45309}
+.badge-secretary{background:rgba(10,191,163,.12);color:var(--teal2)}
+.badge-treasurer{background:rgba(59,130,246,.12);color:#1D4ED8}
+.badge-committee{background:rgba(99,102,241,.12);color:#4338CA}
+.badge-none     {background:var(--surface2);color:var(--faint);font-weight:400;font-size:11px}
 
-        <!-- Column spec -->
-        <div class="col-spec" style="margin-top:18px;">
-          <div style="font-weight:600;color:var(--ink2);margin-bottom:8px;">📋 Required Excel Columns</div>
-          <div><code>Building No</code> — e.g. B01, B02, A</div>
-          <div><code>Flat No</code> — e.g. 001, 102, 204</div>
-          <div><code>Flat Combo</code> — e.g. <strong>B01-310</strong>, <strong>B02-1001</strong>, <strong>B03-901</strong></div>
-          <div><code>Name</code> — Member / Owner name</div>
-          <div><code>Phone</code> — 10-digit mobile number</div>
-          <div><code>Email</code> — optional</div>
-          <div style="margin-top:8px;font-size:11px;color:var(--muted);">
-            ℹ️ Column names are flexible — e.g. "mobile", "contact", "owner_name" all work.
-            If Flat Combo column is absent, it is auto-built as Building No + "-" + Flat No.
-          </div>
-        </div>
+/* Role selector dropdown */
+.role-select{padding:6px 10px;border:1px solid var(--border);border-radius:8px;
+  font-size:12px;font-family:var(--font);color:var(--ink2);background:var(--surface2);
+  outline:none;cursor:pointer;transition:border .15s;width:100%}
+.role-select:focus{border-color:var(--teal)}
+.role-select.saving{opacity:.6;pointer-events:none}
 
-        <!-- Download sample -->
-        <button onclick="downloadSample()"
-          style="margin-top:14px;width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font);">
-          📥 Download Sample Excel Template
-        </button>
+/* Empty state */
+.empty-state{text-align:center;padding:56px 20px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:14px}
 
-        {% if members %}
-        <button onclick="confirmDeleteAll()"
-          style="margin-top:10px;width:100%;padding:11px;border-radius:10px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.05);color:#B91C1C;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font);">
-          🗑️ Clear All Members
-        </button>
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--teal);color:#fff;
+  padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;
+  z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+</style>
+
+<!-- Committee Summary -->
+<div class="committee-strip">
+  {% set chairman  = committee|selectattr('role','equalto','Chairman') |list %}
+  {% set secretary = committee|selectattr('role','equalto','Secretary')|list %}
+  {% set treasurer = committee|selectattr('role','equalto','Treasurer')|list %}
+  {% set others    = committee|selectattr('role','equalto','Committee')|list %}
+
+  <div class="role-card">
+    <div class="role-icon chairman">👑</div>
+    <div>
+      <div class="role-name">Chairman</div>
+      {% if chairman %}
+        <div class="role-val">{{ chairman[0].name }}</div>
+        <div style="font-size:10px;color:var(--muted)">{{ chairman[0].flat_combo }}</div>
+      {% else %}
+        <div class="role-val empty">Not assigned</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="role-card">
+    <div class="role-icon secretary">📋</div>
+    <div>
+      <div class="role-name">Secretary</div>
+      {% if secretary %}
+        <div class="role-val">{{ secretary[0].name }}</div>
+        <div style="font-size:10px;color:var(--muted)">{{ secretary[0].flat_combo }}</div>
+      {% else %}
+        <div class="role-val empty">Not assigned</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="role-card">
+    <div class="role-icon treasurer">💰</div>
+    <div>
+      <div class="role-name">Treasurer</div>
+      {% if treasurer %}
+        <div class="role-val">{{ treasurer[0].name }}</div>
+        <div style="font-size:10px;color:var(--muted)">{{ treasurer[0].flat_combo }}</div>
+      {% else %}
+        <div class="role-val empty">Not assigned</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="role-card">
+    <div class="role-icon committee">👥</div>
+    <div>
+      <div class="role-name">Committee Members</div>
+      <div class="role-val">{{ others|length }}
+        <span style="font-size:11px;color:var(--muted);font-weight:400">members</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="search-box">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search-inp" placeholder="Search by name, flat or phone…" oninput="filterRows()">
+  </div>
+  <button class="filter-btn active" onclick="setFilter('all',this)">All ({{ members|length }})</button>
+  <button class="filter-btn" onclick="setFilter('committee',this)">Committee ({{ committee|length }})</button>
+  <button class="filter-btn" onclick="setFilter('regular',this)">Regular</button>
+</div>
+
+<!-- Table -->
+<div class="members-wrap">
+  {% if members %}
+  <div class="tbl-head">
+    <span></span>
+    <span>Member</span>
+    <span>Contact</span>
+    <span>Flat</span>
+    <span>Current Role</span>
+    <span>Assign Role</span>
+  </div>
+  <div id="member-list">
+    {% for m in members %}
+    {% set colors = ['#0ABFA3','#7C3AED','#F59E0B','#3B82F6','#EF4444','#10B981','#8B5CF6','#EC4899'] %}
+    {% set color = colors[loop.index0 % 8] %}
+    <div class="member-row {% if m.role %}highlighted{% endif %}"
+         data-name="{{ m.name|lower }}"
+         data-flat="{{ m.flat_combo|lower }}"
+         data-phone="{{ m.phone|lower }}"
+         data-role="{{ m.role or '' }}">
+
+      <div class="avatar" style="background:{{ color }}">
+        {{ m.name[0]|upper }}
+      </div>
+
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ m.name }}</div>
+        <div style="font-size:11px;color:var(--muted)">Bldg {{ m.building_no }}</div>
+      </div>
+
+      <div>
+        <div style="font-size:12px;color:var(--ink2)">{{ m.phone }}</div>
+        {% if m.email %}
+        <div style="font-size:11px;color:var(--muted)">{{ m.email }}</div>
         {% endif %}
       </div>
-    </div>
-  </div>
 
-  <!-- Right: Stats + info -->
-  <div>
-    <div class="card">
-      <div class="card-body">
-        <div class="card-title" style="margin-bottom:16px;">Directory Status</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
-          <div class="stat-pill">Total members: <strong>{{ members|length }}</strong></div>
-          <div class="stat-pill">Buildings: <strong>{{ members|map(attribute='building_no')|select|unique|list|length }}</strong></div>
-        </div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ m.flat_combo }}</div>
+        <div style="font-size:11px;color:var(--muted)">Flat {{ m.flat_no }}</div>
+      </div>
 
-        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:10px;">⚡ How WhatsApp sending works</div>
-        <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--ink3);line-height:1.7;">
-          <div style="display:flex;gap:10px;align-items:flex-start;">
-            <span style="background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">1</span>
-            Generate a notice in AI Notices tab
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start;">
-            <span style="background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">2</span>
-            Click "Send via WhatsApp" — the app looks up the member using the Flat No you entered
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start;">
-            <span style="background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">3</span>
-            You see a confirmation with member name &amp; phone — click Confirm to send
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start;">
-            <span style="background:#25D366;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">4</span>
-            Notice is converted to PDF and delivered as a WhatsApp document
-          </div>
-        </div>
+      <div>
+        {% if m.role == 'Chairman' %}
+          <span class="role-badge badge-chairman">👑 Chairman</span>
+        {% elif m.role == 'Secretary' %}
+          <span class="role-badge badge-secretary">📋 Secretary</span>
+        {% elif m.role == 'Treasurer' %}
+          <span class="role-badge badge-treasurer">💰 Treasurer</span>
+        {% elif m.role == 'Committee' %}
+          <span class="role-badge badge-committee">👥 Committee</span>
+        {% else %}
+          <span class="role-badge badge-none">Regular Member</span>
+        {% endif %}
+      </div>
 
-        <div style="margin-top:18px;padding:12px 14px;background:rgba(37,211,102,0.07);border:1px solid rgba(37,211,102,0.2);border-radius:10px;font-size:12px;color:#128C7E;">
-          <strong>Setup needed:</strong> Add <code style="background:rgba(37,211,102,0.15);border-radius:4px;padding:1px 5px;">WHATSAPP_TOKEN</code> and
-          <code style="background:rgba(37,211,102,0.15);border-radius:4px;padding:1px 5px;">WHATSAPP_PHONE_ID</code> in your Render environment variables
-          (WhatsApp Business Cloud API credentials).
-        </div>
+      <div>
+        <select class="role-select" onchange="setRole('{{ m.flat_combo }}', this)"
+                data-flat="{{ m.flat_combo }}">
+          <option value=""     {% if not m.role %}selected{% endif %}>— No Role —</option>
+          <option value="Chairman"  {% if m.role=='Chairman'  %}selected{% endif %}>👑 Chairman</option>
+          <option value="Secretary" {% if m.role=='Secretary' %}selected{% endif %}>📋 Secretary</option>
+          <option value="Treasurer" {% if m.role=='Treasurer' %}selected{% endif %}>💰 Treasurer</option>
+          <option value="Committee" {% if m.role=='Committee' %}selected{% endif %}>👥 Committee Member</option>
+        </select>
       </div>
     </div>
+    {% endfor %}
   </div>
+
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">👥</div>
+    <h3>No members yet</h3>
+    <p>Upload an Excel file with columns: Building No, Flat No, Flat Combo, Name, Phone, Email</p>
+  </div>
+  {% endif %}
 </div>
 
-<!-- Member Table -->
-{% if members %}
-<div class="card" style="margin-top:22px;">
-  <div class="card-body">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div class="card-title">Member Directory ({{ members|length }} records)</div>
-      <input type="text" id="memberSearch" placeholder="Search name, flat, phone..."
-        oninput="filterMembers(this.value)"
-        style="padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink2);font-size:12px;font-family:var(--font);width:220px;"/>
-    </div>
-    <div class="tbl-wrap">
-      <table class="member-table" id="memberTable">
-        <thead>
-          <tr>
-            <th>Flat Combo</th>
-            <th>Building</th>
-            <th>Flat No</th>
-            <th>Member Name</th>
-            <th>Phone</th>
-            <th>Email</th>
-            <th>Portal PIN</th>
-          </tr>
-        </thead>
-        <tbody id="memberTbody">
-          {% for m in members %}
-          <tr>
-            <td><span class="combo-badge">{{ m.flat_combo }}</span></td>
-            <td>{{ m.building_no }}</td>
-            <td>{{ m.flat_no }}</td>
-            <td style="font-weight:500;">{{ m.name }}</td>
-            <td><span class="phone-tag">{{ m.phone }}</span></td>
-            <td style="color:var(--muted);">{{ m.email or '—' }}</td>
-            <td>
-              <button class="reset-pin-btn" data-flat="{{ m.flat_combo }}"
-                style="padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.05);color:#B91C1C;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);">
-                Reset PIN
-              </button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-{% endif %}
+<div id="toast"></div>
 
 <script>
-  async function uploadMembers(input) {
-    const file = input.files[0];
-    if (!file) return;
+let activeFilter = 'all';
 
-    const statusEl = document.getElementById('uploadStatus');
-    statusEl.style.display  = 'block';
-    statusEl.style.background = 'rgba(10,191,163,0.08)';
-    statusEl.style.border     = '1px solid rgba(10,191,163,0.25)';
-    statusEl.style.color      = 'var(--teal3)';
-    statusEl.textContent      = '⏳ Uploading and processing...';
-
-    const fd = new FormData();
-    fd.append('excel', file);
-    try {
-      const res  = await fetch('/members/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.success) {
-        statusEl.style.background = 'rgba(37,211,102,0.1)';
-        statusEl.style.border     = '1px solid rgba(37,211,102,0.3)';
-        statusEl.style.color      = '#128C7E';
-        statusEl.textContent      = `✅ ${data.count} members uploaded successfully. Reloading...`;
-        setTimeout(() => location.reload(), 1200);
-      } else {
-        statusEl.style.background = 'rgba(239,68,68,0.08)';
-        statusEl.style.border     = '1px solid rgba(239,68,68,0.25)';
-        statusEl.style.color      = '#B91C1C';
-        statusEl.textContent      = '❌ ' + data.error;
-      }
-    } catch(e) {
-      statusEl.textContent = '❌ Upload failed: ' + e.message;
-    }
-    input.value = '';
-  }
-
-  async function confirmDeleteAll() {
-    if (!confirm('Delete ALL members from this society? This cannot be undone.')) return;
-    await fetch('/members/delete-all', { method: 'POST' });
-    location.reload();
-  }
-
-  function filterMembers(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('#memberTbody tr').forEach(row => {
-      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+/* ── Role assignment ──────────────────────────────────────── */
+async function setRole(flatCombo, sel) {
+  const role = sel.value;
+  sel.classList.add('saving');
+  try {
+    const res  = await fetch('/members/set-role', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({flat_combo: flatCombo, role: role})
     });
-  }
-
-  function downloadSample() {
-    const csv = [
-      'Building No,Flat No,Flat Combo,Name,Phone,Email',
-      'B01,310,B01-310,Rajesh Sharma,9876543210,rajesh@email.com',
-      'B02,1001,B02-1001,Priya Patel,9876543211,priya@email.com',
-      'B03,901,B03-901,Suresh Kumar,9876543212,',
-    ].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = 'member_directory_sample.csv';
-    a.click();
-  }
-
-  // Toast helper
-  function showToast(msg, ok=true) {
-    let t = document.getElementById('pinToast');
-    if (!t) {
-      t = document.createElement('div'); t.id = 'pinToast';
-      t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;transition:opacity .3s;';
-      document.body.appendChild(t);
+    const data = await res.json();
+    if (data.success) {
+      showToast('Role updated for ' + flatCombo + ' ✓');
+      // Refresh page after short delay so committee strip + badges update
+      setTimeout(() => location.reload(), 900);
+    } else {
+      alert(data.error || 'Failed to update role');
+      sel.classList.remove('saving');
     }
-    t.style.background = ok ? 'rgba(37,211,102,0.95)' : 'rgba(239,68,68,0.95)';
-    t.style.color = '#fff'; t.style.opacity = '1';
-    t.textContent = msg;
-    setTimeout(() => t.style.opacity = '0', 3000);
+  } catch(e) {
+    alert('Network error — could not update role.');
+    sel.classList.remove('saving');
   }
+}
 
-  // Reset PIN buttons (works for both society and admin)
-  document.addEventListener('click', async function(e) {
-    const btn = e.target.closest('.reset-pin-btn');
-    if (!btn) return;
-    const flat = btn.dataset.flat;
-    if (!confirm(`Reset portal PIN for flat ${flat} to default (${flat.replace('-','')})?`)) return;
-    btn.disabled = true; btn.textContent = '…';
-    try {
-      const res  = await fetch('/society/reset-member-pin', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({flat_combo: flat})
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`✓ PIN for ${flat} reset to ${data.default_pin}`);
-        btn.textContent = 'Reset PIN'; btn.disabled = false;
-      } else {
-        showToast('❌ ' + (data.error || 'Reset failed'), false);
-        btn.textContent = 'Reset PIN'; btn.disabled = false;
-      }
-    } catch(err) {
-      showToast('❌ Network error', false);
-      btn.textContent = 'Reset PIN'; btn.disabled = false;
-    }
+/* ── Search + Filter ──────────────────────────────────────── */
+function filterRows() {
+  const q = document.getElementById('search-inp').value.toLowerCase();
+  document.querySelectorAll('.member-row').forEach(row => {
+    const matchSearch = !q
+      || row.dataset.name.includes(q)
+      || row.dataset.flat.includes(q)
+      || row.dataset.phone.includes(q);
+    const matchFilter =
+      activeFilter === 'all' ||
+      (activeFilter === 'committee' && row.dataset.role !== '') ||
+      (activeFilter === 'regular'   && row.dataset.role === '');
+    row.style.display = (matchSearch && matchFilter) ? '' : 'none';
   });
+}
+
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterRows();
+}
+
+/* ── Excel upload ─────────────────────────────────────────── */
+async function uploadMembers(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('excel', file);
+  try {
+    const res  = await fetch('/members/upload', {method:'POST', body:fd});
+    const data = await res.json();
+    if (data.success) { showToast('✓ ' + data.count + ' members imported'); setTimeout(()=>location.reload(),1000); }
+    else alert(data.error || 'Upload failed');
+  } catch(e) { alert('Upload error: ' + e.message); }
+  input.value = '';
+}
+
+/* ── Delete all ───────────────────────────────────────────── */
+async function deleteAll() {
+  if (!confirm('Delete ALL members? This cannot be undone.')) return;
+  const res  = await fetch('/members/delete-all', {method:'POST'});
+  const data = await res.json();
+  if (data.success) location.reload();
+}
+
+/* ── Toast ────────────────────────────────────────────────── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(t._t); t._t = setTimeout(()=>{ t.style.opacity='0'; }, 2500);
+}
 </script>
 {% endblock %}
