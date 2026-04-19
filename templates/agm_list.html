@@ -153,20 +153,24 @@ async function createMeeting(){
   const title=document.getElementById('f-title').value.trim()
   const dt=document.getElementById('f-datetime').value
   if(!title||!dt){alert('Please fill in title and date/time');return}
-  const res=await fetch('/agm/create',{
-    method:'POST',
-    headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({
-      title,
-      meeting_type:document.getElementById('f-type').value,
-      scheduled_at:dt,
-      agenda:document.getElementById('f-agenda').value,
-      quorum_required:document.getElementById('f-quorum').value||0
+  try{
+    const res=await fetch('/agm/create',{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({
+        title,
+        meeting_type:document.getElementById('f-type').value,
+        scheduled_at:dt,
+        agenda:document.getElementById('f-agenda').value,
+        quorum_required:document.getElementById('f-quorum').value||0
+      })
     })
-  })
-  const data=await res.json()
-  if(data.success)window.location.href='/agm/'+data.id
-  else alert(data.error||'Failed to create meeting')
+    const data=await res.json()
+    if(data.success)window.location.href='/agm/'+data.id
+    else alert(data.error||'Failed to create meeting')
+  }catch(e){
+    alert('Network error — could not create meeting. Please try again.')
+  }
 }
 </script>
 {% endblock %}
