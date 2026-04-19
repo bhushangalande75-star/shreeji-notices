@@ -1286,3 +1286,306 @@ try:
     init_vector_kb()
 except Exception as e:
     print(f"[WARN] pgvector init skipped: {e}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VIRTUAL AGM / SGM — Database Functions
+# ══════════════════════════════════════════════════════════════════════════════
+import uuid as _uuid, json as _json
+
+def init_agm_tables():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agm_meetings (
+            id              SERIAL PRIMARY KEY,
+            society_id      INTEGER REFERENCES societies(id) ON DELETE CASCADE,
+            title           TEXT NOT NULL,
+            meeting_type    TEXT NOT NULL DEFAULT 'AGM',
+            scheduled_at    TIMESTAMP NOT NULL,
+            agenda          TEXT DEFAULT '',
+            jitsi_room      TEXT UNIQUE NOT NULL,
+            status          TEXT DEFAULT 'scheduled',
+            quorum_required INTEGER DEFAULT 0,
+            started_at      TIMESTAMP,
+            ended_at        TIMESTAMP,
+            transcript      TEXT DEFAULT '',
+            minutes         TEXT DEFAULT '',
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agm_attendance (
+            id          SERIAL PRIMARY KEY,
+            meeting_id  INTEGER REFERENCES agm_meetings(id) ON DELETE CASCADE,
+            flat_combo  TEXT NOT NULL,
+            member_name TEXT NOT NULL,
+            joined_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            left_at     TIMESTAMP,
+            UNIQUE(meeting_id, flat_combo)
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agm_votes (
+            id          SERIAL PRIMARY KEY,
+            meeting_id  INTEGER REFERENCES agm_meetings(id) ON DELETE CASCADE,
+            question    TEXT NOT NULL,
+            options     TEXT NOT NULL DEFAULT '["Yes","No","Abstain"]',
+            status      TEXT DEFAULT 'draft',
+            opened_at   TIMESTAMP,
+            closed_at   TIMESTAMP,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agm_vote_responses (
+            id          SERIAL PRIMARY KEY,
+            vote_id     INTEGER REFERENCES agm_votes(id) ON DELETE CASCADE,
+            flat_combo  TEXT NOT NULL,
+            member_name TEXT NOT NULL,
+            response    TEXT NOT NULL,
+            voted_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(vote_id, flat_combo)
+        );
+    """)
+    conn.commit(); cur.close(); conn.close()
+
+try:
+    init_agm_tables()
+except Exception as e:
+    print(f"[WARN] AGM tables init skipped: {e}")
+
+
+def create_agm_meeting(society_id, title, meeting_type, scheduled_at, agenda, quorum_required=0):
+    conn = get_db(); cur = conn.cursor()
+    room = f"snpro-{_uuid.uuid4().hex[:16]}"
+    cur.execute("""
+        INSERT INTO agm_meetings
+          (society_id, title, meeting_type, scheduled_at, agenda, jitsi_room, quorum_required)
+        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id, jitsi_room
+    """, (society_id, title, meeting_type, scheduled_at, agenda, room, quorum_required))
+    row = cur.fetchone(); conn.commit(); cur.close(); conn.close()
+    return {"id": row["id"], "jitsi_room": row["jitsi_room"]}
+
+
+def get_agm_meetings(society_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT m.*, COUNT(DISTINCT a.flat_combo) as attendee_count
+        FROM agm_meetings m
+        LEFT JOIN agm_attendance a ON a.meeting_id = m.id
+        WHERE m.society_id=%s
+        GROUP BY m.id
+        ORDER BY m.scheduled_at DESC
+    """, (society_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_agm_meeting(meeting_id, society_id=None):
+    conn = get_db(); cur = conn.cursor()
+    if society_id:
+        cur.execute("SELECT * FROM agm_meetings WHERE id=%s AND society_id=%s",
+                    (meeting_id, society_id))
+    else:
+        cur.execute("SELECT * FROM agm_meetings WHERE id=%s", (meeting_id,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    return dict(row) if row else None
+
+
+def update_agm_status(meeting_id, status):
+    conn = get_db(); cur = conn.cursor()
+    if status == "live":
+        cur.execute("UPDATE agm_meetings SET status='live', started_at=NOW() WHERE id=%s",
+                    (meeting_id,))
+    elif status == "ended":
+        cur.execute("UPDATE agm_meetings SET status='ended', ended_at=NOW() WHERE id=%s",
+                    (meeting_id,))
+    else:
+        cur.execute("UPDATE agm_meetings SET status=%s WHERE id=%s", (status, meeting_id))
+    conn.commit(); cur.close(); conn.close()
+
+
+def save_agm_transcript(meeting_id, transcript):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE agm_meetings SET transcript=%s WHERE id=%s", (transcript, meeting_id))
+    conn.commit(); cur.close(); conn.close()
+
+
+def save_agm_minutes(meeting_id, minutes):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("UPDATE agm_meetings SET minutes=%s WHERE id=%s", (minutes, meeting_id))
+    conn.commit(); cur.close(); conn.close()
+
+
+def delete_agm_meeting(meeting_id, society_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM agm_meetings WHERE id=%s AND society_id=%s AND status='scheduled'",
+        (meeting_id, society_id)
+    )
+    affected = cur.rowcount; conn.commit(); cur.close(); conn.close()
+    return affected > 0
+
+
+def record_agm_join(meeting_id, flat_combo, member_name):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO agm_attendance (meeting_id, flat_combo, member_name)
+        VALUES (%s,%s,%s)
+        ON CONFLICT (meeting_id, flat_combo)
+        DO UPDATE SET joined_at=NOW(), left_at=NULL
+    """, (meeting_id, flat_combo, member_name))
+    conn.commit(); cur.close(); conn.close()
+
+
+def record_agm_leave(meeting_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "UPDATE agm_attendance SET left_at=NOW() "
+        "WHERE meeting_id=%s AND flat_combo=%s AND left_at IS NULL",
+        (meeting_id, flat_combo)
+    )
+    conn.commit(); cur.close(); conn.close()
+
+
+def get_agm_attendance(meeting_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT flat_combo, member_name, joined_at, left_at,
+               CASE WHEN left_at IS NULL THEN 'present' ELSE 'left' END as current_status
+        FROM agm_attendance WHERE meeting_id=%s ORDER BY joined_at
+    """, (meeting_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_agm_present_count(meeting_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) as cnt FROM agm_attendance "
+        "WHERE meeting_id=%s AND left_at IS NULL",
+        (meeting_id,)
+    )
+    r = cur.fetchone(); cur.close(); conn.close()
+    return r["cnt"] if r else 0
+
+
+def create_agm_vote(meeting_id, question, options=None):
+    if options is None:
+        options = ["Yes", "No", "Abstain"]
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO agm_votes (meeting_id, question, options)
+        VALUES (%s,%s,%s) RETURNING id
+    """, (meeting_id, question, _json.dumps(options)))
+    vid = cur.fetchone()["id"]; conn.commit(); cur.close(); conn.close()
+    return vid
+
+
+def open_agm_vote(vote_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE agm_votes SET status='closed', closed_at=NOW()
+        WHERE meeting_id=(SELECT meeting_id FROM agm_votes WHERE id=%s)
+          AND status='open' AND id != %s
+    """, (vote_id, vote_id))
+    cur.execute(
+        "UPDATE agm_votes SET status='open', opened_at=NOW() WHERE id=%s",
+        (vote_id,)
+    )
+    conn.commit(); cur.close(); conn.close()
+
+
+def close_agm_vote(vote_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "UPDATE agm_votes SET status='closed', closed_at=NOW() WHERE id=%s",
+        (vote_id,)
+    )
+    conn.commit(); cur.close(); conn.close()
+
+
+def get_agm_votes(meeting_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM agm_votes WHERE meeting_id=%s ORDER BY created_at",
+        (meeting_id,)
+    )
+    rows = cur.fetchall(); cur.close(); conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["options"] = _json.loads(d["options"])
+        result.append(d)
+    return result
+
+
+def get_active_vote(meeting_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM agm_votes WHERE meeting_id=%s AND status='open' LIMIT 1",
+        (meeting_id,)
+    )
+    row = cur.fetchone(); cur.close(); conn.close()
+    if not row:
+        return None
+    d = dict(row)
+    d["options"] = _json.loads(d["options"])
+    return d
+
+
+def cast_agm_vote(vote_id, flat_combo, member_name, response):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT status FROM agm_votes WHERE id=%s", (vote_id,))
+    row = cur.fetchone()
+    if not row or row["status"] != "open":
+        cur.close(); conn.close()
+        return False, "Vote is not open"
+    cur.execute(
+        "SELECT id FROM agm_vote_responses WHERE vote_id=%s AND flat_combo=%s",
+        (vote_id, flat_combo)
+    )
+    if cur.fetchone():
+        cur.close(); conn.close()
+        return False, "Already voted"
+    cur.execute("""
+        INSERT INTO agm_vote_responses (vote_id, flat_combo, member_name, response)
+        VALUES (%s,%s,%s,%s)
+    """, (vote_id, flat_combo, member_name, response))
+    conn.commit(); cur.close(); conn.close()
+    return True, "Vote recorded"
+
+
+def get_vote_results(vote_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT v.question, v.options, v.status,
+               r.response, COUNT(*) as cnt
+        FROM agm_votes v
+        LEFT JOIN agm_vote_responses r ON r.vote_id = v.id
+        WHERE v.id=%s
+        GROUP BY v.question, v.options, v.status, r.response
+    """, (vote_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    tally, meta = {}, {}
+    for r in rows:
+        d = dict(r)
+        if not meta:
+            meta = {
+                "question": d["question"],
+                "status":   d["status"],
+                "options":  _json.loads(d["options"])
+            }
+        if d["response"]:
+            tally[d["response"]] = d["cnt"]
+    return {**meta, "tally": tally, "total": sum(tally.values())}
+
+
+def member_has_voted(vote_id, flat_combo):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM agm_vote_responses WHERE vote_id=%s AND flat_combo=%s",
+        (vote_id, flat_combo)
+    )
+    row = cur.fetchone(); cur.close(); conn.close()
+    return row is not None

@@ -1,0 +1,572 @@
+{% extends "base.html" %}
+{% block title %}{{ meeting.meeting_type }}: {{ meeting.title }} — SocietyNotice Pro{% endblock %}
+{% block page_title %}{{ meeting.meeting_type }} Control Room{% endblock %}
+
+{% block content %}
+<style>
+/* ── Layout ────────────────────────────────────────────────── */
+.ctrl-header{display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.back-btn{padding:7px 14px;border:1px solid var(--border);border-radius:9px;background:transparent;
+  color:var(--ink3);font-size:12px;cursor:pointer;font-family:var(--font);text-decoration:none;
+  display:inline-flex;align-items:center;gap:6px}
+.back-btn:hover{border-color:var(--teal);color:var(--teal)}
+.ctrl-title{font-size:18px;font-weight:700;color:var(--ink);flex:1}
+.ctrl-meta{font-size:12px;color:var(--ink3)}
+
+.ctrl-layout{display:grid;grid-template-columns:1fr 340px;gap:16px}
+@media(max-width:900px){.ctrl-layout{grid-template-columns:1fr}}
+
+/* ── Jitsi panel ───────────────────────────────────────────── */
+.jitsi-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.jitsi-toolbar{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;gap:10px;flex-wrap:wrap}
+.jitsi-room-label{font-size:11px;color:var(--ink3);background:var(--bg2);padding:4px 10px;
+  border-radius:6px;font-family:monospace}
+#jitsi-container{width:100%;height:480px;background:#0D1F2D}
+
+/* ── Right panel tabs ──────────────────────────────────────── */
+.right-panel{display:flex;flex-direction:column;gap:12px}
+.panel-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.panel-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+  justify-content:space-between}
+.panel-title{font-size:13px;font-weight:700;color:var(--ink)}
+.panel-body{padding:14px 16px}
+
+/* ── Status bar ────────────────────────────────────────────── */
+.status-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:12px 18px;display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.status-item{display:flex;align-items:center;gap:7px;font-size:13px}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--red);animation:blink 1s infinite}
+.status-val{font-weight:700;color:var(--ink)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.btn-action{padding:8px 16px;border-radius:9px;border:none;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:all .15s}
+.btn-start{background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0}
+.btn-start:hover{background:#D1FAE5}
+.btn-end{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA}
+.btn-end:hover{background:#FEE2E2}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{background:var(--teal2)}
+.btn-danger{background:#EF4444;color:#fff}
+.btn-danger:hover{background:#DC2626}
+.btn-sm{padding:5px 12px;font-size:11px;border-radius:7px}
+
+/* ── Attendance ────────────────────────────────────────────── */
+.att-list{display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto}
+.att-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;
+  border-radius:7px;background:var(--bg2)}
+.att-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.att-present{background:#10B981}
+.att-left{background:var(--faint)}
+.att-flat{font-weight:600;color:var(--ink);font-size:11px;min-width:56px}
+.att-name{color:var(--ink3);flex:1}
+
+/* ── Votes ─────────────────────────────────────────────────── */
+.vote-item{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px}
+.vote-q{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px}
+.vote-bar-row{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.vote-bar-label{font-size:10px;color:var(--ink3);min-width:44px}
+.vote-bar-track{flex:1;height:8px;background:var(--bg2);border-radius:4px;overflow:hidden}
+.vote-bar-fill{height:100%;border-radius:4px;transition:width .3s;background:var(--teal)}
+.vote-bar-count{font-size:10px;color:var(--ink3);min-width:20px;text-align:right}
+.vote-status-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px}
+.vote-draft{background:var(--bg2);color:var(--ink3)}
+.vote-open{background:#ECFDF5;color:#065F46}
+.vote-closed{background:#F3F4F6;color:#6B7280}
+.vote-actions{display:flex;gap:6px;margin-top:7px}
+
+/* ── Recording ─────────────────────────────────────────────── */
+.rec-status{font-size:12px;color:var(--ink3);margin-bottom:10px}
+.rec-timer{font-size:22px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.rec-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#EF4444;
+  margin-right:6px;animation:blink 1s infinite;vertical-align:middle}
+
+/* ── Minutes ───────────────────────────────────────────────── */
+.minutes-area{width:100%;min-height:200px;border:1px solid var(--border);border-radius:9px;
+  padding:10px 12px;font-size:12px;font-family:var(--font);color:var(--ink);background:var(--surface2);
+  resize:vertical;outline:none}
+.minutes-area:focus{border-color:var(--teal)}
+
+/* ── Vote creation form ─────────────────────────────────────── */
+.vote-form{background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:12px}
+.vote-form input{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;
+  font-size:12px;font-family:var(--font);background:var(--surface);color:var(--ink);outline:none;margin-bottom:7px}
+.vote-form input:focus{border-color:var(--teal)}
+.options-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.option-tag{padding:4px 10px;background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;font-size:11px;color:var(--ink3);cursor:pointer;user-select:none}
+.option-tag.selected{background:var(--teal);color:#fff;border-color:var(--teal)}
+
+/* ── Share link ─────────────────────────────────────────────── */
+.share-box{background:var(--bg2);border-radius:9px;padding:10px 12px;margin-bottom:10px}
+.share-url{font-size:11px;color:var(--teal);font-family:monospace;word-break:break-all}
+.copy-btn{font-size:11px;color:var(--teal);cursor:pointer;text-decoration:underline;
+  background:none;border:none;font-family:var(--font);padding:0}
+</style>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <a href="/agm" class="back-btn">← Meetings</a>
+  <div class="status-item">
+    {% if meeting.status == 'live' %}<span class="live-dot"></span><span class="status-val">LIVE</span>
+    {% elif meeting.status == 'ended' %}✅ <span class="status-val">Ended</span>
+    {% else %}📅 <span class="status-val">Scheduled</span>{% endif %}
+  </div>
+  <div class="status-item">
+    👥 <span class="status-val" id="live-count">{{ attendance|selectattr("current_status","equalto","present")|list|length }}</span> present
+  </div>
+  <div style="flex:1"></div>
+  {% if meeting.status == 'scheduled' %}
+  <button class="btn-action btn-start" onclick="startMeeting()">🟢 Start Meeting</button>
+  {% elif meeting.status == 'live' %}
+  <button class="btn-action btn-end" onclick="endMeeting()">⏹ End Meeting</button>
+  {% endif %}
+</div>
+
+<div class="ctrl-layout">
+  <!-- LEFT: Jitsi -->
+  <div>
+    <div class="jitsi-panel">
+      <div class="jitsi-toolbar">
+        <span style="font-size:12px;color:var(--ink3)">🎥 Jitsi Meet —</span>
+        <span class="jitsi-room-label" id="room-name-label">{{ meeting.jitsi_room }}</span>
+        <button class="copy-btn" onclick="copyRoom()">Copy room</button>
+        <div style="flex:1"></div>
+        <div style="font-size:11px;color:var(--ink3)">
+          <strong>Member link:</strong>
+          <span class="share-url">{{ request.host_url }}portal/agm/{{ meeting.id }}</span>
+          <button class="copy-btn" onclick="copyMemberLink()">Copy</button>
+        </div>
+      </div>
+      <div id="jitsi-container">
+        {% if meeting.status == 'live' or meeting.status == 'ended' %}
+        <!-- Jitsi loads here via JS -->
+        {% else %}
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#fff;gap:12px">
+          <div style="font-size:36px">🏛️</div>
+          <div style="font-size:16px;font-weight:600">Meeting not started yet</div>
+          <div style="font-size:13px;color:#7ABFB8">Click "Start Meeting" to open the Jitsi room</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Transcript / Notes -->
+    <div class="panel-card" style="margin-top:14px">
+      <div class="panel-header">
+        <div class="panel-title">🎙️ Transcript & Notes</div>
+        <div style="display:flex;gap:7px">
+          {% if meeting.status == 'live' %}
+          <button class="btn-action btn-primary btn-sm" id="rec-btn" onclick="toggleRecording()">⏺ Record Audio</button>
+          {% endif %}
+          <button class="btn-action btn-sm" style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border)"
+                  onclick="saveTranscript()">Save Notes</button>
+          {% if meeting.status == 'ended' or meeting.transcript %}
+          <button class="btn-action btn-primary btn-sm" onclick="generateMinutes()">🤖 Generate Minutes</button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="rec-status" class="rec-status" style="display:none">
+          <span class="rec-dot"></span> Recording… <span id="rec-timer" class="rec-timer">0:00</span>
+          — audio will be transcribed by Groq Whisper when you stop
+        </div>
+        <textarea class="minutes-area" id="transcript-area" placeholder="Type meeting notes here, or click 'Record Audio' to auto-transcribe after the meeting ends…">{{ meeting.transcript or '' }}</textarea>
+        <div id="transcribing-msg" style="display:none;font-size:12px;color:var(--teal);margin-top:6px">
+          ⏳ Transcribing with Groq Whisper… this may take 30–60 seconds
+        </div>
+      </div>
+    </div>
+
+    <!-- Minutes -->
+    <div class="panel-card" style="margin-top:14px">
+      <div class="panel-header">
+        <div class="panel-title">📄 Minutes of Meeting</div>
+        <div style="display:flex;gap:7px">
+          <button class="btn-action btn-sm" style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border)"
+                  onclick="saveMinutes(false)">Save Draft</button>
+          <button class="btn-action btn-primary btn-sm" onclick="saveMinutes(true)">Save & Index to KB</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <textarea class="minutes-area" id="minutes-area" style="min-height:300px"
+                  placeholder="Click '🤖 Generate Minutes' above to auto-generate from transcript + attendance + votes…">{{ meeting.minutes or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Controls -->
+  <div class="right-panel">
+
+    <!-- Attendance -->
+    <div class="panel-card">
+      <div class="panel-header">
+        <div class="panel-title">👥 Attendance</div>
+        <div style="font-size:11px;color:var(--ink3)">updates every 5s</div>
+      </div>
+      <div class="panel-body">
+        <div id="att-list" class="att-list">
+          {% for a in attendance %}
+          <div class="att-row" id="att-{{ a.flat_combo|replace(' ','_') }}">
+            <div class="att-dot {% if a.current_status == 'present' %}att-present{% else %}att-left{% endif %}"></div>
+            <div class="att-flat">{{ a.flat_combo }}</div>
+            <div class="att-name">{{ a.member_name }}</div>
+          </div>
+          {% else %}
+          <div style="font-size:12px;color:var(--ink3);text-align:center;padding:16px 0">
+            Members will appear here when they join
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Voting -->
+    <div class="panel-card">
+      <div class="panel-header">
+        <div class="panel-title">🗳️ Live Voting</div>
+      </div>
+      <div class="panel-body">
+        <!-- New vote form -->
+        <div class="vote-form">
+          <input type="text" id="vote-q" placeholder="Type resolution / question…" maxlength="200">
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:5px">Options (click to toggle):</div>
+          <div class="options-row" id="option-tags">
+            <span class="option-tag selected" onclick="toggleOpt(this)">Yes</span>
+            <span class="option-tag selected" onclick="toggleOpt(this)">No</span>
+            <span class="option-tag selected" onclick="toggleOpt(this)">Abstain</span>
+            <span class="option-tag" onclick="toggleOpt(this)">For</span>
+            <span class="option-tag" onclick="toggleOpt(this)">Against</span>
+          </div>
+          <button class="btn-action btn-primary btn-sm" onclick="createVote()" style="width:100%">
+            Create Vote →
+          </button>
+        </div>
+
+        <!-- Vote list -->
+        <div id="vote-list">
+          {% for v in votes %}
+          <div class="vote-item" id="vote-{{ v.id }}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div class="vote-q">{{ v.question }}</div>
+              <span class="vote-status-badge vote-{{ v.status }}">{{ v.status }}</span>
+            </div>
+            <div id="vote-bars-{{ v.id }}">
+              {% for opt in v.options %}
+              <div class="vote-bar-row">
+                <div class="vote-bar-label">{{ opt }}</div>
+                <div class="vote-bar-track"><div class="vote-bar-fill" id="bar-{{ v.id }}-{{ opt }}" style="width:0%"></div></div>
+                <div class="vote-bar-count" id="cnt-{{ v.id }}-{{ opt }}">0</div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="vote-actions">
+              {% if v.status == 'draft' %}
+              <button class="btn-action btn-primary btn-sm" onclick="openVote({{ v.id }})">🟢 Open</button>
+              {% elif v.status == 'open' %}
+              <button class="btn-action btn-danger btn-sm" onclick="closeVote({{ v.id }})">🔴 Close</button>
+              {% else %}
+              <button class="btn-action btn-sm" style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border)" disabled>Closed</button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Meeting info -->
+    <div class="panel-card">
+      <div class="panel-header"><div class="panel-title">ℹ️ Meeting Info</div></div>
+      <div class="panel-body">
+        <div style="font-size:12px;color:var(--ink3);line-height:2">
+          <div><strong>Type:</strong> {{ meeting.meeting_type }}</div>
+          <div><strong>Scheduled:</strong> {{ meeting.scheduled_at.strftime('%d %b %Y, %I:%M %p') }}</div>
+          <div><strong>Quorum:</strong> {{ meeting.quorum_required or 'Not set' }}</div>
+          {% if meeting.started_at %}<div><strong>Started:</strong> {{ meeting.started_at.strftime('%I:%M %p') }}</div>{% endif %}
+          {% if meeting.ended_at %}<div><strong>Ended:</strong> {{ meeting.ended_at.strftime('%I:%M %p') }}</div>{% endif %}
+        </div>
+        {% if meeting.agenda %}
+        <div style="margin-top:10px;font-size:11px;color:var(--ink3);font-weight:600">AGENDA:</div>
+        <div style="font-size:12px;color:var(--ink);white-space:pre-wrap;margin-top:4px">{{ meeting.agenda }}</div>
+        {% endif %}
+        {% if meeting.status == 'scheduled' %}
+        <button class="btn-action btn-danger btn-sm" style="margin-top:12px;width:100%"
+                onclick="deleteMeeting()">Delete Meeting</button>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://meet.jit.si/external_api.js"></script>
+<script>
+const MTG_ID = {{ meeting.id }};
+const MTG_STATUS = '{{ meeting.status }}';
+const ROOM_NAME = '{{ meeting.jitsi_room }}';
+const SOCIETY_NAME = '{{ session.get("society_name", "Society") }}';
+
+let jitsiApi = null;
+let pollInterval = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let recSeconds = 0;
+let recTimer = null;
+
+// ── Jitsi ────────────────────────────────────────────────────────────────────
+function loadJitsi(){
+  if(jitsiApi) return;
+  jitsiApi = new JitsiMeetExternalAPI('meet.jit.si', {
+    roomName: ROOM_NAME,
+    width: '100%',
+    height: 480,
+    parentNode: document.getElementById('jitsi-container'),
+    userInfo: { displayName: 'Secretary / Admin' },
+    configOverwrite: {
+      prejoinPageEnabled: false,
+      startWithVideoMuted: true,
+      disableDeepLinking: true,
+      defaultLanguage: 'en',
+    },
+    interfaceConfigOverwrite: {
+      SHOW_JITSI_WATERMARK: false,
+      MOBILE_APP_PROMO: false,
+      TOOLBAR_BUTTONS: ['microphone','camera','desktop','chat','tileview','fullscreen','hangup'],
+    }
+  });
+}
+
+// ── Meeting controls ──────────────────────────────────────────────────────────
+async function startMeeting(){
+  if(!confirm('Start the meeting? This will open the Jitsi video room.')) return;
+  const res = await fetch(`/agm/${MTG_ID}/start`, {method:'POST'});
+  const data = await res.json();
+  if(data.success){ window.location.reload(); }
+}
+
+async function endMeeting(){
+  if(!confirm('End the meeting? All open votes will be closed.')) return;
+  const res = await fetch(`/agm/${MTG_ID}/end`, {method:'POST'});
+  const data = await res.json();
+  if(data.success){ window.location.reload(); }
+}
+
+async function deleteMeeting(){
+  if(!confirm('Delete this meeting? This cannot be undone.')) return;
+  const res = await fetch(`/agm/${MTG_ID}/delete`, {method:'POST'});
+  const data = await res.json();
+  if(data.success) window.location.href='/agm';
+  else alert(data.error);
+}
+
+// ── Live polling (attendance + votes) ────────────────────────────────────────
+function startPolling(){
+  pollInterval = setInterval(async()=>{
+    try{
+      const res = await fetch(`/agm/${MTG_ID}/live-status`);
+      const data = await res.json();
+      document.getElementById('live-count').textContent = data.present_count;
+      renderAttendance(data.attendance);
+      if(data.vote_results) renderVoteBars(data.active_vote, data.vote_results);
+    }catch(e){}
+  }, 5000);
+}
+
+function renderAttendance(list){
+  const el = document.getElementById('att-list');
+  if(!list.length) return;
+  el.innerHTML = list.map(a=>`
+    <div class="att-row">
+      <div class="att-dot ${a.status==='present'?'att-present':'att-left'}"></div>
+      <div class="att-flat">${a.flat}</div>
+      <div class="att-name">${a.name}</div>
+    </div>
+  `).join('');
+}
+
+function renderVoteBars(vote, results){
+  if(!vote || !results) return;
+  const total = results.total || 1;
+  (vote.options||[]).forEach(opt=>{
+    const fill = document.getElementById(`bar-${vote.id}-${opt}`);
+    const cnt = document.getElementById(`cnt-${vote.id}-${opt}`);
+    if(fill && cnt){
+      const n = results.tally[opt] || 0;
+      fill.style.width = Math.round(n/total*100)+'%';
+      cnt.textContent = n;
+    }
+  });
+}
+
+// ── Vote management ───────────────────────────────────────────────────────────
+function toggleOpt(el){ el.classList.toggle('selected'); }
+
+async function createVote(){
+  const q = document.getElementById('vote-q').value.trim();
+  if(!q){ alert('Please enter a question'); return; }
+  const opts = [...document.querySelectorAll('#option-tags .option-tag.selected')].map(el=>el.textContent);
+  if(!opts.length){ alert('Select at least one option'); return; }
+  const res = await fetch(`/agm/${MTG_ID}/vote/create`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({question:q, options:opts})
+  });
+  const data = await res.json();
+  if(data.success){
+    document.getElementById('vote-q').value='';
+    // Add new vote card to DOM
+    const vl = document.getElementById('vote-list');
+    const div = document.createElement('div');
+    div.className='vote-item'; div.id=`vote-${data.vote_id}`;
+    div.innerHTML=`
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div class="vote-q">${q}</div>
+        <span class="vote-status-badge vote-draft">draft</span>
+      </div>
+      <div id="vote-bars-${data.vote_id}">
+        ${opts.map(o=>`<div class="vote-bar-row">
+          <div class="vote-bar-label">${o}</div>
+          <div class="vote-bar-track"><div class="vote-bar-fill" id="bar-${data.vote_id}-${o}" style="width:0%"></div></div>
+          <div class="vote-bar-count" id="cnt-${data.vote_id}-${o}">0</div>
+        </div>`).join('')}
+      </div>
+      <div class="vote-actions">
+        <button class="btn-action btn-primary btn-sm" onclick="openVote(${data.vote_id})">🟢 Open</button>
+      </div>`;
+    vl.prepend(div);
+  }
+}
+
+async function openVote(vid){
+  await fetch(`/agm/vote/${vid}/open`,{method:'POST'});
+  document.querySelector(`#vote-${vid} .vote-status-badge`).className='vote-status-badge vote-open';
+  document.querySelector(`#vote-${vid} .vote-status-badge`).textContent='open';
+  document.querySelector(`#vote-${vid} .vote-actions`).innerHTML=
+    `<button class="btn-action btn-danger btn-sm" onclick="closeVote(${vid})">🔴 Close</button>`;
+}
+
+async function closeVote(vid){
+  const res = await fetch(`/agm/vote/${vid}/close`,{method:'POST'});
+  const data = await res.json();
+  document.querySelector(`#vote-${vid} .vote-status-badge`).className='vote-status-badge vote-closed';
+  document.querySelector(`#vote-${vid} .vote-status-badge`).textContent='closed';
+  document.querySelector(`#vote-${vid} .vote-actions`).innerHTML=
+    `<span style="font-size:11px;color:var(--ink3)">Closed — results recorded</span>`;
+  if(data.results) renderVoteBars({id:vid, options:Object.keys(data.results.tally||{})}, data.results);
+}
+
+// ── Audio recording (browser → Groq Whisper) ─────────────────────────────────
+async function toggleRecording(){
+  const btn = document.getElementById('rec-btn');
+  if(!mediaRecorder || mediaRecorder.state==='inactive'){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true, video:false});
+      mediaRecorder = new MediaRecorder(stream, {mimeType:'audio/webm;codecs=opus'});
+      audioChunks = [];
+      mediaRecorder.ondataavailable = e=>{ if(e.data.size>0) audioChunks.push(e.data); };
+      mediaRecorder.start(5000); // collect in 5s chunks
+      btn.textContent='⏹ Stop & Transcribe';
+      btn.style.background='#EF4444';
+      document.getElementById('rec-status').style.display='block';
+      recSeconds=0;
+      recTimer=setInterval(()=>{
+        recSeconds++;
+        const m=Math.floor(recSeconds/60), s=recSeconds%60;
+        document.getElementById('rec-timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+      },1000);
+    }catch(e){ alert('Microphone access denied: '+e.message); }
+  } else {
+    clearInterval(recTimer);
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t=>t.stop());
+    btn.textContent='⏺ Record Audio'; btn.style.background='';
+    document.getElementById('rec-status').style.display='none';
+    mediaRecorder.onstop = async()=>{ await uploadAudio(); };
+  }
+}
+
+async function uploadAudio(){
+  const blob = new Blob(audioChunks, {type:'audio/webm'});
+  if(blob.size < 1000){ alert('Recording too short'); return; }
+  document.getElementById('transcribing-msg').style.display='block';
+  const fd = new FormData();
+  fd.append('audio', blob, 'meeting.webm');
+  try{
+    const res = await fetch(`/agm/${MTG_ID}/transcribe`,{method:'POST', body:fd});
+    const data = await res.json();
+    document.getElementById('transcribing-msg').style.display='none';
+    if(data.success){
+      const ta = document.getElementById('transcript-area');
+      ta.value += (ta.value?'\n\n':'') + data.transcript;
+      alert('✅ Transcription complete! Review and edit the notes, then generate minutes.');
+    } else { alert('Transcription failed: '+data.error); }
+  }catch(e){
+    document.getElementById('transcribing-msg').style.display='none';
+    alert('Error: '+e.message);
+  }
+}
+
+// ── Save transcript ───────────────────────────────────────────────────────────
+async function saveTranscript(){
+  const text = document.getElementById('transcript-area').value;
+  await fetch(`/agm/${MTG_ID}/save-transcript`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({transcript:text})
+  });
+  showToast('Notes saved ✓');
+}
+
+// ── Generate minutes ──────────────────────────────────────────────────────────
+async function generateMinutes(){
+  const btn = event.target;
+  btn.textContent='⏳ Generating…'; btn.disabled=true;
+  try{
+    const res = await fetch(`/agm/${MTG_ID}/generate-minutes`,{method:'POST'});
+    const data = await res.json();
+    if(data.success){
+      document.getElementById('minutes-area').value=data.minutes;
+      btn.textContent='🤖 Re-generate Minutes';
+      showToast('Minutes generated! Review and save.');
+    } else { alert('Error: '+data.error); btn.textContent='🤖 Generate Minutes'; }
+  }catch(e){ alert(e.message); btn.textContent='🤖 Generate Minutes'; }
+  btn.disabled=false;
+}
+
+// ── Save minutes ──────────────────────────────────────────────────────────────
+async function saveMinutes(indexKb){
+  const text = document.getElementById('minutes-area').value;
+  if(!text.trim()){ alert('No minutes to save'); return; }
+  const res = await fetch(`/agm/${MTG_ID}/save-minutes`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({minutes:text, index_kb:indexKb})
+  });
+  const data = await res.json();
+  if(data.success) showToast(indexKb?'Minutes saved & indexed to Knowledge Base ✓':'Minutes saved ✓');
+}
+
+// ── Clipboard helpers ─────────────────────────────────────────────────────────
+function copyRoom(){navigator.clipboard.writeText(ROOM_NAME);showToast('Room name copied');}
+function copyMemberLink(){
+  navigator.clipboard.writeText(window.location.origin+'/portal/agm/'+MTG_ID);
+  showToast('Member link copied');
+}
+
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';
+    t.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--teal);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;transition:opacity .3s';
+    document.body.appendChild(t);}
+  t.textContent=msg; t.style.opacity='1';
+  clearTimeout(t._tid); t._tid=setTimeout(()=>t.style.opacity='0',2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  if(MTG_STATUS==='live'){
+    loadJitsi();
+    startPolling();
+  }
+});
+</script>
+{% endblock %}

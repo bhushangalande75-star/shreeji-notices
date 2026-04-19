@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Meetings — Member Portal{% endblock %}
+
+{% block content %}
+<style>
+.portal-header{margin-bottom:24px}
+.portal-title{font-size:20px;font-weight:700;color:var(--ink)}
+.portal-sub{font-size:13px;color:var(--ink3);margin-top:4px}
+.meeting-list{display:flex;flex-direction:column;gap:12px}
+.meeting-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:18px 22px;display:flex;align-items:center;gap:16px}
+.meeting-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;
+  justify-content:center;font-size:20px;flex-shrink:0}
+.icon-agm{background:rgba(10,191,163,.12)}
+.icon-sgm{background:rgba(245,158,11,.12)}
+.icon-committee{background:rgba(99,102,241,.12)}
+.meeting-info{flex:1}
+.meeting-name{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.meeting-date{font-size:12px;color:var(--ink3)}
+.meeting-status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.s-live{background:#ECFDF5;color:#065F46}
+.s-scheduled{background:#F0F9FF;color:#0369A1}
+.s-ended{background:var(--bg2);color:var(--ink3)}
+.join-btn{padding:9px 18px;background:var(--teal);color:#fff;border:none;border-radius:10px;
+  font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);text-decoration:none;
+  display:inline-block;transition:background .15s}
+.join-btn:hover{background:var(--teal2)}
+.join-btn.disabled{background:var(--faint);cursor:not-allowed}
+.view-btn{padding:9px 18px;background:transparent;color:var(--teal);border:1px solid var(--teal);
+  border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);
+  text-decoration:none;display:inline-block}
+.empty-state{text-align:center;padding:60px 20px;color:var(--ink3)}
+</style>
+
+<div class="portal-header">
+  <div class="portal-title">🏛️ AGM / SGM Meetings</div>
+  <div class="portal-sub">Join virtual meetings, cast votes, and view minutes of past meetings</div>
+</div>
+
+<div class="meeting-list">
+  {% if not meetings %}
+  <div class="empty-state">
+    <div style="font-size:36px;margin-bottom:12px">🏛️</div>
+    <div style="font-size:15px;font-weight:600;color:var(--ink)">No meetings scheduled</div>
+    <div style="margin-top:6px">The committee will notify you when a meeting is scheduled.</div>
+  </div>
+  {% endif %}
+
+  {% for m in meetings %}
+  <div class="meeting-card">
+    <div class="meeting-icon {% if m.meeting_type=='AGM' %}icon-agm{% elif m.meeting_type=='SGM' %}icon-sgm{% else %}icon-committee{% endif %}">
+      {% if m.meeting_type=='AGM' %}🏛️{% elif m.meeting_type=='SGM' %}⚡{% else %}📋{% endif %}
+    </div>
+    <div class="meeting-info">
+      <div class="meeting-name">{{ m.title }}</div>
+      <div class="meeting-date">
+        {{ m.meeting_type }} &nbsp;·&nbsp; {{ m.scheduled_at.strftime('%d %b %Y, %I:%M %p') }}
+        {% if m.quorum_required %} &nbsp;·&nbsp; Quorum: {{ m.quorum_required }} members {% endif %}
+      </div>
+      {% if m.status == 'live' %}
+      <div style="margin-top:4px;font-size:12px;color:#065F46">
+        🟢 Meeting is LIVE — {{ m.attendee_count }} members present
+      </div>
+      {% endif %}
+      {% if m.status == 'ended' and m.minutes %}
+      <div style="margin-top:4px;font-size:12px;color:var(--ink3)">📄 Minutes available</div>
+      {% endif %}
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <span class="meeting-status {% if m.status=='live' %}s-live{% elif m.status=='ended' %}s-ended{% else %}s-scheduled{% endif %}">
+        {% if m.status=='live' %}🔴 LIVE{% elif m.status=='ended' %}✓ Ended{% else %}📅 Upcoming{% endif %}
+      </span>
+      {% if m.status == 'live' %}
+      <a href="/portal/agm/{{ m.id }}" class="join-btn">Join Meeting →</a>
+      {% elif m.status == 'ended' and m.minutes %}
+      <a href="/portal/agm/{{ m.id }}" class="view-btn">View Minutes</a>
+      {% else %}
+      <span style="font-size:12px;color:var(--faint)">Not yet live</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
