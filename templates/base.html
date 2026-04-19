@@ -364,6 +364,9 @@
       <span class="nav-icon">🧠</span> AI Knowledge Base
     </a>
     <a class="nav-item {% if request.endpoint in ['society_tickets','society_update_ticket'] %}active{% endif %}" href="/tickets">
+    <a class="nav-item {% if 'agm' in request.endpoint %}active{% endif %}" href="/agm">
+    <span class="nav-icon">🏛</span> Virtual AGM/SGM
+    </a>  
       <span class="nav-icon">🎟️</span> Member Tickets
     </a>
     <a class="nav-item {% if request.endpoint == 'analytics_dashboard' %}active{% endif %}" href="/analytics">
