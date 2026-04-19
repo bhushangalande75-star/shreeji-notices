@@ -171,11 +171,11 @@
       Dashboard
     </a>
     <a href="/portal/tickets" class="nav-link">
-    <a href="/portal/agm" class="btn-nav">🏛 AGM/SGM</a>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
       My Tickets
       {% if open_tickets > 0 %}<span class="badge">{{ open_tickets }}</span>{% endif %}
     </a>
+    <a href="/portal/agm" class="btn-nav">🏛 AGM/SGM</a>
   </div>
   <div class="nav-right">
     <div class="nav-member">
@@ -423,7 +423,11 @@ function addMsg(text, who) {
   const body = document.getElementById('chatBody');
   const d = document.createElement('div'); d.className = 'msg ' + who;
   const now = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  d.innerHTML = `<div class="msg-bub">${text}</div><div class="msg-time">${now}</div>`;
+  const bub = document.createElement('div'); bub.className = 'msg-bub';
+  bub.textContent = text;
+  const time = document.createElement('div'); time.className = 'msg-time';
+  time.textContent = now;
+  d.appendChild(bub); d.appendChild(time);
   body.appendChild(d); body.scrollTop = body.scrollHeight;
 }
 function showTyping() {
@@ -472,65 +476,78 @@ async function submitTicket() {
   if (!subject) { errEl.textContent='Please enter a subject.'; errEl.style.display='block'; return; }
   if (!desc)    { errEl.textContent='Please describe the issue.'; errEl.style.display='block'; return; }
   errEl.style.display='none';
-  const res  = await fetch('/portal/tickets/create', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      category: document.getElementById('tktCategory').value,
-      subject, description: desc, priority: selPrio
-    })
-  });
-  const data = await res.json();
-  if (data.success) {
-    closeModal();
-    // Show confirmation in chat
-    document.getElementById('chatSugg').style.display='none';
-    addMsg(`✓ Ticket #${data.ticket_id} raised successfully! The committee will review your complaint and update you on the status. You can track it under "My Tickets".`, 'bot');
-    // Update open tickets badge
-    setTimeout(() => location.reload(), 3000);
-  } else {
-    errEl.textContent = data.error || 'Failed to submit. Please try again.';
+  try {
+    const res  = await fetch('/portal/tickets/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        category: document.getElementById('tktCategory').value,
+        subject, description: desc, priority: selPrio
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeModal();
+      // Show confirmation in chat
+      document.getElementById('chatSugg').style.display='none';
+      addMsg('✓ Ticket #' + data.ticket_id + ' raised successfully! The committee will review your complaint and update you on the status. You can track it under "My Tickets".', 'bot');
+      // Update open tickets badge
+      setTimeout(() => location.reload(), 3000);
+    } else {
+      errEl.textContent = data.error || 'Failed to submit. Please try again.';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error. Please check your connection and try again.';
     errEl.style.display = 'block';
   }
 }
 /* ── Razorpay Payment ── */
 async function payNotice(noticeId, amount) {
-  const res  = await fetch('/portal/pay/create-order', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({notice_id: noticeId, amount: amount})
-  });
-  const data = await res.json();
-  if (!data.success) {
-    alert(data.error || 'Payment gateway not available. Contact the society office.');
-    return;
+  try {
+    const res  = await fetch('/portal/pay/create-order', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({notice_id: noticeId, amount: amount})
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert(data.error || 'Payment gateway not available. Contact the society office.');
+      return;
+    }
+    const options = {
+      key: data.key_id, amount: data.amount, currency: data.currency,
+      name: data.name, description: 'Maintenance — Flat ' + data.flat,
+      order_id: data.order_id, prefill: {name: data.member, contact: ''},
+      theme: {color: '#0ABFA3'},
+      handler: async function(response) {
+        try {
+          const v = await fetch('/portal/pay/verify', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+              amount: data.amount
+            })
+          });
+          const vdata = await v.json();
+          if (vdata.success) {
+            addMsg('✅ Payment of ₹' + (data.amount/100).toLocaleString('en-IN') + ' confirmed! Notice will update shortly.', 'bot');
+            document.getElementById('chatSugg').style.display='none';
+            setTimeout(() => location.reload(), 2500);
+          } else {
+            alert('Payment verification failed: ' + (vdata.error || 'Contact society office.'));
+          }
+        } catch(e) {
+          alert('Verification error. Please contact the society office to confirm your payment.');
+        }
+      },
+      modal: {ondismiss: () => {}}
+    };
+    if (typeof Razorpay === 'undefined') { alert('Payment unavailable — check internet connection.'); return; }
+    new Razorpay(options).open();
+  } catch(e) {
+    alert('Could not initiate payment. Please check your connection and try again.');
   }
-  const options = {
-    key: data.key_id, amount: data.amount, currency: data.currency,
-    name: data.name, description: `Maintenance — Flat ${data.flat}`,
-    order_id: data.order_id, prefill: {name: data.member, contact: ''},
-    theme: {color: '#0ABFA3'},
-    handler: async function(response) {
-      const v = await fetch('/portal/pay/verify', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          razorpay_order_id:   response.razorpay_order_id,
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_signature:  response.razorpay_signature,
-          amount: data.amount
-        })
-      });
-      const vdata = await v.json();
-      if (vdata.success) {
-        addMsg('✅ Payment of ₹' + (data.amount/100).toLocaleString('en-IN') + ' confirmed! Notice will update shortly.', 'bot');
-        document.getElementById('chatSugg').style.display='none';
-        setTimeout(() => location.reload(), 2500);
-      } else {
-        alert('Payment verification failed: ' + (vdata.error || 'Contact society office.'));
-      }
-    },
-    modal: {ondismiss: () => {}}
-  };
-  if (typeof Razorpay === 'undefined') { alert('Payment unavailable — check internet connection.'); return; }
-  new Razorpay(options).open();
 }
 /* ── PWA Service Worker ── */
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
