@@ -3035,6 +3035,7 @@ def agm_list():
 
 
 @app.route("/agm/create", methods=["POST"])
+@csrf.exempt 
 @login_required
 def agm_create():
     title        = request.form.get("title", "").strip()
@@ -3285,6 +3286,13 @@ def portal_cast_vote(vid):
     ok, msg = cast_agm_vote(vid, session["member_flat"], session["member_name"], response)
     return jsonify({"success": ok, "message": msg})
 
+# ── One-time DB table initialisation (runs at server startup) ─────────────
+with app.app_context():
+    try:
+        init_agm_tables()
+        print("✅ AGM tables ready")
+    except Exception as _e:
+        print(f"[WARN] init_agm_tables failed: {_e}")
 
 if __name__ == "__main__":
     lo = get_libreoffice_path()
