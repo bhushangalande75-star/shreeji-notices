@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+{% block title %}Physical Meeting — {{ meeting.title }}{% endblock %}
+{% block page_title %}📋 Physical Meeting Capture{% endblock %}
+{% block page_sub %}{{ meeting.title }} · {{ meeting.scheduled_at.strftime('%d %b %Y') }}{% endblock %}
+
+{% block topbar_right %}
+<a href="/agm/{{ meeting.id }}" class="btn-outline">← Back to Meeting</a>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ── Layout ───────────────────────────────────────────── */
+.phy-layout{display:grid;grid-template-columns:1fr 380px;gap:18px;align-items:start}
+@media(max-width:900px){.phy-layout{grid-template-columns:1fr}}
+
+/* ── Meeting Info Bar ─────────────────────────────────── */
+.info-bar{background:linear-gradient(135deg,var(--teal),var(--teal2));border-radius:14px;
+  padding:16px 22px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.info-bar-icon{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.2);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.info-bar-title{font-size:15px;font-weight:700;color:#fff}
+.info-bar-meta{font-size:12px;color:rgba(255,255,255,.8);margin-top:2px}
+.info-badge{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);
+  border-radius:20px;padding:3px 11px;font-size:11px;color:#fff;font-weight:600}
+
+/* ── Resolution Form ──────────────────────────────────── */
+.res-form-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:22px;margin-bottom:16px}
+.res-form-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:16px;
+  display:flex;align-items:center;gap:8px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.08em;display:block;margin-bottom:5px}
+.form-label .required{color:var(--red)}
+.form-inp{width:100%;padding:10px 13px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:9px;font-size:13px;font-family:var(--font);color:var(--ink2);outline:none;
+  transition:border .15s}
+.form-inp:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(10,191,163,.1)}
+.form-inp::placeholder{color:var(--faint)}
+textarea.form-inp{resize:vertical;min-height:80px;line-height:1.5}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237ABFB8'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+
+/* ── Two-col row for Suchak/Anumodak ─────────────────── */
+.sa-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.sa-row{grid-template-columns:1fr}}
+
+/* ── Result selector ──────────────────────────────────── */
+.result-row{display:flex;gap:8px;flex-wrap:wrap}
+.result-opt{flex:1;min-width:90px;padding:10px 8px;border:1.5px solid var(--border);
+  border-radius:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;
+  color:var(--ink3);transition:all .15s;background:var(--surface2);user-select:none}
+.result-opt:hover{border-color:var(--teal)}
+.result-opt.sel-unanimous{border-color:#10B981;background:#ECFDF5;color:#065F46}
+.result-opt.sel-majority {border-color:#F59E0B;background:#FEF3C7;color:#92400E}
+.result-opt.sel-notpassed{border-color:#EF4444;background:#FEE2E2;color:#991B1B}
+.vote-counts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.vote-count-field{display:none}
+.vote-count-field.visible{display:block}
+
+/* ── Resolution Cards ─────────────────────────────────── */
+.res-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.res-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.res-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px}
+.res-num{width:26px;height:26px;border-radius:8px;background:rgba(10,191,163,.12);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+  color:var(--teal2);flex-shrink:0;margin-top:1px}
+.res-agenda{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;
+  font-weight:600;margin-bottom:3px}
+.res-text{font-size:13px;font-weight:600;color:var(--ink);line-height:1.5}
+.sa-chips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.sa-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;
+  font-size:11px;font-weight:600}
+.chip-s{background:rgba(10,191,163,.1);color:var(--teal2)}
+.chip-a{background:rgba(99,102,241,.1);color:#4338CA}
+.result-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:700}
+.pill-unanimous{background:#ECFDF5;color:#065F46}
+.pill-majority {background:#FEF3C7;color:#92400E}
+.pill-notpassed{background:#FEE2E2;color:#991B1B}
+.res-actions{display:flex;gap:6px;margin-top:10px}
+.btn-sm-del{padding:5px 11px;border:1px solid #FECACA;background:#FEF2F2;color:#991B1B;
+  border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.btn-sm-del:hover{background:#FEE2E2}
+
+/* ── Right Panel ──────────────────────────────────────── */
+.right-panel{display:flex;flex-direction:column;gap:14px;position:sticky;top:74px}
+.panel-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.panel-head{padding:13px 16px;border-bottom:1px solid var(--border2);font-size:13px;
+  font-weight:700;color:var(--ink);display:flex;align-items:center;gap:7px}
+.panel-body{padding:14px 16px}
+
+/* Attendance quick list */
+.att-quick{display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto}
+.att-q-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;
+  border-radius:7px;background:var(--bg2)}
+.att-q-dot{width:7px;height:7px;border-radius:50%;background:#10B981;flex-shrink:0}
+.att-q-flat{font-weight:600;color:var(--ink);font-size:11px;min-width:60px}
+
+/* Summary counts */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.sum-card{background:var(--bg2);border-radius:9px;padding:10px 12px;text-align:center}
+.sum-num{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-1px}
+.sum-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+
+/* Generate Minutes button */
+.btn-generate{width:100%;padding:13px;background:linear-gradient(135deg,var(--teal),var(--teal2));
+  color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;
+  font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px;
+  box-shadow:0 4px 14px rgba(10,191,163,.3);transition:all .15s}
+.btn-generate:hover{opacity:.92;transform:translateY(-1px)}
+.btn-generate:disabled{background:var(--faint);box-shadow:none;cursor:not-allowed;transform:none}
+
+/* Language selector */
+.lang-row{display:flex;gap:7px;margin-bottom:14px}
+.lang-btn{flex:1;padding:7px 5px;border:1.5px solid var(--border);border-radius:8px;
+  font-size:11px;font-weight:600;color:var(--ink3);cursor:pointer;background:var(--surface2);
+  font-family:var(--font);text-align:center;transition:all .15s}
+.lang-btn:hover{border-color:var(--teal);color:var(--teal)}
+.lang-btn.active{border-color:var(--teal);background:rgba(10,191,163,.1);color:var(--teal)}
+
+/* Minutes preview */
+.minutes-box{width:100%;min-height:220px;border:1px solid var(--border);border-radius:9px;
+  padding:12px;font-size:12px;font-family:var(--font);color:var(--ink);background:var(--surface2);
+  resize:vertical;outline:none;line-height:1.7}
+.minutes-box:focus{border-color:var(--teal)}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--teal);color:#fff;
+  padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;
+  z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+
+.empty-res{text-align:center;padding:32px;color:var(--muted);font-size:13px;
+  background:var(--surface2);border-radius:12px;border:1px dashed var(--border)}
+</style>
+
+<!-- Info bar -->
+<div class="info-bar">
+  <div class="info-bar-icon">
+    {% if meeting.meeting_type=='AGM' %}🏛️{% elif meeting.meeting_type=='SGM' %}⚡{% else %}📋{% endif %}
+  </div>
+  <div style="flex:1">
+    <div class="info-bar-title">{{ meeting.title }}</div>
+    <div class="info-bar-meta">
+      {{ meeting.meeting_type }} · {{ meeting.scheduled_at.strftime('%d %b %Y, %I:%M %p') }}
+      · Physical Meeting
+    </div>
+  </div>
+  <span class="info-badge">📋 {{ resolutions|length }} Resolution{{ 's' if resolutions|length != 1 }}</span>
+  {% if meeting.quorum_required %}
+  <span class="info-badge">Quorum: {{ meeting.quorum_required }}</span>
+  {% endif %}
+</div>
+
+<div class="phy-layout">
+
+  <!-- LEFT: Resolution capture -->
+  <div>
+
+    <!-- Add Resolution Form -->
+    <div class="res-form-card">
+      <div class="res-form-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Add Resolution
+      </div>
+
+      <input type="hidden" id="edit-id" value="">
+
+      <div class="form-group">
+        <label class="form-label">Agenda Item <span class="required">*</span></label>
+        <input type="text" class="form-inp" id="f-agenda"
+               placeholder="e.g. Approval of Annual Accounts 2024-25">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Resolution Text <span class="required">*</span></label>
+        <textarea class="form-inp" id="f-resolution"
+                  placeholder="e.g. Resolved that the Audited Annual Accounts for FY 2024-25 be and are hereby approved and adopted."></textarea>
+      </div>
+
+      <div class="sa-row">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">सूचक · Suchak (Proposer) <span class="required">*</span></label>
+          <select class="form-inp form-select" id="f-suchak">
+            <option value="">— Select Member —</option>
+            {% for m in committee %}
+            <option value="{{ m.name }}{% if m.role %} ({{ m.role }}){% endif %}">
+              {{ m.name }}{% if m.role %} · {{ m.role }}{% endif %} — {{ m.flat_combo }}
+            </option>
+            {% endfor %}
+            <optgroup label="──────────────">
+              <option value="__custom__">✏️ Type manually…</option>
+            </optgroup>
+          </select>
+          <input type="text" class="form-inp" id="f-suchak-custom"
+                 placeholder="Type Suchak name manually"
+                 style="display:none;margin-top:6px">
+        </div>
+
+        <div class="form-group" style="margin:0">
+          <label class="form-label">अनुमोदक · Anumodak (Seconder) <span class="required">*</span></label>
+          <select class="form-inp form-select" id="f-anumodak">
+            <option value="">— Select Member —</option>
+            {% for m in committee %}
+            <option value="{{ m.name }}{% if m.role %} ({{ m.role }}){% endif %}">
+              {{ m.name }}{% if m.role %} · {{ m.role }}{% endif %} — {{ m.flat_combo }}
+            </option>
+            {% endfor %}
+            <optgroup label="──────────────">
+              <option value="__custom__">✏️ Type manually…</option>
+            </optgroup>
+          </select>
+          <input type="text" class="form-inp" id="f-anumodak-custom"
+                 placeholder="Type Anumodak name manually"
+                 style="display:none;margin-top:6px">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">Result</label>
+        <div class="result-row" id="result-row">
+          <div class="result-opt sel-unanimous" onclick="setResult('Unanimous',this)">✅ Unanimously Passed</div>
+          <div class="result-opt" onclick="setResult('Majority',this)">🗳 Majority</div>
+          <div class="result-opt" onclick="setResult('NotPassed',this)">❌ Not Passed</div>
+        </div>
+        <div class="vote-counts" id="vote-counts">
+          <div class="vote-count-field" id="vc-for">
+            <label class="form-label" style="margin-top:8px">Votes For</label>
+            <input type="number" class="form-inp" id="f-votes-for" min="0" value="0">
+          </div>
+          <div class="vote-count-field" id="vc-against">
+            <label class="form-label" style="margin-top:8px">Votes Against</label>
+            <input type="number" class="form-inp" id="f-votes-against" min="0" value="0">
+          </div>
+          <div class="vote-count-field" id="vc-abstain">
+            <label class="form-label" style="margin-top:8px">Abstain</label>
+            <input type="number" class="form-inp" id="f-votes-abstain" min="0" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Additional Notes (optional)</label>
+        <input type="text" class="form-inp" id="f-notes" placeholder="Any additional remarks…">
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button onclick="saveResolution()" id="save-btn"
+          style="flex:1;padding:11px;background:var(--teal);color:#fff;border:none;
+                 border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">
+          ✅ Save Resolution
+        </button>
+        <button onclick="clearForm()"
+          style="padding:11px 18px;background:transparent;border:1px solid var(--border);
+                 border-radius:10px;font-size:13px;color:var(--ink3);cursor:pointer;font-family:var(--font)">
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Saved Resolutions -->
+    <div class="res-list" id="res-list">
+      {% if not resolutions %}
+      <div class="empty-res" id="empty-msg">
+        No resolutions added yet. Use the form above to capture each agenda item.
+      </div>
+      {% else %}
+      {% set emoji = {'Unanimous':'✅','Majority':'🗳️','NotPassed':'❌'} %}
+      {% for r in resolutions %}
+      <div class="res-card" id="rc-{{ r.id }}">
+        <div class="res-card-head">
+          <div style="display:flex;align-items:flex-start;gap:10px;flex:1">
+            <div class="res-num">{{ loop.index }}</div>
+            <div>
+              <div class="res-agenda">{{ r.agenda_item }}</div>
+              <div class="res-text">{{ r.resolution }}</div>
+            </div>
+          </div>
+          <span class="result-pill
+            {% if r.result=='Unanimous' %}pill-unanimous
+            {% elif r.result=='Majority' %}pill-majority
+            {% else %}pill-notpassed{% endif %}">
+            {{ '✅' if r.result=='Unanimous' else '🗳️' if r.result=='Majority' else '❌' }}
+            {{ 'Unanimous' if r.result=='Unanimous' else 'Majority' if r.result=='Majority' else 'Not Passed' }}
+          </span>
+        </div>
+        <div class="sa-chips">
+          <span class="sa-chip chip-s">सूचक: {{ r.suchak }}</span>
+          <span class="sa-chip chip-a">अनुमोदक: {{ r.anumodak }}</span>
+          {% if r.result == 'Majority' %}
+          <span style="font-size:11px;color:var(--muted)">{{ r.votes_for }}F / {{ r.votes_against }}A / {{ r.votes_abstain }}Ab</span>
+          {% endif %}
+        </div>
+        {% if r.notes %}<div style="font-size:11px;color:var(--muted);margin-top:6px">📝 {{ r.notes }}</div>{% endif %}
+        <div class="res-actions">
+          <button class="btn-sm-del" onclick="deleteResolution({{ r.id }})">🗑 Delete</button>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Summary + Generate -->
+  <div class="right-panel">
+
+    <!-- Summary -->
+    <div class="panel-card">
+      <div class="panel-head">📊 Meeting Summary</div>
+      <div class="panel-body">
+        <div class="summary-grid">
+          <div class="sum-card">
+            <div class="sum-num" id="sum-total">{{ resolutions|length }}</div>
+            <div class="sum-lbl">Resolutions</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" style="color:#10B981" id="sum-passed">{{ resolutions|selectattr('result','ne','NotPassed')|list|length }}</div>
+            <div class="sum-lbl">Passed</div>
+          </div>
+        </div>
+
+        <!-- Agenda quick view -->
+        {% if meeting.agenda %}
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;
+                    letter-spacing:.07em;margin-bottom:7px">Agenda</div>
+        <div style="font-size:12px;color:var(--ink);white-space:pre-wrap;line-height:1.7;
+                    background:var(--bg2);border-radius:8px;padding:10px 12px;max-height:150px;overflow-y:auto">
+          {{ meeting.agenda }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Generate Minutes -->
+    <div class="panel-card">
+      <div class="panel-head">🤖 Generate Minutes</div>
+      <div class="panel-body">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          AI will generate formal minutes including all Suchak & Anumodak details in your chosen language.
+        </div>
+        <div class="lang-row">
+          <button class="lang-btn active" id="lang-en" onclick="setLang('English',this)">🇬🇧 English</button>
+          <button class="lang-btn" id="lang-mr" onclick="setLang('Marathi',this)">मरा Marathi</button>
+          <button class="lang-btn" id="lang-hi" onclick="setLang('Hindi',this)">हि Hindi</button>
+        </div>
+        <button class="btn-generate" id="gen-btn" onclick="generateMinutes()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 6v6l4 2"/></svg>
+          Generate Formal Minutes
+        </button>
+        <div id="gen-spinner" style="display:none;text-align:center;padding:14px;font-size:13px;color:var(--teal)">
+          ⏳ Generating minutes… please wait
+        </div>
+      </div>
+    </div>
+
+    <!-- Minutes Preview -->
+    <div class="panel-card" id="minutes-panel" style="display:none">
+      <div class="panel-head" style="justify-content:space-between">
+        📄 Minutes Preview
+        <button onclick="saveMinutes()"
+          style="padding:5px 12px;background:var(--teal);color:#fff;border:none;
+                 border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)">
+          Save to Meeting
+        </button>
+      </div>
+      <div class="panel-body">
+        <textarea class="minutes-box" id="minutes-text"></textarea>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const MTG_ID = {{ meeting.id }};
+let selectedResult = 'Unanimous';
+let selectedLang   = 'English';
+
+/* ── Suchak / Anumodak custom input ──────────────────── */
+document.getElementById('f-suchak').addEventListener('change', function(){
+  document.getElementById('f-suchak-custom').style.display =
+    this.value === '__custom__' ? 'block' : 'none';
+});
+document.getElementById('f-anumodak').addEventListener('change', function(){
+  document.getElementById('f-anumodak-custom').style.display =
+    this.value === '__custom__' ? 'block' : 'none';
+});
+
+function getSuchak(){
+  const sel = document.getElementById('f-suchak').value;
+  return sel === '__custom__' ? document.getElementById('f-suchak-custom').value.trim() : sel;
+}
+function getAnumodak(){
+  const sel = document.getElementById('f-anumodak').value;
+  return sel === '__custom__' ? document.getElementById('f-anumodak-custom').value.trim() : sel;
+}
+
+/* ── Result selector ─────────────────────────────────── */
+function setResult(r, el){
+  selectedResult = r;
+  document.querySelectorAll('.result-opt').forEach(b => b.className = 'result-opt');
+  el.classList.add('sel-' + r.toLowerCase().replace('notpassed','notpassed'));
+  const showCounts = r === 'Majority';
+  ['vc-for','vc-against','vc-abstain'].forEach(id => {
+    document.getElementById(id).classList.toggle('visible', showCounts);
+  });
+}
+
+/* ── Language ────────────────────────────────────────── */
+function setLang(lang, btn){
+  selectedLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+/* ── Save resolution ─────────────────────────────────── */
+async function saveResolution(){
+  const agenda     = document.getElementById('f-agenda').value.trim();
+  const resolution = document.getElementById('f-resolution').value.trim();
+  const suchak     = getSuchak();
+  const anumodak   = getAnumodak();
+  const notes      = document.getElementById('f-notes').value.trim();
+  const editId     = document.getElementById('edit-id').value;
+
+  if(!agenda)     { showToast('⚠️ Please enter the agenda item'); return; }
+  if(!resolution) { showToast('⚠️ Please enter the resolution text'); return; }
+  if(!suchak)     { showToast('⚠️ Please select or enter Suchak'); return; }
+  if(!anumodak)   { showToast('⚠️ Please select or enter Anumodak'); return; }
+  if(suchak === anumodak) { showToast('⚠️ Suchak and Anumodak must be different members'); return; }
+
+  const payload = {
+    id: editId ? parseInt(editId) : null,
+    agenda_item: agenda, resolution, suchak, anumodak,
+    result: selectedResult, notes,
+    votes_for:     parseInt(document.getElementById('f-votes-for').value)||0,
+    votes_against: parseInt(document.getElementById('f-votes-against').value)||0,
+    votes_abstain: parseInt(document.getElementById('f-votes-abstain').value)||0,
+  };
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try{
+    const res  = await fetch(`/agm/${MTG_ID}/resolution/save`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(data.success){
+      showToast('✅ Resolution saved');
+      clearForm();
+      setTimeout(()=>location.reload(), 700);
+    } else {
+      showToast('❌ ' + (data.error||'Failed to save'));
+    }
+  }catch(e){ showToast('❌ Network error'); }
+  btn.disabled = false; btn.textContent = '✅ Save Resolution';
+}
+
+/* ── Delete resolution ───────────────────────────────── */
+async function deleteResolution(rid){
+  if(!confirm('Delete this resolution?')) return;
+  const res  = await fetch(`/agm/resolution/${rid}/delete`, {method:'POST'});
+  const data = await res.json();
+  if(data.success){
+    document.getElementById('rc-'+rid)?.remove();
+    showToast('Deleted');
+    updateSummary();
+  }
+}
+
+/* ── Generate minutes ────────────────────────────────── */
+async function generateMinutes(){
+  const btn  = document.getElementById('gen-btn');
+  const spin = document.getElementById('gen-spinner');
+  btn.style.display  = 'none';
+  spin.style.display = 'block';
+  try{
+    const res  = await fetch(`/agm/${MTG_ID}/physical-minutes`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({language: selectedLang})
+    });
+    const data = await res.json();
+    if(data.success){
+      document.getElementById('minutes-text').value = data.minutes;
+      document.getElementById('minutes-panel').style.display = '';
+      showToast('✅ Minutes generated and saved!');
+    } else {
+      alert('Error: ' + (data.error||'Failed to generate'));
+    }
+  }catch(e){ alert('Network error: '+e.message); }
+  btn.style.display  = '';
+  spin.style.display = 'none';
+}
+
+/* ── Save minutes to meeting ─────────────────────────── */
+async function saveMinutes(){
+  const text = document.getElementById('minutes-text').value.trim();
+  if(!text){ showToast('No minutes to save'); return; }
+  await fetch(`/agm/${MTG_ID}/save-minutes`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({minutes: text, index_kb: false})
+  });
+  showToast('✅ Minutes saved to meeting');
+}
+
+/* ── Helpers ─────────────────────────────────────────── */
+function clearForm(){
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-agenda').value = '';
+  document.getElementById('f-resolution').value = '';
+  document.getElementById('f-suchak').value = '';
+  document.getElementById('f-anumodak').value = '';
+  document.getElementById('f-suchak-custom').style.display = 'none';
+  document.getElementById('f-anumodak-custom').style.display = 'none';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('f-votes-for').value = '0';
+  document.getElementById('f-votes-against').value = '0';
+  document.getElementById('f-votes-abstain').value = '0';
+  setResult('Unanimous', document.querySelector('.result-opt'));
+}
+
+function updateSummary(){
+  const cards = document.querySelectorAll('.res-card');
+  document.getElementById('sum-total').textContent = cards.length;
+  document.getElementById('sum-passed').textContent =
+    [...cards].filter(c => !c.querySelector('.pill-notpassed')).length;
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(t._t); t._t = setTimeout(()=>t.style.opacity='0', 2500);
+}
+</script>
+{% endblock %}

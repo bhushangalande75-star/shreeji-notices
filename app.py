@@ -48,7 +48,9 @@ from database import (save_batch, get_batches, get_batch_notices, update_payment
                       get_agm_votes, get_active_vote, cast_agm_vote,
                       get_vote_results, member_has_voted,
                       get_agm_meetings_for_member,
-                      update_member_role, get_committee_members)
+                      update_member_role, get_committee_members,
+                      save_agm_resolution, update_agm_resolution,
+                      delete_agm_resolution, get_agm_resolutions)
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -656,106 +658,228 @@ def ai_generate_notice():
 @csrf.exempt
 @login_required
 def ai_generate_mom():
-    """Generate MOM in the user's chosen language (English / Marathi / Hindi)."""
+    """Generate MOM — supports: typed notes, handwritten photo, scanned PDF, Suchak/Anumodak."""
     try:
-        meeting_date = request.form.get("meeting_date", date.today().strftime("%d-%m-%Y"))
-        attendees    = request.form.get("attendees", "").strip()
-        language     = request.form.get("language", "English").strip()
-        society_name = session.get("society_name", "Shreeji Iconic CHS Ltd.")
+        meeting_date  = request.form.get("meeting_date", date.today().strftime("%d-%m-%Y"))
+        attendees     = request.form.get("attendees", "").strip()
+        language      = request.form.get("language", "English").strip()
+        meeting_type  = request.form.get("meeting_type", "Managing Committee Meeting").strip()
+        society_name  = session.get("society_name", "Co-operative Housing Society")
+        raw_notes     = request.form.get("raw_notes", "").strip()
+
+        # Parse Suchak/Anumodak resolutions (JSON array from frontend)
+        resolutions_json = request.form.get("resolutions", "[]")
+        try:
+            resolutions = json.loads(resolutions_json)
+        except Exception:
+            resolutions = []
 
         try:
             meeting_date = datetime.strptime(meeting_date, "%Y-%m-%d").strftime("%d-%m-%Y")
-        except:
+        except Exception:
             pass
 
-        # Language-specific prompts for MOM
+        # ── Build resolutions block for the prompt ────────────────────────────
+        def build_resolutions_block(resolutions, language):
+            if not resolutions:
+                return ""
+            lines = []
+            for i, r in enumerate(resolutions, 1):
+                agenda   = r.get("agenda_item", "")
+                res_text = r.get("resolution", "")
+                suchak   = r.get("suchak", "")
+                anumodak = r.get("anumodak", "")
+                result   = r.get("result", "Unanimous")
+                vfor     = r.get("votes_for", 0)
+                vagainst = r.get("votes_against", 0)
+                vnotes   = r.get("notes", "")
+
+                if language == "Marathi":
+                    vote_str = (f"एकमताने मंजूर" if result == "Unanimous"
+                                else f"बहुमताने मंजूर ({vfor} बाजूने, {vagainst} विरोधात)"
+                                if result == "Majority"
+                                else "मंजूर नाही")
+                    lines.append(
+                        f"{i}. अजेंडा: {agenda}\n"
+                        f"   ठराव: {res_text}\n"
+                        f"   सूचक: {suchak} | अनुमोदक: {anumodak}\n"
+                        f"   निकाल: {vote_str}"
+                        + (f"\n   नोंद: {vnotes}" if vnotes else "")
+                    )
+                elif language == "Hindi":
+                    vote_str = (f"सर्वसम्मति से पारित" if result == "Unanimous"
+                                else f"बहुमत से पारित ({vfor} पक्ष में, {vagainst} विरोध में)"
+                                if result == "Majority"
+                                else "पारित नहीं")
+                    lines.append(
+                        f"{i}. एजेंडा: {agenda}\n"
+                        f"   प्रस्ताव: {res_text}\n"
+                        f"   प्रस्तावक (Suchak): {suchak} | अनुमोदक (Anumodak): {anumodak}\n"
+                        f"   परिणाम: {vote_str}"
+                        + (f"\n   नोट: {vnotes}" if vnotes else "")
+                    )
+                else:
+                    vote_str = (f"Passed Unanimously" if result == "Unanimous"
+                                else f"Passed by Majority ({vfor} for, {vagainst} against)"
+                                if result == "Majority"
+                                else "Not Passed")
+                    lines.append(
+                        f"{i}. Agenda Item: {agenda}\n"
+                        f"   Resolution: {res_text}\n"
+                        f"   Proposed by (Suchak): {suchak} | Seconded by (Anumodak): {anumodak}\n"
+                        f"   Result: {vote_str}"
+                        + (f"\n   Notes: {vnotes}" if vnotes else "")
+                    )
+            return "\n\n".join(lines)
+
+        resolutions_block = build_resolutions_block(resolutions, language)
+
+        # ── Language configs ──────────────────────────────────────────────────
+        res_instruction = {
+            "English": (
+                "\n\nIMPORTANT — RESOLUTIONS WITH SUCHAK & ANUMODAK:\n"
+                "For each resolution below, include in the minutes:\n"
+                "- The resolution text\n"
+                "- 'Proposed by (Suchak): [name]'\n"
+                "- 'Seconded by (Anumodak): [name]'\n"
+                "- The result (Unanimously/Majority/Not Passed)\n"
+                f"\n{resolutions_block}"
+            ) if resolutions_block else "",
+            "Marathi": (
+                "\n\nमहत्त्वाचे — सूचक व अनुमोदकांसह ठराव:\n"
+                "खालील प्रत्येक ठरावासाठी इतिवृत्तात नमूद करा:\n"
+                "- ठरावाचा मजकूर\n"
+                "- 'सूचक: [नाव]'\n"
+                "- 'अनुमोदक: [नाव]'\n"
+                "- निकाल (एकमताने/बहुमताने/अमंजूर)\n"
+                f"\n{resolutions_block}"
+            ) if resolutions_block else "",
+            "Hindi": (
+                "\n\nमहत्वपूर्ण — सूचक व अनुमोदक सहित प्रस्ताव:\n"
+                "नीचे दिए गए प्रत्येक प्रस्ताव के लिए कार्यवृत्त में शामिल करें:\n"
+                "- प्रस्ताव का पाठ\n"
+                "- 'प्रस्तावक (Suchak): [नाम]'\n"
+                "- 'अनुमोदक (Anumodak): [नाम]'\n"
+                "- परिणाम (सर्वसम्मति/बहुमत/अस्वीकृत)\n"
+                f"\n{resolutions_block}"
+            ) if resolutions_block else "",
+        }
+
         mom_lang_cfg = {
             "English": {
                 "system": (
                     "You are an experienced secretary of a Co-operative Housing Society in Maharashtra, India. "
-                    "You write fluent, formal Minutes of Meeting in English. "
-                    "Number all decisions. Use proper legal and administrative terminology. "
+                    "You write fluent, formal Minutes of Meeting in English following MCS Act 1960 format. "
+                    "Number all decisions. For each resolution always record the Proposer (Suchak) and "
+                    "Seconder (Anumodak) and the voting result. "
                     "Sections: Members Present, Agenda, Discussion & Decisions (numbered), Action Items."
                 ),
                 "photo_text": (
                     f"This is a handwritten meeting notes photo for {society_name}. "
-                    f"Meeting date: {meeting_date}. "
+                    f"Meeting: {meeting_type}. Date: {meeting_date}. "
                     f"Attendees: {attendees or 'As visible in the notes'}.\n\n"
-                    "Please read all the handwritten content and generate a complete, "
-                    "formal Minutes of Meeting in English. "
+                    "Read all handwritten content and generate complete formal Minutes of Meeting in English. "
+                    "For every resolution record: Proposed by (Suchak), Seconded by (Anumodak), Result. "
                     "Sections: Members Present, Agenda, Discussion & Decisions (numbered), Action Items. "
                     "Output ONLY the MOM content, no preamble."
+                    + res_instruction["English"]
                 ),
                 "text_prompt": (
                     f"Generate formal Minutes of Meeting in English for {society_name}.\n"
-                    f"Meeting date: {meeting_date}\nAttendees: {attendees}\n"
+                    f"Meeting Type: {meeting_type}\nDate: {meeting_date}\nAttendees: {attendees}\n"
                     f"Meeting notes: {{raw_notes}}\n\n"
+                    "For every resolution record: Proposed by (Suchak), Seconded by (Anumodak), Result. "
                     "Sections: Members Present, Agenda, Discussion & Decisions (numbered), Action Items. "
                     "Output ONLY the MOM content."
+                    + res_instruction["English"]
                 ),
             },
             "Marathi": {
                 "system": (
                     "तुम्ही महाराष्ट्रातील एका सहकारी गृहनिर्माण संस्थेचे अनुभवी सचिव आहात. "
-                    "तुम्ही अस्खलित, औपचारिक मराठीत इतिवृत्त (Minutes of Meeting) लिहिता. "
-                    "निर्णय क्रमांकित करा. योग्य मराठी कायदेशीर आणि प्रशासकीय शब्दावली वापरा. "
+                    "तुम्ही MCS Act 1960 नुसार अस्खलित, औपचारिक मराठीत इतिवृत्त लिहिता. "
+                    "प्रत्येक ठरावात सूचक, अनुमोदक आणि निकाल नमूद करा. "
                     "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे."
                 ),
                 "photo_text": (
-                    f"हे {society_name} च्या बैठकीच्या हस्तलिखित नोट्सचा फोटो आहे. "
-                    f"बैठकीची तारीख: {meeting_date}. "
-                    f"उपस्थित सदस्य: {attendees or 'नोट्समध्ये दिसत आहे'}.\n\n"
-                    "कृपया सर्व हस्तलिखित मजकूर वाचा आणि संपूर्ण, औपचारिक मराठी इतिवृत्त तयार करा. "
-                    "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे. "
+                    f"हे {society_name} च्या {meeting_type} च्या हस्तलिखित नोट्सचा फोटो आहे. "
+                    f"बैठकीची तारीख: {meeting_date}. उपस्थित: {attendees or 'नोट्समध्ये दिसत आहे'}.\n\n"
+                    "कृपया सर्व हस्तलिखित मजकूर वाचा आणि संपूर्ण औपचारिक मराठी इतिवृत्त तयार करा. "
+                    "प्रत्येक ठरावात सूचक, अनुमोदक व निकाल नमूद करा. "
                     "फक्त इतिवृत्त मजकूर लिहा, कोणतीही प्रस्तावना नको."
+                    + res_instruction["Marathi"]
                 ),
                 "text_prompt": (
-                    f"{society_name} साठी मराठीत औपचारिक इतिवृत्त तयार करा.\n"
-                    f"बैठकीची तारीख: {meeting_date}\nउपस्थित सदस्य: {attendees}\n"
-                    f"बैठकीच्या नोट्स: {{raw_notes}}\n\n"
-                    "विभाग: उपस्थित सदस्य, अजेंडा, चर्चा व निर्णय (क्रमांकित), कृती मुद्दे. "
+                    f"{society_name} साठी {meeting_type} चे मराठी इतिवृत्त तयार करा.\n"
+                    f"तारीख: {meeting_date}\nउपस्थित: {attendees}\nनोट्स: {{raw_notes}}\n\n"
+                    "प्रत्येक ठरावात सूचक, अनुमोदक व निकाल नमूद करा. "
                     "फक्त इतिवृत्त मजकूर लिहा."
+                    + res_instruction["Marathi"]
                 ),
             },
             "Hindi": {
                 "system": (
                     "आप महाराष्ट्र की एक सहकारी आवास संस्था के अनुभवी सचिव हैं. "
-                    "आप धाराप्रवाह, औपचारिक हिंदी में कार्यवृत्त (Minutes of Meeting) लिखते हैं. "
-                    "सभी निर्णयों को क्रमांकित करें. उचित कानूनी और प्रशासनिक शब्दावली का उपयोग करें. "
+                    "आप MCS Act 1960 के अनुसार धाराप्रवाह औपचारिक हिंदी में कार्यवृत्त लिखते हैं. "
+                    "प्रत्येक प्रस्ताव में प्रस्तावक (Suchak), अनुमोदक (Anumodak) और परिणाम दर्ज करें. "
                     "खंड: उपस्थित सदस्य, एजेंडा, चर्चा और निर्णय (क्रमांकित), कार्य बिंदु."
                 ),
                 "photo_text": (
-                    f"यह {society_name} की बैठक के हस्तलिखित नोट्स का फोटो है. "
-                    f"बैठक की तारीख: {meeting_date}. "
-                    f"उपस्थित सदस्य: {attendees or 'नोट्स में दिखाई दे रहे हैं'}.\n\n"
-                    "कृपया सभी हस्तलिखित सामग्री पढ़ें और पूर्ण, औपचारिक हिंदी कार्यवृत्त तैयार करें. "
-                    "खंड: उपस्थित सदस्य, एजेंडा, चर्चा और निर्णय (क्रमांकित), कार्य बिंदु. "
+                    f"यह {society_name} की {meeting_type} के हस्तलिखित नोट्स का फोटो है. "
+                    f"तारीख: {meeting_date}. उपस्थित: {attendees or 'नोट्स में दिखाई दे रहे हैं'}.\n\n"
+                    "कृपया सभी हस्तलिखित सामग्री पढ़ें और पूर्ण औपचारिक हिंदी कार्यवृत्त तैयार करें. "
+                    "प्रत्येक प्रस्ताव में Suchak, Anumodak और परिणाम दर्ज करें. "
                     "केवल कार्यवृत्त सामग्री लिखें, कोई प्रस्तावना नहीं."
+                    + res_instruction["Hindi"]
                 ),
                 "text_prompt": (
-                    f"{society_name} के लिए हिंदी में औपचारिक कार्यवृत्त तैयार करें.\n"
-                    f"बैठक की तारीख: {meeting_date}\nउपस्थित सदस्य: {attendees}\n"
-                    f"बैठक के नोट्स: {{raw_notes}}\n\n"
-                    "खंड: उपस्थित सदस्य, एजेंडा, चर्चा और निर्णय (क्रमांकित), कार्य बिंदु. "
+                    f"{society_name} के लिए {meeting_type} का हिंदी कार्यवृत्त तैयार करें.\n"
+                    f"तारीख: {meeting_date}\nउपस्थित: {attendees}\nनोट्स: {{raw_notes}}\n\n"
+                    "प्रत्येक प्रस्ताव में Suchak, Anumodak और परिणाम दर्ज करें. "
                     "केवल कार्यवृत्त सामग्री लिखें."
+                    + res_instruction["Hindi"]
                 ),
             },
         }
 
         cfg = mom_lang_cfg.get(language, mom_lang_cfg["English"])
 
-        if "photo" in request.files and request.files["photo"].filename:
-            photo     = request.files["photo"]
-            img_bytes = photo.read()
+        # ── Determine input source: photo / PDF / typed notes ─────────────────
+        photo_file = request.files.get("photo")
+        pdf_file   = request.files.get("pdf")
+
+        if photo_file and photo_file.filename:
+            # Handwritten photo → vision API
+            img_bytes = photo_file.read()
             img_b64   = base64.standard_b64encode(img_bytes).decode()
-            mime      = photo.content_type or "image/jpeg"
+            mime      = photo_file.content_type or "image/jpeg"
             user_content = [
                 {"type": "image", "source": {"type": "base64", "media_type": mime, "data": img_b64}},
                 {"type": "text",  "text": cfg["photo_text"]},
             ]
+
+        elif pdf_file and pdf_file.filename:
+            # PDF upload → extract text with pypdf
+            try:
+                pdf_reader   = PdfReader(io.BytesIO(pdf_file.read()))
+                pdf_text     = "\n\n".join(
+                    page.extract_text() or "" for page in pdf_reader.pages
+                ).strip()
+            except Exception as pdf_err:
+                pdf_text = ""
+
+            if not pdf_text:
+                return jsonify({
+                    "success": False,
+                    "error": "Could not extract text from PDF. It may be a scanned image — "
+                             "please use the 'Upload Photo' option instead."
+                }), 400
+
+            user_content = cfg["text_prompt"].format(raw_notes=pdf_text)
+
         else:
-            raw_notes    = request.form.get("raw_notes", "").strip()
-            user_content = cfg["text_prompt"].format(raw_notes=raw_notes)
+            # Typed / pasted notes
+            user_content = cfg["text_prompt"].format(raw_notes=raw_notes or "(no notes provided)")
 
         mom_text   = call_groq(cfg["system"], user_content)
         docx_bytes = build_mom_docx(mom_text, meeting_date, society_name)
@@ -2994,6 +3118,81 @@ def _transcribe_with_groq(audio_bytes, filename="meeting.webm"):
     return resp.json().get("text", "")
 
 
+def _generate_physical_minutes(meeting, resolutions, attendance, society_name, language="English"):
+    """Generate formal MOM from physical meeting resolutions with Suchak/Anumodak."""
+    present_list = "\n".join(
+        f"  - Flat {a['flat_combo']}: {a['member_name']}" for a in attendance
+    ) or "  (Attendance recorded on physical register)"
+
+    res_lines = []
+    for i, r in enumerate(resolutions, 1):
+        result_str = (
+            "Passed Unanimously" if r["result"] == "Unanimous"
+            else f"Passed by Majority ({r['votes_for']} for, {r['votes_against']} against)"
+            if r["result"] == "Majority"
+            else "Not Passed"
+        )
+        res_lines.append(
+            f"Resolution {i}:\n"
+            f"  Agenda Item : {r['agenda_item']}\n"
+            f"  Resolution  : {r['resolution']}\n"
+            f"  Suchak      : {r['suchak']}\n"
+            f"  Anumodak    : {r['anumodak']}\n"
+            f"  Result      : {result_str}"
+            + (f"\n  Notes       : {r['notes']}" if r.get("notes") else "")
+        )
+
+    lang_systems = {
+        "English": (
+            "You are an expert secretary of a Co-operative Housing Society in Maharashtra, India. "
+            "Generate formal Minutes of Meeting in English strictly following the Maharashtra CHS format "
+            "under the MCS Act 1960. For every resolution, prominently include the Suchak (Proposer) "
+            "and Anumodak (Seconder) names and the exact voting result. Use formal English."
+        ),
+        "Marathi": (
+            "तुम्ही महाराष्ट्र सहकारी संस्था अधिनियम, १९६० अंतर्गत आवश्यक असलेल्या औपचारिक "
+            "इतिवृत्त स्वरूपात लिहिणारे तज्ञ सचिव आहात. प्रत्येक ठरावात सूचक व अनुमोदक यांची "
+            "नावे आणि मतदानाचा निकाल ठळकपणे नमूद करा."
+        ),
+        "Hindi": (
+            "आप महाराष्ट्र सहकारी समिति अधिनियम, 1960 के तहत औपचारिक कार्यवृत्त लिखने वाले "
+            "विशेषज्ञ सचिव हैं. प्रत्येक प्रस्ताव में सूचक और अनुमोदक के नाम तथा मतदान परिणाम "
+            "स्पष्ट रूप से दर्ज करें."
+        ),
+    }
+
+    user = f"""
+Society: {society_name}
+Meeting Type: {meeting['meeting_type']}
+Meeting Title: {meeting['title']}
+Date & Time: {meeting['scheduled_at']}
+Mode: Physical Meeting
+
+Agenda:
+{meeting.get('agenda') or 'As discussed in the meeting'}
+
+Members Present:
+{present_list}
+
+Quorum Required: {meeting.get('quorum_required') or 'Not specified'}
+
+RESOLUTIONS WITH SUCHAK & ANUMODAK:
+{chr(10).join(res_lines) if res_lines else 'No formal resolutions recorded.'}
+
+Generate complete formal Minutes of Meeting in {language}. Include:
+1. Header with society name
+2. Meeting details (type, date, time, mode: Physical Meeting)
+3. Attendance and quorum confirmation
+4. All agenda items discussed
+5. Each resolution with SUCHAK (Proposer) and ANUMODAK (Seconder) clearly labeled
+6. Voting results for each resolution
+7. Any other business
+8. Next meeting date (placeholder)
+9. Signature blocks for Chairman and Secretary
+"""
+    return call_groq(lang_systems.get(language, lang_systems["English"]), user)
+
+
 def _generate_agm_minutes(meeting, attendance, votes, transcript):
     """Generate formal MOM using Groq LLaMA (uses existing NOTICE_API_KEY)."""
     present_list = "\n".join(
@@ -3233,7 +3432,85 @@ def agm_save_minutes_route(mid):
     return jsonify({"success": True})
 
 
-# ── Member portal routes (portal_required) ────────────────────────────────────
+# ── Physical Meeting — Suchak/Anumodak Resolution Capture ────────────────────
+
+@app.route("/agm/<int:mid>/physical")
+@society_required
+def agm_physical(mid):
+    """Secretary tool: capture resolutions with Suchak + Anumodak for physical meetings."""
+    meeting     = get_agm_meeting(mid, session["society_id"])
+    if not meeting:
+        return redirect(url_for("agm_list"))
+    resolutions = get_agm_resolutions(mid)
+    committee   = get_committee_members(session["society_id"])
+    return render_template("agm_physical.html",
+                           meeting=meeting,
+                           resolutions=resolutions,
+                           committee=committee,
+                           society_name=session["society_name"])
+
+
+@app.route("/agm/<int:mid>/resolution/save", methods=["POST"])
+@csrf.exempt
+@society_required
+def agm_resolution_save(mid):
+    """Save a single resolution (insert or update)."""
+    meeting = get_agm_meeting(mid, session["society_id"])
+    if not meeting:
+        return jsonify({"success": False}), 404
+    d = request.get_json() or {}
+    rid = d.get("id")
+    kwargs = dict(
+        agenda_item    = d.get("agenda_item", "").strip(),
+        resolution     = d.get("resolution", "").strip(),
+        suchak         = d.get("suchak", "").strip(),
+        anumodak       = d.get("anumodak", "").strip(),
+        result         = d.get("result", "Unanimous"),
+        votes_for      = int(d.get("votes_for") or 0),
+        votes_against  = int(d.get("votes_against") or 0),
+        votes_abstain  = int(d.get("votes_abstain") or 0),
+        notes          = d.get("notes", "").strip(),
+    )
+    if not kwargs["resolution"] or not kwargs["suchak"] or not kwargs["anumodak"]:
+        return jsonify({"success": False, "error": "Resolution, Suchak and Anumodak are required"}), 400
+    if rid:
+        update_agm_resolution(rid, **kwargs)
+        return jsonify({"success": True, "id": rid})
+    else:
+        seq = len(get_agm_resolutions(mid)) + 1
+        new_id = save_agm_resolution(mid, seq=seq, **kwargs)
+        return jsonify({"success": True, "id": new_id})
+
+
+@app.route("/agm/resolution/<int:rid>/delete", methods=["POST"])
+@csrf.exempt
+@society_required
+def agm_resolution_delete(rid):
+    delete_agm_resolution(rid)
+    return jsonify({"success": True})
+
+
+@app.route("/agm/<int:mid>/physical-minutes", methods=["POST"])
+@csrf.exempt
+@society_required
+def agm_physical_minutes(mid):
+    """Generate formal MOM from physical meeting resolutions using Groq LLaMA."""
+    meeting     = get_agm_meeting(mid, session["society_id"])
+    if not meeting:
+        return jsonify({"success": False, "error": "Meeting not found"}), 404
+    resolutions = get_agm_resolutions(mid)
+    attendance  = get_agm_attendance(mid)
+    language    = (request.get_json() or {}).get("language", "English")
+    try:
+        minutes = _generate_physical_minutes(meeting, resolutions, attendance,
+                                             session["society_name"], language)
+        save_agm_minutes(mid, minutes)
+        return jsonify({"success": True, "minutes": minutes})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)[:200]}), 500
+
+
+# ── Member portal AGM routes (portal_required) ────────────────────────────────
 
 @app.route("/portal/agm")
 @portal_required

@@ -1353,6 +1353,24 @@ def init_agm_tables():
         ALTER TABLE society_members
         ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL;
     """)
+    # Resolutions captured during physical meetings (Suchak + Anumodak)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agm_resolutions (
+            id            SERIAL PRIMARY KEY,
+            meeting_id    INTEGER REFERENCES agm_meetings(id) ON DELETE CASCADE,
+            agenda_item   TEXT NOT NULL,
+            resolution    TEXT NOT NULL,
+            suchak        TEXT NOT NULL,
+            anumodak      TEXT NOT NULL,
+            result        TEXT NOT NULL DEFAULT 'Unanimous',
+            votes_for     INTEGER DEFAULT 0,
+            votes_against INTEGER DEFAULT 0,
+            votes_abstain INTEGER DEFAULT 0,
+            notes         TEXT DEFAULT '',
+            seq           INTEGER DEFAULT 1,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
     conn.commit(); cur.close(); conn.close()
 
 try:
@@ -1657,3 +1675,49 @@ def member_has_voted(vote_id, flat_combo):
     )
     row = cur.fetchone(); cur.close(); conn.close()
     return row is not None
+
+
+# ── Physical Meeting Resolutions (Suchak / Anumodak) ──────────────────────────
+
+def save_agm_resolution(meeting_id, agenda_item, resolution, suchak, anumodak,
+                        result, votes_for=0, votes_against=0, votes_abstain=0,
+                        notes='', seq=1):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO agm_resolutions
+          (meeting_id, agenda_item, resolution, suchak, anumodak,
+           result, votes_for, votes_against, votes_abstain, notes, seq)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+    """, (meeting_id, agenda_item, resolution, suchak, anumodak,
+          result, votes_for, votes_against, votes_abstain, notes, seq))
+    rid = cur.fetchone()["id"]; conn.commit(); cur.close(); conn.close()
+    return rid
+
+
+def update_agm_resolution(resolution_id, agenda_item, resolution, suchak, anumodak,
+                           result, votes_for=0, votes_against=0, votes_abstain=0, notes=''):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        UPDATE agm_resolutions SET
+          agenda_item=%s, resolution=%s, suchak=%s, anumodak=%s,
+          result=%s, votes_for=%s, votes_against=%s, votes_abstain=%s, notes=%s
+        WHERE id=%s
+    """, (agenda_item, resolution, suchak, anumodak,
+          result, votes_for, votes_against, votes_abstain, notes, resolution_id))
+    conn.commit(); cur.close(); conn.close()
+
+
+def delete_agm_resolution(resolution_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("DELETE FROM agm_resolutions WHERE id=%s", (resolution_id,))
+    conn.commit(); cur.close(); conn.close()
+
+
+def get_agm_resolutions(meeting_id):
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM agm_resolutions
+        WHERE meeting_id=%s ORDER BY seq, created_at
+    """, (meeting_id,))
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return [dict(r) for r in rows]

@@ -119,8 +119,18 @@
   <div style="flex:1"></div>
   {% if meeting.status == 'scheduled' %}
   <button class="btn-action btn-start" onclick="startMeeting()">🟢 Start Meeting</button>
+  <a href="/agm/{{ meeting.id }}/physical" class="btn-action"
+     style="background:rgba(99,102,241,.1);color:#4338CA;border:1px solid rgba(99,102,241,.3);
+            text-decoration:none;display:inline-flex;align-items:center;gap:5px;">
+    📋 Physical Meeting
+  </a>
   {% elif meeting.status == 'live' %}
   <button class="btn-action btn-end" onclick="endMeeting()">⏹ End Meeting</button>
+  <a href="/agm/{{ meeting.id }}/physical" class="btn-action"
+     style="background:rgba(99,102,241,.1);color:#4338CA;border:1px solid rgba(99,102,241,.3);
+            text-decoration:none;display:inline-flex;align-items:center;gap:5px;">
+    📋 Physical Meeting
+  </a>
   {% endif %}
 </div>
 
