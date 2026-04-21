@@ -1353,6 +1353,16 @@ def init_agm_tables():
         ALTER TABLE society_members
         ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL;
     """)
+    # Add meeting_mode column (virtual | physical) — safe if already exists
+    cur.execute("""
+        ALTER TABLE agm_meetings
+        ADD COLUMN IF NOT EXISTS meeting_mode TEXT DEFAULT 'virtual';
+    """)
+    # Add transcript column for physical meetings (audio upload)
+    cur.execute("""
+        ALTER TABLE agm_meetings
+        ADD COLUMN IF NOT EXISTS physical_transcript TEXT DEFAULT '';
+    """)
     # Resolutions captured during physical meetings (Suchak + Anumodak)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS agm_resolutions (
@@ -1379,16 +1389,16 @@ except Exception as e:
     print(f"[WARN] AGM tables init skipped: {e}")
 
 
-def create_agm_meeting(society_id, title, meeting_type, scheduled_at, agenda, quorum_required=0):
+def create_agm_meeting(society_id, title, meeting_type, scheduled_at, agenda, quorum_required=0, meeting_mode="virtual"):
     conn = get_db(); cur = conn.cursor()
     room = f"snpro-{_uuid.uuid4().hex[:16]}"
     cur.execute("""
         INSERT INTO agm_meetings
-          (society_id, title, meeting_type, scheduled_at, agenda, jitsi_room, quorum_required)
-        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id, jitsi_room
-    """, (society_id, title, meeting_type, scheduled_at, agenda, room, quorum_required))
+          (society_id, title, meeting_type, scheduled_at, agenda, jitsi_room, quorum_required, meeting_mode)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, jitsi_room, meeting_mode
+    """, (society_id, title, meeting_type, scheduled_at, agenda, room, quorum_required, meeting_mode))
     row = cur.fetchone(); conn.commit(); cur.close(); conn.close()
-    return {"id": row["id"], "jitsi_room": row["jitsi_room"]}
+    return {"id": row["id"], "jitsi_room": row["jitsi_room"], "meeting_mode": row["meeting_mode"]}
 
 
 def get_agm_meetings(society_id):

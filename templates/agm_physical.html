@@ -83,6 +83,34 @@ textarea.form-inp{resize:vertical;min-height:80px;line-height:1.5}
   border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)}
 .btn-sm-del:hover{background:#FEE2E2}
 
+
+/* ── Audio/Video Upload Panel ──────────────────────────── */
+.upload-panel{background:var(--surface);border:1.5px dashed var(--teal);border-radius:14px;
+  padding:18px 20px;margin-bottom:16px}
+.upload-panel-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:12px;
+  display:flex;align-items:center;gap:7px}
+.upload-drop-area{background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;
+  padding:20px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.upload-drop-area:hover,.upload-drop-area.drag-over{border-color:var(--teal);background:rgba(10,191,163,.05)}
+.upload-drop-icon{font-size:28px;margin-bottom:6px}
+.upload-drop-text{font-size:12px;color:var(--muted);line-height:1.6}
+.upload-drop-text strong{color:var(--ink);font-weight:600}
+#upload-file-input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-filename{font-size:12px;color:var(--teal);font-weight:600;margin-top:8px;display:none}
+.upload-progress{background:var(--bg2);border-radius:20px;height:6px;margin-top:12px;overflow:hidden;display:none}
+.upload-progress-bar{height:100%;background:linear-gradient(90deg,var(--teal),var(--teal2));
+  border-radius:20px;width:0%;transition:width .3s}
+.btn-upload{width:100%;margin-top:10px;padding:10px;background:var(--teal);color:#fff;border:none;
+  border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);
+  display:flex;align-items:center;justify-content:center;gap:7px;transition:all .15s}
+.btn-upload:hover{opacity:.9}
+.btn-upload:disabled{background:var(--faint);cursor:not-allowed}
+.transcript-area{width:100%;min-height:100px;border:1px solid var(--border);border-radius:9px;
+  padding:10px 12px;font-size:12px;font-family:var(--font);color:var(--ink);
+  background:var(--surface2);resize:vertical;outline:none;line-height:1.7;margin-top:10px;display:none}
+.transcript-area:focus{border-color:var(--teal)}
+.transcript-status{font-size:11px;color:var(--muted);margin-top:6px;display:none}
+
 /* ── Right Panel ──────────────────────────────────────── */
 .right-panel{display:flex;flex-direction:column;gap:14px;position:sticky;top:74px}
 .panel-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
@@ -305,6 +333,43 @@ textarea.form-inp{resize:vertical;min-height:80px;line-height:1.5}
   <!-- RIGHT: Summary + Generate -->
   <div class="right-panel">
 
+
+    <!-- Audio / Video Upload for Minutes -->
+    <div class="upload-panel">
+      <div class="upload-panel-title">
+        🎙️ Upload Meeting Recording
+        <span style="font-size:10px;font-weight:500;color:var(--muted);margin-left:4px">(optional — for AI transcript)</span>
+      </div>
+
+      <div class="upload-drop-area" id="drop-area" onclick="document.getElementById('upload-file-input').click()">
+        <input type="file" id="upload-file-input" accept="audio/*,video/mp4,.mp3,.mp4,.m4a,.wav,.webm,.ogg,.flac"
+               onchange="onFileSelected(this)">
+        <div class="upload-drop-icon">🎬</div>
+        <div class="upload-drop-text">
+          <strong>Click or drag & drop</strong><br>
+          MP3, MP4, M4A, WAV, WEBM, OGG · Max 25 MB
+        </div>
+        <div class="upload-filename" id="upload-filename"></div>
+      </div>
+
+      <div class="upload-progress" id="upload-progress">
+        <div class="upload-progress-bar" id="upload-bar"></div>
+      </div>
+
+      <button class="btn-upload" id="btn-upload" onclick="uploadAudio()" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+        </svg>
+        Transcribe with Groq Whisper
+      </button>
+
+      <!-- Transcript output -->
+      <textarea class="transcript-area" id="upload-transcript"
+                placeholder="Transcription will appear here. You can edit it before generating minutes…"></textarea>
+      <div class="transcript-status" id="transcript-status"></div>
+    </div>
+
     <!-- Summary -->
     <div class="panel-card">
       <div class="panel-head">📊 Meeting Summary</div>
@@ -478,10 +543,12 @@ async function generateMinutes(){
   const spin = document.getElementById('gen-spinner');
   btn.style.display  = 'none';
   spin.style.display = 'block';
+  // Include any uploaded transcript in the request
+  const transcript = document.getElementById('upload-transcript').value.trim();
   try{
     const res  = await fetch(`/agm/${MTG_ID}/physical-minutes`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({language: selectedLang})
+      body: JSON.stringify({language: selectedLang, transcript: transcript || null})
     });
     const data = await res.json();
     if(data.success){
@@ -494,6 +561,87 @@ async function generateMinutes(){
   }catch(e){ alert('Network error: '+e.message); }
   btn.style.display  = '';
   spin.style.display = 'none';
+}
+
+/* ── Upload & Transcribe ─────────────────────────────── */
+let uploadedFile = null;
+
+function onFileSelected(input){
+  if(!input.files || !input.files[0]) return;
+  uploadedFile = input.files[0];
+  const nameEl = document.getElementById('upload-filename');
+  nameEl.textContent = '📎 ' + uploadedFile.name + ' (' + (uploadedFile.size/1024/1024).toFixed(1) + ' MB)';
+  nameEl.style.display = 'block';
+  document.getElementById('btn-upload').disabled = false;
+  // Drag-over styling reset
+  document.getElementById('drop-area').classList.remove('drag-over');
+}
+
+// Drag & Drop support
+document.addEventListener('DOMContentLoaded', () => {
+  const drop = document.getElementById('drop-area');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if(file){ uploadedFile = file; onFileSelected({files:[file]}); }
+  });
+});
+
+async function uploadAudio(){
+  if(!uploadedFile){ showToast('⚠️ Please select a file first'); return; }
+
+  const btn  = document.getElementById('btn-upload');
+  const prog = document.getElementById('upload-progress');
+  const bar  = document.getElementById('upload-bar');
+  const stat = document.getElementById('transcript-status');
+  const ta   = document.getElementById('upload-transcript');
+
+  btn.disabled  = true;
+  btn.innerHTML = '⏳ Transcribing… please wait';
+  prog.style.display = 'block';
+
+  // Animate progress bar while waiting
+  let pct = 0;
+  const ticker = setInterval(() => {
+    pct = Math.min(pct + 2, 88);
+    bar.style.width = pct + '%';
+  }, 400);
+
+  const fd = new FormData();
+  fd.append('audio', uploadedFile, uploadedFile.name);
+
+  try{
+    const res  = await fetch(`/agm/${MTG_ID}/physical-transcribe`, {
+      method: 'POST', body: fd
+    });
+    const data = await res.json();
+    clearInterval(ticker);
+    bar.style.width = '100%';
+
+    if(data.success){
+      ta.value = data.transcript;
+      ta.style.display = 'block';
+      stat.textContent = '✅ Transcription complete — review & edit before generating minutes.';
+      stat.style.display = 'block';
+      stat.style.color = 'var(--teal)';
+      showToast('✅ Audio transcribed!');
+    } else {
+      stat.textContent = '❌ ' + (data.error || 'Transcription failed');
+      stat.style.display = 'block';
+      stat.style.color = '#EF4444';
+    }
+  } catch(e){
+    clearInterval(ticker);
+    stat.textContent = '❌ Network error: ' + e.message;
+    stat.style.display = 'block';
+    stat.style.color = '#EF4444';
+  }
+
+  setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+  btn.disabled  = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg> Transcribe Again';
 }
 
 /* ── Save minutes to meeting ─────────────────────────── */

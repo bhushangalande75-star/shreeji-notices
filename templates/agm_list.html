@@ -55,6 +55,17 @@
 textarea.form-input{resize:vertical;min-height:80px}
 .form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+.mode-toggle-row{display:flex;gap:8px;margin-bottom:18px}
+.mode-btn{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;
+  font-size:12px;font-weight:600;color:var(--ink3);cursor:pointer;background:var(--surface2);
+  font-family:var(--font);transition:all .15s}
+.mode-btn:hover{border-color:var(--teal);color:var(--teal)}
+.mode-btn.active{border-color:var(--teal);background:rgba(10,191,163,.1);color:var(--teal)}
+.mode-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;
+  font-size:10px;font-weight:700}
+.badge-virtual{background:rgba(10,191,163,.1);color:var(--teal2)}
+.badge-physical{background:rgba(99,102,241,.12);color:#4338CA}
 .btn-cancel{padding:9px 18px;border:1px solid var(--border);border-radius:9px;background:transparent;
   color:var(--ink3);font-size:13px;cursor:pointer;font-family:var(--font)}
 .btn-save{padding:9px 18px;border:none;border-radius:9px;background:var(--teal);color:#fff;
@@ -62,7 +73,7 @@ textarea.form-input{resize:vertical;min-height:80px}
 </style>
 
 <div class="agm-header">
-  <div class="agm-title">🏛️ Virtual Meetings</div>
+  <div class="agm-title">🏛️ Meetings</div>
   <button class="btn-create" onclick="openModal()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Schedule Meeting
@@ -86,6 +97,9 @@ textarea.form-input{resize:vertical;min-height:80px}
     <div class="meeting-info">
       <div class="meeting-name">{{ m.title }}</div>
       <div class="meeting-meta">
+        <span class="mode-badge {% if m.meeting_mode == 'physical' %}badge-physical{% else %}badge-virtual{% endif %}">
+          {% if m.meeting_mode == 'physical' %}🏛️ Physical{% else %}🎥 Virtual{% endif %}
+        </span>
         <span>{{ m.meeting_type }}</span>
         <span>·</span>
         <span>{{ m.scheduled_at.strftime('%d %b %Y, %I:%M %p') }}</span>
@@ -113,7 +127,18 @@ textarea.form-input{resize:vertical;min-height:80px}
 <!-- Create Meeting Modal -->
 <div class="modal-overlay" id="createModal">
   <div class="modal-box">
-    <div class="modal-title">Schedule Virtual Meeting</div>
+    <div class="modal-title" id="modal-title">Schedule Meeting</div>
+
+    <!-- Meeting Mode Toggle -->
+    <div class="mode-toggle-row">
+      <button class="mode-btn active" id="mode-virtual" onclick="setMode('virtual',this)">
+        🎥 Virtual (Jitsi)
+      </button>
+      <button class="mode-btn" id="mode-physical" onclick="setMode('physical',this)">
+        🏛️ Physical (In-Person)
+      </button>
+    </div>
+    <input type="hidden" id="f-mode" value="virtual">
     <div class="form-row">
       <label class="form-label">Meeting Title</label>
       <input type="text" class="form-input" id="f-title" placeholder="e.g. Annual General Body Meeting 2024-25">
@@ -152,9 +177,18 @@ function openModal(){document.getElementById('createModal').classList.add('open'
 function closeModal(){document.getElementById('createModal').classList.remove('open')}
 document.getElementById('createModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()})
 
+function setMode(mode, btn){
+  document.getElementById('f-mode').value = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('modal-title').textContent =
+    mode === 'physical' ? 'Schedule Physical Meeting' : 'Schedule Virtual Meeting';
+}
+
 async function createMeeting(){
   const title=document.getElementById('f-title').value.trim()
   const dt=document.getElementById('f-datetime').value
+  const mode=document.getElementById('f-mode').value
   if(!title||!dt){alert('Please fill in title and date/time');return}
   try{
     const res=await fetch('/agm/create',{
@@ -165,12 +199,16 @@ async function createMeeting(){
         meeting_type:document.getElementById('f-type').value,
         scheduled_at:dt,
         agenda:document.getElementById('f-agenda').value,
-        quorum_required:document.getElementById('f-quorum').value||0
+        quorum_required:document.getElementById('f-quorum').value||0,
+        meeting_mode:mode
       })
     })
     const data=await res.json()
-    if(data.success)window.location.href='/agm/'+data.id
-    else alert(data.error||'Failed to create meeting')
+    if(data.success){
+      // Physical meetings go straight to the capture page
+      if(mode === 'physical') window.location.href = '/agm/' + data.id + '/physical'
+      else window.location.href = '/agm/' + data.id
+    } else alert(data.error||'Failed to create meeting')
   }catch(e){
     alert('Network error — could not create meeting. Please try again.')
   }

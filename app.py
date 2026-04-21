@@ -3118,7 +3118,7 @@ def _transcribe_with_groq(audio_bytes, filename="meeting.webm"):
     return resp.json().get("text", "")
 
 
-def _generate_physical_minutes(meeting, resolutions, attendance, society_name, language="English"):
+def _generate_physical_minutes(meeting, resolutions, attendance, society_name, language="English", transcript=None):
     """Generate formal MOM from physical meeting resolutions with Suchak/Anumodak."""
     present_list = "\n".join(
         f"  - Flat {a['flat_combo']}: {a['member_name']}" for a in attendance
@@ -3178,6 +3178,8 @@ Quorum Required: {meeting.get('quorum_required') or 'Not specified'}
 
 RESOLUTIONS WITH SUCHAK & ANUMODAK:
 {chr(10).join(res_lines) if res_lines else 'No formal resolutions recorded.'}
+
+{f"MEETING NOTES / AUDIO TRANSCRIPT:\n{transcript[:3000]}" if transcript else ""}
 
 Generate complete formal Minutes of Meeting in {language}. Include:
 1. Header with society name
@@ -3262,10 +3264,11 @@ def agm_create():
     scheduled_at = request.form.get("scheduled_at", "")
     agenda       = request.form.get("agenda", "").strip()
     quorum       = int(request.form.get("quorum_required") or 0)
+    meeting_mode = request.form.get("meeting_mode", "virtual")  # 'virtual' or 'physical'
     if not title or not scheduled_at:
         return jsonify({"success": False, "error": "Title and date required"}), 400
-    result = create_agm_meeting(session["society_id"], title, meeting_type, scheduled_at, agenda, quorum)
-    return jsonify({"success": True, "id": result["id"]})
+    result = create_agm_meeting(session["society_id"], title, meeting_type, scheduled_at, agenda, quorum, meeting_mode)
+    return jsonify({"success": True, "id": result["id"], "meeting_mode": result["meeting_mode"]})
 
 
 @app.route("/agm/<int:mid>")
@@ -3500,15 +3503,81 @@ def agm_physical_minutes(mid):
         return jsonify({"success": False, "error": "Meeting not found"}), 404
     resolutions = get_agm_resolutions(mid)
     attendance  = get_agm_attendance(mid)
-    language    = (request.get_json() or {}).get("language", "English")
+    body        = request.get_json() or {}
+    language    = body.get("language", "English")
+    # Optional transcript from audio upload — overrides stored physical_transcript
+    transcript  = body.get("transcript") or meeting.get("physical_transcript") or None
     try:
         minutes = _generate_physical_minutes(meeting, resolutions, attendance,
-                                             session["society_name"], language)
+                                             session["society_name"], language, transcript)
         save_agm_minutes(mid, minutes)
         return jsonify({"success": True, "minutes": minutes})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)[:200]}), 500
 
+
+
+
+@app.route("/agm/<int:mid>/physical-transcribe", methods=["POST"])
+@csrf.exempt
+@society_required
+def agm_physical_transcribe(mid):
+    """
+    Upload an audio/video file from a physical meeting recording.
+    Transcribes via Groq Whisper and stores as physical_transcript.
+    Supports: mp3, mp4, m4a, wav, webm, ogg, flac (max ~25 MB per Groq limit).
+    """
+    meeting = get_agm_meeting(mid, session["society_id"])
+    if not meeting:
+        return jsonify({"success": False, "error": "Meeting not found"}), 404
+    if "audio" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    audio_file  = request.files["audio"]
+    audio_bytes = audio_file.read()
+    filename    = audio_file.filename or "meeting.mp3"
+
+    if len(audio_bytes) < 1000:
+        return jsonify({"success": False, "error": "File too small or empty"}), 400
+    if len(audio_bytes) > 25 * 1024 * 1024:
+        return jsonify({"success": False, "error": "File too large — Groq Whisper max is 25 MB"}), 400
+
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "mp3"
+    mime_map = {
+        "mp3":  "audio/mpeg",   "mp4":  "video/mp4",
+        "m4a":  "audio/mp4",    "wav":  "audio/wav",
+        "webm": "audio/webm",   "ogg":  "audio/ogg",
+        "flac": "audio/flac",   "mpeg": "audio/mpeg",
+    }
+    mime = mime_map.get(ext, "audio/mpeg")
+
+    if not GROQ_API_KEY:
+        return jsonify({"success": False, "error": "NOTICE_API_KEY not set in environment"}), 500
+
+    try:
+        resp = http_requests.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            files={"file": (filename, io.BytesIO(audio_bytes), mime)},
+            data={"model": "whisper-large-v3", "response_format": "json"},
+            timeout=180
+        )
+        resp.raise_for_status()
+        transcript = resp.json().get("text", "").strip()
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Transcription failed: {str(e)[:200]}"}), 500
+
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute(
+            "UPDATE agm_meetings SET physical_transcript=%s WHERE id=%s",
+            (transcript, mid)
+        )
+        conn.commit(); cur.close(); conn.close()
+    except Exception:
+        pass
+
+    return jsonify({"success": True, "transcript": transcript})
 
 # ── Member portal AGM routes (portal_required) ────────────────────────────────
 
