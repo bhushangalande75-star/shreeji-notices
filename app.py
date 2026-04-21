@@ -3161,6 +3161,10 @@ def _generate_physical_minutes(meeting, resolutions, attendance, society_name, l
         ),
     }
 
+    transcript_block = (
+        "MEETING NOTES / AUDIO TRANSCRIPT:\n" + transcript[:3000]
+    ) if transcript else ""
+
     user = f"""
 Society: {society_name}
 Meeting Type: {meeting['meeting_type']}
@@ -3179,7 +3183,7 @@ Quorum Required: {meeting.get('quorum_required') or 'Not specified'}
 RESOLUTIONS WITH SUCHAK & ANUMODAK:
 {chr(10).join(res_lines) if res_lines else 'No formal resolutions recorded.'}
 
-{f"MEETING NOTES / AUDIO TRANSCRIPT:\n{transcript[:3000]}" if transcript else ""}
+{transcript_block}
 
 Generate complete formal Minutes of Meeting in {language}. Include:
 1. Header with society name
