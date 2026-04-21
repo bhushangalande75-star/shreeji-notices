@@ -1392,13 +1392,23 @@ except Exception as e:
 def create_agm_meeting(society_id, title, meeting_type, scheduled_at, agenda, quorum_required=0, meeting_mode="virtual"):
     conn = get_db(); cur = conn.cursor()
     room = f"snpro-{_uuid.uuid4().hex[:16]}"
-    cur.execute("""
-        INSERT INTO agm_meetings
-          (society_id, title, meeting_type, scheduled_at, agenda, jitsi_room, quorum_required, meeting_mode)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, jitsi_room, meeting_mode
-    """, (society_id, title, meeting_type, scheduled_at, agenda, room, quorum_required, meeting_mode))
+    # Try with meeting_mode column first; fall back if column doesn't exist yet
+    try:
+        cur.execute("""
+            INSERT INTO agm_meetings
+              (society_id, title, meeting_type, scheduled_at, agenda, jitsi_room, quorum_required, meeting_mode)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, jitsi_room
+        """, (society_id, title, meeting_type, scheduled_at, agenda, room, quorum_required, meeting_mode))
+    except Exception:
+        conn.rollback()
+        # Column doesn't exist yet — insert without it
+        cur.execute("""
+            INSERT INTO agm_meetings
+              (society_id, title, meeting_type, scheduled_at, agenda, jitsi_room, quorum_required)
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id, jitsi_room
+        """, (society_id, title, meeting_type, scheduled_at, agenda, room, quorum_required))
     row = cur.fetchone(); conn.commit(); cur.close(); conn.close()
-    return {"id": row["id"], "jitsi_room": row["jitsi_room"], "meeting_mode": row["meeting_mode"]}
+    return {"id": row["id"], "jitsi_room": row["jitsi_room"], "meeting_mode": meeting_mode}
 
 
 def get_agm_meetings(society_id):

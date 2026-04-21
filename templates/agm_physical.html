@@ -211,11 +211,24 @@ textarea.form-inp{resize:vertical;min-height:80px;line-height:1.5}
           <label class="form-label">सूचक · Suchak (Proposer) <span class="required">*</span></label>
           <select class="form-inp form-select" id="f-suchak">
             <option value="">— Select Member —</option>
+            {% if committee %}
+            <optgroup label="🏛️ Committee Members">
             {% for m in committee %}
             <option value="{{ m.name }}{% if m.role %} ({{ m.role }}){% endif %}">
-              {{ m.name }}{% if m.role %} · {{ m.role }}{% endif %} — {{ m.flat_combo }}
+              {{ m.name }} · {{ m.role or 'Committee' }} — {{ m.flat_combo }}
             </option>
             {% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if other_members %}
+            <optgroup label="👥 Other Members">
+            {% for m in other_members %}
+            <option value="{{ m.name }}">
+              {{ m.name }} — {{ m.flat_combo }}
+            </option>
+            {% endfor %}
+            </optgroup>
+            {% endif %}
             <optgroup label="──────────────">
               <option value="__custom__">✏️ Type manually…</option>
             </optgroup>
@@ -229,11 +242,24 @@ textarea.form-inp{resize:vertical;min-height:80px;line-height:1.5}
           <label class="form-label">अनुमोदक · Anumodak (Seconder) <span class="required">*</span></label>
           <select class="form-inp form-select" id="f-anumodak">
             <option value="">— Select Member —</option>
+            {% if committee %}
+            <optgroup label="🏛️ Committee Members">
             {% for m in committee %}
             <option value="{{ m.name }}{% if m.role %} ({{ m.role }}){% endif %}">
-              {{ m.name }}{% if m.role %} · {{ m.role }}{% endif %} — {{ m.flat_combo }}
+              {{ m.name }} · {{ m.role or 'Committee' }} — {{ m.flat_combo }}
             </option>
             {% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if other_members %}
+            <optgroup label="👥 Other Members">
+            {% for m in other_members %}
+            <option value="{{ m.name }}">
+              {{ m.name }} — {{ m.flat_combo }}
+            </option>
+            {% endfor %}
+            </optgroup>
+            {% endif %}
             <optgroup label="──────────────">
               <option value="__custom__">✏️ Type manually…</option>
             </optgroup>

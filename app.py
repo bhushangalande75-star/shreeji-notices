@@ -74,7 +74,8 @@ CSRF_EXEMPT_PREFIXES = ("/portal/chat", "/portal/tickets/create",
                         "/portal/announcements/create", "/portal/announcements/delete",
                         "/ai-notices/generate", "/ai-notices/download",
                         "/ai-notices/generate-notice", "/ai-notices/generate-mom",
-                        "/ai-notices/generate-committee", "/ai-notices/generate-noc")
+                        "/ai-notices/generate-committee", "/ai-notices/generate-noc",
+                        "/agm/")
 
 @app.before_request
 def maybe_exempt_csrf():
@@ -3261,6 +3262,7 @@ def agm_list():
 
 
 @app.route("/agm/create", methods=["POST"])
+@csrf.exempt
 @login_required
 def agm_create():
     title        = request.form.get("title", "").strip()
@@ -3449,11 +3451,18 @@ def agm_physical(mid):
     if not meeting:
         return redirect(url_for("agm_list"))
     resolutions = get_agm_resolutions(mid)
+    # Committee members (Chairman/Secretary/Treasurer/Committee) appear first in dropdowns
     committee   = get_committee_members(session["society_id"])
+    # All members available as Suchak/Anumodak (any member can propose a resolution)
+    all_members = get_members(session["society_id"])
+    # Non-committee members for the "other members" optgroup
+    committee_flats = {m["flat_combo"] for m in committee}
+    other_members   = [m for m in all_members if m["flat_combo"] not in committee_flats]
     return render_template("agm_physical.html",
                            meeting=meeting,
                            resolutions=resolutions,
                            committee=committee,
+                           other_members=other_members,
                            society_name=session["society_name"])
 
 
